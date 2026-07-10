@@ -662,4 +662,3 @@ B+ 是有意识的 MVP 取舍，不掩盖其边界：
 - huashu-design：`https://github.com/alchaincyf/huashu-design`
 - 未来科技参考：`https://szai-report-fxtqjsgp.manus.space/`
 - 研究出版参考：`C:\Users\edchw\Documents\HTML SKILLS\ai-server-site\ai-server-materials-report.html`
-
