@@ -107,6 +107,18 @@ test("finalizeVariant rejects remote runtime resources", async (t) => {
   );
 });
 
+test("finalizeVariant rejects local resources that were not inlined", async (t) => {
+  const { projectDir, variant } = await authoredVariant(
+    t,
+    '<!doctype html><html><body><img data-image-id="hero" src="./hero.png"></body></html>'
+  );
+
+  await assert.rejects(
+    finalizeVariant(projectDir, variant.variantId),
+    /resource "\.\/hero\.png" must be inlined/
+  );
+});
+
 test("finalizeVariant rejects duplicate editable identities", async (t) => {
   const { projectDir, variant } = await authoredVariant(
     t,
@@ -129,4 +141,40 @@ test("finalizeVariant rejects a source reference outside uploaded material", asy
     finalizeVariant(projectDir, variant.variantId),
     /unknown source reference "web-result.json"/
   );
+});
+
+test("finalizeVariant rejects a chart without material provenance", async (t) => {
+  const { projectDir, variant } = await authoredVariant(
+    t,
+    '<!doctype html><html><body><div data-chart-id="sales"></div>' +
+      '<script type="application/json" data-chart-data-for="sales">{"values":[42]}</script>' +
+      "</body></html>"
+  );
+
+  await assert.rejects(
+    finalizeVariant(projectDir, variant.variantId),
+    /chart "sales" requires data-source-ref/
+  );
+});
+
+test("finalizeVariant requires a formula for a derived numeric claim", async (t) => {
+  const { projectDir, variant } = await authoredVariant(
+    t,
+    '<!doctype html><html><body><p data-edit-id="growth" data-derived="true" data-source-ref="brief.txt">Growth was 20%.</p></body></html>'
+  );
+
+  await assert.rejects(
+    finalizeVariant(projectDir, variant.variantId),
+    /derived value "growth" requires data-formula/
+  );
+});
+
+test("finalizeVariant accepts a traceable derived numeric claim", async (t) => {
+  const { projectDir, variant } = await authoredVariant(
+    t,
+    '<!doctype html><html><body><p data-edit-id="growth" data-derived="true" data-formula="(current - prior) / prior" data-source-ref="brief.txt">Growth was 20%.</p></body></html>'
+  );
+
+  const version = await finalizeVariant(projectDir, variant.variantId);
+  assert.equal(version.variantId, variant.variantId);
 });

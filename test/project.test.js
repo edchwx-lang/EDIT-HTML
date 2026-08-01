@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { strToU8, zipSync } from "fflate";
 
 import { createProject } from "../src/project.js";
 
@@ -49,4 +50,30 @@ test("createProject writes deterministic plain-text analysis for Agent handoff",
   assert.equal(analysis.documents[0].text, "Market evidence\nRevenue reached 42 million.");
   assert.equal(analysis.documents[0].numericTokenCount, 1);
   assert.equal(analysis.recommendation.mode, "evidence-first");
+});
+
+test("createProject analyzes DOCX through the format extractor", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.docx");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(
+    source,
+    zipSync({
+      "word/document.xml": strToU8(
+        '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>DOCX evidence 42</w:t></w:r></w:p></w:body></w:document>'
+      )
+    })
+  );
+
+  await createProject(source, projectDir);
+  const analysis = JSON.parse(
+    await readFile(path.join(projectDir, "analysis.json"), "utf8")
+  );
+
+  assert.equal(
+    analysis.documents[0].mediaType,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
+  assert.equal(analysis.documents[0].text, "DOCX evidence 42");
 });

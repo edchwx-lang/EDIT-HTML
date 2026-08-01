@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { analyzeTextDocument, recommendMode } from "./analysis.js";
+import { extractDocument } from "./extract.js";
 
 async function writeJsonAtomic(filePath, value) {
   await writeTextAtomic(filePath, JSON.stringify(value, null, 2) + "\n");
@@ -42,7 +43,14 @@ export async function createProject(sourcePath, projectDir) {
   };
 
   await writeJsonAtomic(path.join(projectDir, "project.json"), project);
-  const documents = [analyzeTextDocument(sourceName, contents.toString("utf8"))];
+  const extracted = await extractDocument(sourceName, contents);
+  const documents = [
+    {
+      ...analyzeTextDocument(sourceName, extracted.text),
+      ...extracted,
+      name: sourceName
+    }
+  ];
   await writeJsonAtomic(path.join(projectDir, "analysis.json"), {
     schemaVersion: 1,
     documents,

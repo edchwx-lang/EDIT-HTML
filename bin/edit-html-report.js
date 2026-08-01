@@ -10,7 +10,7 @@ import { finalizeVariant } from "../src/finalize.js";
 import { startEditorServer } from "../src/editor-server.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
-import { publishLocal } from "../src/publish.js";
+import { publishLocal, publishProvider } from "../src/publish.js";
 import { createVariant, listVariants } from "../src/variants.js";
 
 const packageRoot = path.resolve(
@@ -101,6 +101,20 @@ async function main(argv) {
         projectDir,
         requireOption(args, "--version"),
         requireOption(args, "--out")
+      )
+    );
+    return;
+  }
+  if (
+    command === "publish" &&
+    (args[0] === "netlify" || args[0] === "vercel")
+  ) {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(
+      await publishProvider(
+        projectDir,
+        requireOption(args, "--version"),
+        args[0]
       )
     );
     return;

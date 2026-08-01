@@ -5,7 +5,11 @@ import path from "node:path";
 import test from "node:test";
 
 import { createProject } from "../src/project.js";
-import { createVariant, listVariants } from "../src/variants.js";
+import {
+  createVariant,
+  listVariants,
+  updateVariantTheme
+} from "../src/variants.js";
 
 async function newProject(t) {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -56,3 +60,34 @@ test("createVariant rejects a theme that belongs to another mode", async (t) => 
   );
 });
 
+test("updateVariantTheme changes tokens without replacing report structure", async (t) => {
+  const projectDir = await newProject(t);
+  const variant = await createVariant(projectDir, {
+    mode: "evidence-first",
+    theme: "editorial-light"
+  });
+  const artifactPath = path.join(
+    projectDir,
+    "variants",
+    variant.variantId,
+    "artifact.html"
+  );
+  await writeFile(
+    artifactPath,
+    '<!doctype html><html data-theme="editorial-light"><body><p data-edit-id="body">Evidence</p></body></html>',
+    "utf8"
+  );
+
+  const updated = await updateVariantTheme(
+    projectDir,
+    variant.variantId,
+    "editorial-dark"
+  );
+
+  assert.equal(updated.theme, "editorial-dark");
+  assert.equal(
+    await readFile(artifactPath, "utf8"),
+    '<!doctype html><html data-theme="editorial-dark"><body><p data-edit-id="body">Evidence</p></body></html>'
+  );
+  assert.equal((await listVariants(projectDir))[0].theme, "editorial-dark");
+});

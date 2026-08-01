@@ -13,6 +13,7 @@ Place artifact.html in variants/<variant-id>/. The CLI derives the immutable ver
 - Assign a unique data-image-id to every replaceable image.
 - Assign a unique data-chart-id to every editable chart.
 - Assign data-source-ref to every chart and every editable element containing a number.
+- Mark calculated values with data-derived="true" and store the human-readable calculation in data-formula.
 
 Use source file names as the first segment of data-source-ref. Add a page, slide, heading, paragraph, table, or cell locator when available.
 
@@ -29,5 +30,4 @@ Inline CSS, JavaScript, fonts, icons, images, and chart runtime. Do not use remo
 
 ## Charts
 
-Embed chart data as JSON in the artifact. Keep labels, units, source references, and derived formulas with the chart. Prefer tables when the available evidence does not justify a chart.
-
+Embed chart data as JSON in the artifact. Keep labels, units, source references, and derived formulas with the chart. A calculated chart must carry data-derived="true" and data-formula on its data-chart-id element. Prefer tables when the available evidence does not justify a chart.

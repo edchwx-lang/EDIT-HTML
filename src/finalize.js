@@ -31,6 +31,8 @@ export async function finalizeVariant(
     chartIds: collectUniqueAttribute(artifactHtml, "data-chart-id")
   };
   validateNumericProvenance(artifactHtml);
+  validateDerivedFormulas(artifactHtml);
+  validateCharts(artifactHtml);
   validateSourceReferences(
     artifactHtml,
     new Set(project.sourceFiles.map((source) => source.name))
@@ -62,6 +64,36 @@ export async function finalizeVariant(
   project.versions.push(version);
   await writeJsonAtomic(projectPath, project);
   return version;
+}
+
+function validateCharts(html) {
+  const chartTags = html.match(
+    /<[a-z][^>]*\bdata-chart-id\s*=\s*["'][^"']+["'][^>]*>/gi
+  ) ?? [];
+  for (const tag of chartTags) {
+    const chartId = tag.match(
+      /\bdata-chart-id\s*=\s*["']([^"']+)["']/i
+    )[1];
+    if (!/\bdata-source-ref\s*=\s*["'][^"']+["']/i.test(tag)) {
+      throw new Error('chart "' + chartId + '" requires data-source-ref');
+    }
+    const escapedId = chartId.replace(/[\^$.*+?()[\]{}|]/g, "\\$&");
+    const dataPattern = new RegExp(
+      "<script\\b[^>]*\\bdata-chart-data-for\\s*=\\s*[\"']" +
+        escapedId +
+        "[\"'][^>]*>([\\s\\S]*?)<\\/script>",
+      "i"
+    );
+    const data = html.match(dataPattern)?.[1];
+    if (data === undefined) {
+      throw new Error('chart "' + chartId + '" requires embedded JSON data');
+    }
+    try {
+      JSON.parse(data);
+    } catch {
+      throw new Error('chart "' + chartId + '" contains invalid JSON data');
+    }
+  }
 }
 
 function validateSourceReferences(html, sourceNames) {
@@ -97,6 +129,25 @@ function validateOfflineResources(html) {
   ) {
     throw new Error("remote resources are not allowed");
   }
+  const resourceAttributes = /\b(?:src|poster)\s*=\s*["']([^"']+)["']/gi;
+  for (const match of html.matchAll(resourceAttributes)) {
+    if (!match[1].startsWith("data:") && !match[1].startsWith("#")) {
+      throw new Error('resource "' + match[1] + '" must be inlined');
+    }
+  }
+  const stylesheetLinks =
+    /<link\b[^>]*\brel\s*=\s*["']stylesheet["'][^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  for (const match of html.matchAll(stylesheetLinks)) {
+    if (!match[1].startsWith("data:")) {
+      throw new Error('resource "' + match[1] + '" must be inlined');
+    }
+  }
+  const cssUrls = /url\(\s*["']?([^"')]+)["']?\s*\)/gi;
+  for (const match of html.matchAll(cssUrls)) {
+    if (!match[1].startsWith("data:") && !match[1].startsWith("#")) {
+      throw new Error('resource "' + match[1] + '" must be inlined');
+    }
+  }
 }
 
 function validateNumericProvenance(html) {
@@ -110,5 +161,17 @@ function validateNumericProvenance(html) {
         'numeric edit "' + editId + '" requires data-source-ref'
       );
     }
+  }
+}
+
+function validateDerivedFormulas(html) {
+  const derivedTags =
+    html.match(/<[a-z][^>]*\bdata-derived\s*=\s*["']true["'][^>]*>/gi) ?? [];
+  for (const tag of derivedTags) {
+    if (/\bdata-formula\s*=\s*["'][^"']+["']/i.test(tag)) continue;
+    const identity = tag.match(
+      /\b(?:data-edit-id|data-chart-id)\s*=\s*["']([^"']+)["']/i
+    )?.[1] ?? "unknown";
+    throw new Error('derived value "' + identity + '" requires data-formula');
   }
 }

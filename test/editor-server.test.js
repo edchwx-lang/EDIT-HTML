@@ -98,6 +98,14 @@ test("editor root renders a full-viewport toolbar without a sidebar", async (t) 
   assert.match(html, /data-action="save">Save version<\/button>/);
   assert.match(html, /data-action="theme"[^>]*>Theme<\/button>/);
   assert.match(html, /data-action="publish">Publish<\/button>/);
+  assert.match(html, /data-action="image">Replace image<\/button>/);
+  assert.match(html, /data-action="chart">Edit chart data<\/button>/);
+  assert.match(html, /data-action="block-up">Move up<\/button>/);
+  assert.match(html, /data-action="block-down">Move down<\/button>/);
+  assert.match(html, /data-action="block-copy">Duplicate<\/button>/);
+  assert.match(html, /data-action="block-delete">Delete<\/button>/);
+  assert.match(html, /node\.addEventListener\('blur',async\(\)=>/);
+  assert.doesNotMatch(html, /status\('Draft saved'\);\s*},\{once:true\}/);
   assert.doesNotMatch(html, /sidebar/i);
 });
 
@@ -146,5 +154,51 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
     body: JSON.stringify({ message: "Editor save" })
   });
   assert.equal(saved.status, 201);
-  assert.equal((await saved.json()).message, "Editor save");
+  const version = await saved.json();
+  assert.equal(version.message, "Editor save");
+
+  const history = await fetch(editor.url + "/api/versions", { headers });
+  assert.equal(history.status, 200);
+  assert.equal((await history.json())[0].versionId, version.versionId);
+
+  const published = await fetch(
+    editor.url + "/api/publish?version=" + version.versionId,
+    { headers }
+  );
+  assert.equal(published.status, 200);
+  assert.match(
+    published.headers.get("content-disposition"),
+    /attachment; filename="report-/
+  );
+  assert.match(await published.text(), />New<\/h1>/);
+});
+
+test("editor API switches to a compatible theme without changing content", async (t) => {
+  const { projectDir, variant, artifactPath } = await editorFixture(t);
+  await writeFile(
+    artifactPath,
+    '<!doctype html><html data-theme="editorial-light"><body><h1 data-edit-id="title">Old</h1></body></html>',
+    "utf8"
+  );
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId
+  });
+  t.after(() => editor.close());
+
+  const response = await fetch(editor.url + "/api/theme", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + editor.token,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ theme: "editorial-dark" })
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).theme, "editorial-dark");
+  assert.equal(
+    await readFile(artifactPath, "utf8"),
+    '<!doctype html><html data-theme="editorial-dark"><body><h1 data-edit-id="title">Old</h1></body></html>'
+  );
 });
