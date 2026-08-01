@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
 import { access, cp, mkdir, readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { finalizeVariant } from "../src/finalize.js";
+import { startEditorServer } from "../src/editor-server.js";
+import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
+import { publishLocal } from "../src/publish.js";
 import { createVariant, listVariants } from "../src/variants.js";
 
 const packageRoot = path.resolve(
@@ -83,9 +87,61 @@ async function main(argv) {
     if (!Object.values(checks).every(Boolean)) process.exitCode = 1;
     return;
   }
+  if (command === "pack") {
+    const projectDir = requirePositional(args, 0, "project");
+    const archivePath = requireOption(args, "--out");
+    await packProject(projectDir, archivePath);
+    printJson({ archivePath });
+    return;
+  }
+  if (command === "publish" && args[0] === "local") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(
+      await publishLocal(
+        projectDir,
+        requireOption(args, "--version"),
+        requireOption(args, "--out")
+      )
+    );
+    return;
+  }
+  if (command === "open") {
+    const projectDir = requirePositional(args, 0, "project");
+    const editor = await startEditorServer({
+      projectDir,
+      variantId: requireOption(args, "--variant")
+    });
+    const editorUrl = editor.url + "/?token=" + encodeURIComponent(editor.token);
+    process.stdout.write(JSON.stringify({ url: editorUrl, host: editor.host }) + "\n");
+    if (!args.includes("--no-browser")) launchBrowser(editorUrl);
+    process.once("SIGINT", async () => {
+      await editor.close();
+      process.exit(0);
+    });
+    process.once("SIGTERM", async () => {
+      await editor.close();
+      process.exit(0);
+    });
+    return;
+  }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|variant|finalize> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|variant|finalize|open|pack|publish> [arguments]"
   );
+}
+
+function launchBrowser(url) {
+  const command =
+    process.platform === "win32"
+      ? { file: "cmd", args: ["/c", "start", "", url] }
+      : process.platform === "darwin"
+        ? { file: "open", args: [url] }
+        : { file: "xdg-open", args: [url] };
+  const child = spawn(command.file, command.args, {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  child.unref();
 }
 
 async function exists(filePath) {

@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { writeJsonAtomic } from "./project.js";
 
-export async function finalizeVariant(projectDir, variantId, { message = "" } = {}) {
+export async function finalizeVariant(
+  projectDir,
+  variantId,
+  { message = "", restoredFromVersionId = null } = {}
+) {
   const projectPath = path.join(projectDir, "project.json");
   const project = JSON.parse(await readFile(projectPath, "utf8"));
   if (!project.variants.some((variant) => variant.variantId === variantId)) {
@@ -48,6 +52,7 @@ export async function finalizeVariant(projectDir, variantId, { message = "" } = 
     parentVersionId: parentVersion?.versionId ?? null,
     createdAt: new Date().toISOString(),
     message,
+    ...(restoredFromVersionId ? { restoredFromVersionId } : {}),
     artifactSha256: createHash("sha256").update(artifact).digest("hex")
   };
 

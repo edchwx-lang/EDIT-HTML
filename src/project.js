@@ -5,11 +5,15 @@ import path from "node:path";
 import { analyzeTextDocument, recommendMode } from "./analysis.js";
 
 async function writeJsonAtomic(filePath, value) {
+  await writeTextAtomic(filePath, JSON.stringify(value, null, 2) + "\n");
+}
+
+async function writeTextAtomic(filePath, value) {
   const temporaryPath = path.join(
     path.dirname(filePath),
     "." + path.basename(filePath) + "." + randomUUID() + ".tmp"
   );
-  await writeFile(temporaryPath, JSON.stringify(value, null, 2) + "\n", "utf8");
+  await writeFile(temporaryPath, value, "utf8");
   await rename(temporaryPath, filePath);
 }
 
@@ -51,4 +55,4 @@ export async function createProject(sourcePath, projectDir) {
   return project;
 }
 
-export { writeJsonAtomic };
+export { writeJsonAtomic, writeTextAtomic };
