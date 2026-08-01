@@ -26,19 +26,19 @@ test("createVariant preserves each mode as a separate immutable identity", async
 
   const first = await createVariant(projectDir, {
     mode: "evidence-first",
-    theme: "editorial-light"
+    themeId: "warm-paper-terracotta"
   });
   const second = await createVariant(projectDir, {
     mode: "data-first",
-    theme: "tech-dark"
+    themeId: "ink-teal"
   });
 
   assert.notEqual(first.variantId, second.variantId);
   assert.deepEqual(
-    (await listVariants(projectDir)).map(({ mode, theme }) => ({ mode, theme })),
+    (await listVariants(projectDir)).map(({ mode, themeId }) => ({ mode, themeId })),
     [
-      { mode: "evidence-first", theme: "editorial-light" },
-      { mode: "data-first", theme: "tech-dark" }
+      { mode: "evidence-first", themeId: "warm-paper-terracotta" },
+      { mode: "data-first", themeId: "ink-teal" }
     ]
   );
   assert.equal(
@@ -48,23 +48,27 @@ test("createVariant preserves each mode as a separate immutable identity", async
   );
 });
 
-test("createVariant rejects a theme that belongs to another mode", async (t) => {
+test("all approved themes can be selected for either structural mode", async (t) => {
   const projectDir = await newProject(t);
 
-  await assert.rejects(
-    createVariant(projectDir, {
-      mode: "evidence-first",
-      theme: "tech-dark"
-    }),
-    /theme "tech-dark" is not valid for mode "evidence-first"/
-  );
+  const evidence = await createVariant(projectDir, {
+    mode: "evidence-first",
+    themeId: "signal-orange"
+  });
+  const data = await createVariant(projectDir, {
+    mode: "data-first",
+    themeId: "warm-paper-terracotta"
+  });
+
+  assert.equal(evidence.themeId, "signal-orange");
+  assert.equal(data.themeId, "warm-paper-terracotta");
 });
 
-test("updateVariantTheme changes tokens without replacing report structure", async (t) => {
+test("updateVariantTheme changes state without touching draft report structure", async (t) => {
   const projectDir = await newProject(t);
   const variant = await createVariant(projectDir, {
     mode: "evidence-first",
-    theme: "editorial-light"
+    themeId: "warm-paper-terracotta"
   });
   const artifactPath = path.join(
     projectDir,
@@ -74,20 +78,29 @@ test("updateVariantTheme changes tokens without replacing report structure", asy
   );
   await writeFile(
     artifactPath,
-    '<!doctype html><html data-theme="editorial-light"><body><p data-edit-id="body">Evidence</p></body></html>',
+    '<!doctype html><html><body><p data-edit-id="body">Evidence</p></body></html>',
     "utf8"
   );
+  const before = await readFile(artifactPath, "utf8");
 
   const updated = await updateVariantTheme(
     projectDir,
     variant.variantId,
-    "editorial-dark"
+    "signal-orange"
   );
 
-  assert.equal(updated.theme, "editorial-dark");
-  assert.equal(
-    await readFile(artifactPath, "utf8"),
-    '<!doctype html><html data-theme="editorial-dark"><body><p data-edit-id="body">Evidence</p></body></html>'
-  );
-  assert.equal((await listVariants(projectDir))[0].theme, "editorial-dark");
+  assert.equal(updated.themeId, "signal-orange");
+  assert.equal(await readFile(artifactPath, "utf8"), before);
+  assert.equal((await listVariants(projectDir))[0].themeId, "signal-orange");
+});
+
+test("legacy variant theme ids normalize when records are read", async (t) => {
+  const projectDir = await newProject(t);
+  const variant = await createVariant(projectDir, {
+    mode: "data-first",
+    theme: "tech-dark"
+  });
+
+  assert.equal(variant.themeId, "ink-teal");
+  assert.equal(variant.theme, undefined);
 });

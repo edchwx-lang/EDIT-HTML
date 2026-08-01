@@ -173,13 +173,14 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
   assert.match(await published.text(), />New<\/h1>/);
 });
 
-test("editor API switches to a compatible theme without changing content", async (t) => {
+test("editor API normalizes legacy theme ids without changing draft HTML", async (t) => {
   const { projectDir, variant, artifactPath } = await editorFixture(t);
   await writeFile(
     artifactPath,
-    '<!doctype html><html data-theme="editorial-light"><body><h1 data-edit-id="title">Old</h1></body></html>',
+    '<!doctype html><html><body><h1 data-edit-id="title">Old</h1></body></html>',
     "utf8"
   );
+  const before = await readFile(artifactPath, "utf8");
   const editor = await startEditorServer({
     projectDir,
     variantId: variant.variantId
@@ -196,9 +197,6 @@ test("editor API switches to a compatible theme without changing content", async
   });
 
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).theme, "editorial-dark");
-  assert.equal(
-    await readFile(artifactPath, "utf8"),
-    '<!doctype html><html data-theme="editorial-dark"><body><h1 data-edit-id="title">Old</h1></body></html>'
-  );
+  assert.equal((await response.json()).themeId, "ink-teal");
+  assert.equal(await readFile(artifactPath, "utf8"), before);
 });

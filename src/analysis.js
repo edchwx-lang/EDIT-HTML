@@ -16,12 +16,15 @@ export function recommendMode(documents) {
     (total, document) => total + document.numericTokenCount,
     0
   );
+  const quantitativeThreshold = 8;
+  const mode =
+    numericTokenCount >= quantitativeThreshold ? "data-first" : "evidence-first";
   return {
-    mode: numericTokenCount >= 8 ? "data-first" : "evidence-first",
-    reason:
-      numericTokenCount >= 8
-        ? "The source contains enough quantitative evidence for a data-led structure."
-        : "The source is better suited to a narrative evidence structure."
+    mode,
+    numericTokenCount,
+    quantitativeThreshold,
+    reasonCode:
+      mode === "data-first" ? "quantitative-evidence" : "narrative-evidence"
   };
 }
 
