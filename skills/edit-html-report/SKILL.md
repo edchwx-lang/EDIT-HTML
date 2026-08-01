@@ -1,85 +1,63 @@
 ---
 name: edit-html-report
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: Create, inspect, author, edit, version, package, and publish evidence-based HTML reports from user-provided TXT, Markdown, HTML, DOCX, PDF, or PPTX material. Use when a coding Agent needs to turn source documents into a traceable evidence-first or data-first report, modify an existing Edit HTML Report project, produce an offline single HTML, or publish a saved report through Netlify or Vercel.
 ---
 
-# Edit Html Report
+# Edit HTML Report
 
-## Overview
+Build reports through the model-neutral edit-html-report CLI. Use the active Agent for analysis and design judgment; use the CLI for deterministic project state, validation, versioning, editing, packaging, and publication.
 
-[TODO: 1-2 sentences explaining what this skill enables]
+## Enforce the fact boundary
 
-## Structuring This Skill
+- Use only facts present in the user's source material.
+- Use web pages only as visual references when the user permits browsing.
+- Never insert an external statistic, claim, quotation, or inferred number.
+- Omit unsupported content. Do not fill gaps with plausible text.
+- Preserve a source reference for every chart, number, and quantitative conclusion.
 
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
+## Run the workflow
 
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" -> "Reading" -> "Creating" -> "Editing"
-- Structure: ## Overview -> ## Workflow Decision Tree -> ## Step 1 -> ## Step 2...
+1. Run edit-html-report doctor.
+2. Create a project:
 
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" -> "Merge PDFs" -> "Split PDFs" -> "Extract Text"
-- Structure: ## Overview -> ## Quick Start -> ## Task Category 1 -> ## Task Category 2...
+       edit-html-report create <source> --out <project>
 
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" -> "Colors" -> "Typography" -> "Features"
-- Structure: ## Overview -> ## Guidelines -> ## Specifications -> ## Usage...
+3. Read project.json and analysis.json. Read references/agent-handoff.md before proposing the report plan.
+4. Recommend evidence-first or data-first and ask the user to confirm the mode when they have not already chosen one.
+5. Create a variant:
 
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" -> numbered capability list
-- Structure: ## Overview -> ## Core Capabilities -> ### 1. Feature -> ### 2. Feature...
+       edit-html-report variant create <project> --mode <mode> --theme <theme>
 
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
+6. Read references/huashu-report-profile.md and references/artifact-contract.md completely.
+7. Author artifact.html inside the new variant directory. Do not reuse another variant's DOM or overwrite another variant.
+8. Finalize and correct every reported violation:
 
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
+       edit-html-report finalize <project> --variant <variant-id>
 
-## [TODO: Replace with the first main section based on chosen structure]
+9. Open the local editor when the user wants manual changes:
 
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
+       edit-html-report open <project> --variant <variant-id>
 
-## Resources (optional)
+10. Save a version before packaging or publishing. Publish only the exact version the user selected.
 
-Create only the resource directories this skill actually needs. Delete this section if no resources are required.
+## Choose the mode and theme
 
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
+- Use evidence-first for narrative reports, policy studies, qualitative findings, and sparse quantitative evidence. Default to editorial-light; offer editorial-dark.
+- Use data-first for dense metrics, comparisons, tables, dashboards, and repeated quantitative evidence. Default to tech-dark; offer consulting-light.
+- Change only theme tokens and chart palettes when switching a theme. Do not change the outline, DOM hierarchy, or claims.
 
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
+## Preserve editability
 
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
+- Edit text in place through data-edit-id.
+- Mark movable sections with data-block-id.
+- Mark replaceable images with data-image-id.
+- Mark charts with data-chart-id and embed their data.
+- Attach data-source-ref to every quantitative edit and chart.
+- Do not implement free-canvas positioning, arbitrary CSS controls, or absolute-positioned report layouts.
 
-**Note:** Scripts may be executed without loading into context, but can still be read by Codex for patching or environment adjustments.
+## Complete the task
 
-### references/
-Documentation and reference material intended to be loaded into context to inform Codex's process and thinking.
-
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
-
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Codex should reference while working.
-
-### assets/
-Files not intended to be loaded into context, but rather used within the output Codex produces.
-
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
-
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
-
----
-
-**Not every skill requires all three types of resources.**
+- Report the project path, variant ID, saved version ID, selected mode, and selected theme.
+- State which validation commands ran and whether they passed.
+- State any unsupported source format or unverified publication step explicitly.
+- Never claim publication succeeded without the provider command and returned URL.
