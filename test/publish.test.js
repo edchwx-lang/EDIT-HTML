@@ -41,9 +41,8 @@ test("publishLocal exports the selected saved version, never the current draft",
 
   await publishLocal(projectDir, version.versionId, output);
 
-  assert.equal(
-    await readFile(output, "utf8"),
-    '<!doctype html><p data-edit-id="body">Saved</p>'
-  );
+  const published = await readFile(output, "utf8");
+  assert.match(published, /data-theme="warm-paper-terracotta"/);
+  assert.match(published, /<p data-edit-id="body">Saved<\/p>/);
+  assert.doesNotMatch(published, /Unsaved draft/);
 });
-

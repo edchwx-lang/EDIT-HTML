@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { writeJsonAtomic } from "./project.js";
+import { writeJsonAtomic, writeTextAtomic } from "./project.js";
+import { compileThemeIntoArtifact } from "./theme-artifact.js";
+import { normalizeVariantRecord } from "./variants.js";
 
 export async function finalizeVariant(
   projectDir,
@@ -11,9 +13,13 @@ export async function finalizeVariant(
 ) {
   const projectPath = path.join(projectDir, "project.json");
   const project = JSON.parse(await readFile(projectPath, "utf8"));
-  if (!project.variants.some((variant) => variant.variantId === variantId)) {
+  const storedVariant = project.variants.find(
+    (variant) => variant.variantId === variantId
+  );
+  if (!storedVariant) {
     throw new Error('unknown variant "' + variantId + '"');
   }
+  const variant = normalizeVariantRecord(storedVariant);
 
   const artifactPath = path.join(
     projectDir,
@@ -21,8 +27,7 @@ export async function finalizeVariant(
     variantId,
     "artifact.html"
   );
-  const artifact = await readFile(artifactPath);
-  const artifactHtml = artifact.toString("utf8");
+  const artifactHtml = await readFile(artifactPath, "utf8");
   const manifest = {
     schemaVersion: 1,
     editIds: collectUniqueAttribute(artifactHtml, "data-edit-id"),
@@ -38,6 +43,10 @@ export async function finalizeVariant(
     new Set(project.sourceFiles.map((source) => source.name))
   );
   validateOfflineResources(artifactHtml);
+  const compiledArtifact = compileThemeIntoArtifact(
+    artifactHtml,
+    variant.themeId
+  );
   await writeJsonAtomic(
     path.join(projectDir, "variants", variantId, "edit-manifest.json"),
     manifest
@@ -54,12 +63,19 @@ export async function finalizeVariant(
     parentVersionId: parentVersion?.versionId ?? null,
     createdAt: new Date().toISOString(),
     message,
+    themeId: variant.themeId,
+    themeSchemaVersion: variant.themeSchemaVersion,
     ...(restoredFromVersionId ? { restoredFromVersionId } : {}),
-    artifactSha256: createHash("sha256").update(artifact).digest("hex")
+    artifactSha256: createHash("sha256")
+      .update(compiledArtifact, "utf8")
+      .digest("hex")
   };
 
   await mkdir(versionDir, { recursive: false });
-  await copyFile(artifactPath, path.join(versionDir, "artifact.html"));
+  await writeTextAtomic(
+    path.join(versionDir, "artifact.html"),
+    compiledArtifact
+  );
   await writeJsonAtomic(path.join(versionDir, "version.json"), version);
   project.versions.push(version);
   await writeJsonAtomic(projectPath, project);

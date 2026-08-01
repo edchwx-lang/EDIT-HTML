@@ -42,16 +42,15 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
 
   assert.equal(version.variantId, variant.variantId);
   assert.equal(version.message, "First review");
-  assert.equal(
-    await readFile(
-      path.join(projectDir, "versions", version.versionId, "artifact.html"),
-      "utf8"
-    ),
-    '<!doctype html><html><body><main data-block-id="summary">' +
-      '<h1 data-edit-id="title">Market brief</h1>' +
-      '<p data-edit-id="revenue" data-source-ref="brief.txt">Revenue reached 42 million.</p>' +
-      "</main></body></html>"
+  assert.equal(version.themeId, "warm-paper-terracotta");
+  assert.equal(version.themeSchemaVersion, 1);
+  const savedArtifact = await readFile(
+    path.join(projectDir, "versions", version.versionId, "artifact.html"),
+    "utf8"
   );
+  assert.match(savedArtifact, /data-theme="warm-paper-terracotta"/);
+  assert.match(savedArtifact, /--report-accent:#CC785C/);
+  assert.match(savedArtifact, /<body><main data-block-id="summary">/);
   assert.deepEqual(
     JSON.parse(
       await readFile(

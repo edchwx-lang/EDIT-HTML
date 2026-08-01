@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { finalizeVariant } from "./finalize.js";
 import { writeTextAtomic } from "./project.js";
+import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 
 export async function restoreVersion(projectDir, versionId) {
   const project = JSON.parse(
@@ -21,6 +22,16 @@ export async function restoreVersion(projectDir, versionId) {
     projectDir,
     "variants",
     sourceVersion.variantId
+  );
+  const currentVariant = normalizeVariantRecord(
+    project.variants.find(
+      (variant) => variant.variantId === sourceVersion.variantId
+    )
+  );
+  await updateVariantTheme(
+    projectDir,
+    sourceVersion.variantId,
+    sourceVersion.themeId ?? currentVariant.themeId
   );
   await writeTextAtomic(path.join(variantDir, "artifact.html"), sourceArtifact);
   await Promise.all(

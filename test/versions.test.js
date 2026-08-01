@@ -7,7 +7,7 @@ import test from "node:test";
 import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
 import { restoreVersion } from "../src/versions.js";
-import { createVariant } from "../src/variants.js";
+import { createVariant, updateVariantTheme } from "../src/variants.js";
 
 test("restoring an old version creates a new descendant and preserves history", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -28,13 +28,14 @@ test("restoring an old version creates a new descendant and preserves history", 
   );
   await writeFile(
     artifactPath,
-    '<!doctype html><h1 data-edit-id="title">First</h1>',
+    '<!doctype html><html><body><h1 data-edit-id="title">First</h1></body></html>',
     "utf8"
   );
   const first = await finalizeVariant(projectDir, variant.variantId);
+  await updateVariantTheme(projectDir, variant.variantId, "signal-orange");
   await writeFile(
     artifactPath,
-    '<!doctype html><h1 data-edit-id="title">Second</h1>',
+    '<!doctype html><html><body><h1 data-edit-id="title">Second</h1></body></html>',
     "utf8"
   );
   const second = await finalizeVariant(projectDir, variant.variantId);
@@ -43,16 +44,17 @@ test("restoring an old version creates a new descendant and preserves history", 
 
   assert.equal(restored.parentVersionId, second.versionId);
   assert.equal(restored.restoredFromVersionId, first.versionId);
-  assert.equal(
+  assert.equal(restored.themeId, "warm-paper-terracotta");
+  assert.match(
     await readFile(
       path.join(projectDir, "versions", restored.versionId, "artifact.html"),
       "utf8"
     ),
-    '<!doctype html><h1 data-edit-id="title">First</h1>'
+    /<h1 data-edit-id="title">First<\/h1>/
   );
   const project = JSON.parse(
     await readFile(path.join(projectDir, "project.json"), "utf8")
   );
   assert.equal(project.versions.length, 3);
+  assert.equal(project.variants[0].themeId, "warm-paper-terracotta");
 });
-
