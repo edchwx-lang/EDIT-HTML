@@ -93,17 +93,20 @@ test("editor root renders a full-viewport toolbar without a sidebar", async (t) 
   const html = await response.text();
 
   assert.equal(response.status, 200);
-  assert.match(html, /data-action="undo">Undo<\/button>/);
-  assert.match(html, /data-action="redo">Redo<\/button>/);
-  assert.match(html, /data-action="save">Save version<\/button>/);
-  assert.match(html, /data-action="theme"[^>]*>Theme<\/button>/);
-  assert.match(html, /data-action="publish">Publish<\/button>/);
-  assert.match(html, /data-action="image">Replace image<\/button>/);
-  assert.match(html, /data-action="chart">Edit chart data<\/button>/);
-  assert.match(html, /data-action="block-up">Move up<\/button>/);
-  assert.match(html, /data-action="block-down">Move down<\/button>/);
-  assert.match(html, /data-action="block-copy">Duplicate<\/button>/);
-  assert.match(html, /data-action="block-delete">Delete<\/button>/);
+  assert.match(html, /data-action="undo">撤销<\/button>/);
+  assert.match(html, /data-action="redo">重做<\/button>/);
+  assert.match(html, /data-action="save">保存版本<\/button>/);
+  assert.match(html, /data-theme-id="warm-paper-terracotta"/);
+  assert.match(html, /data-theme-id="signal-orange"/);
+  assert.match(html, /浅色配色/);
+  assert.match(html, /深色配色/);
+  assert.match(html, /data-action="publish"[^>]*disabled[^>]*>发布<\/button>/);
+  assert.match(html, /data-action="image">替换图片<\/button>/);
+  assert.match(html, /data-action="chart">编辑图表数据<\/button>/);
+  assert.match(html, /data-action="block-up">上移<\/button>/);
+  assert.match(html, /data-action="block-down">下移<\/button>/);
+  assert.match(html, /data-action="block-copy">复制<\/button>/);
+  assert.match(html, /data-action="block-delete">删除<\/button>/);
   assert.match(html, /node\.addEventListener\('blur',async\(\)=>/);
   assert.doesNotMatch(html, /status\('Draft saved'\);\s*},\{once:true\}/);
   assert.doesNotMatch(html, /sidebar/i);
@@ -173,11 +176,11 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
   assert.match(await published.text(), />New<\/h1>/);
 });
 
-test("editor API normalizes legacy theme ids without changing draft HTML", async (t) => {
+test("editor API lists six themes and compiles preview without changing draft HTML", async (t) => {
   const { projectDir, variant, artifactPath } = await editorFixture(t);
   await writeFile(
     artifactPath,
-    '<!doctype html><html><body><h1 data-edit-id="title">Old</h1></body></html>',
+    '<!doctype html><html><body data-report-mode="evidence-first"><h1 data-edit-id="title">Old</h1></body></html>',
     "utf8"
   );
   const before = await readFile(artifactPath, "utf8");
@@ -187,16 +190,31 @@ test("editor API normalizes legacy theme ids without changing draft HTML", async
   });
   t.after(() => editor.close());
 
+  const headers = {
+    authorization: "Bearer " + editor.token,
+    "content-type": "application/json"
+  };
+  const themesResponse = await fetch(editor.url + "/api/themes", { headers });
+  assert.equal(themesResponse.status, 200);
+  const themes = await themesResponse.json();
+  assert.equal(themes.length, 6);
+  assert.deepEqual(
+    themes.map((theme) => theme.label),
+    ["暖纸赤陶", "研究钴蓝", "瑞士黑白", "墨海荧青", "线性靛蓝", "黑场信号橙"]
+  );
+
   const response = await fetch(editor.url + "/api/theme", {
     method: "POST",
-    headers: {
-      authorization: "Bearer " + editor.token,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ theme: "editorial-dark" })
+    headers,
+    body: JSON.stringify({ themeId: "signal-orange" })
   });
 
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).themeId, "ink-teal");
+  assert.equal((await response.json()).themeId, "signal-orange");
   assert.equal(await readFile(artifactPath, "utf8"), before);
+  const preview = await (
+    await fetch(editor.url + "/api/artifact", { headers })
+  ).text();
+  assert.match(preview, /data-theme="signal-orange"/);
+  assert.match(preview, /--report-accent:#FF6900/);
 });
