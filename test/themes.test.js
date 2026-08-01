@@ -25,6 +25,10 @@ test("theme registry exposes the six approved palettes in stable order", () => {
     themes.map((theme) => theme.appearance),
     ["light", "light", "light", "dark", "dark", "dark"]
   );
+  assert.deepEqual(
+    themes.map((theme) => theme.label),
+    ["暖纸赤陶", "研究钴蓝", "瑞士黑白", "墨海荧青", "线性靛蓝", "黑场信号橙"]
+  );
   assert.equal(getTheme("ink-teal").labels["zh-CN"], "墨海荧青");
 });
 

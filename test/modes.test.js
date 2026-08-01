@@ -10,6 +10,8 @@ test("mode profiles describe both choices in the requested locale", () => {
     choices.map((choice) => choice.mode),
     ["data-first", "evidence-first"]
   );
+  assert.equal(choices[0].label, "数据优先");
+  assert.equal(choices[1].label, "证据优先");
   assert.match(choices[0].description, /高密度/);
   assert.match(choices[1].description, /文字说明/);
   assert.match(choices[1].description, /原文图表/);

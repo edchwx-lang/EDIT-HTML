@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { finalizeVariant } from "../src/finalize.js";
 import { startEditorServer } from "../src/editor-server.js";
+import { listModeProfiles } from "../src/modes/index.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
 import { publishLocal, publishProvider } from "../src/publish.js";
@@ -33,12 +34,18 @@ async function main(argv) {
     );
     return;
   }
+  if (command === "mode" && args[0] === "list") {
+    printJson(
+      listModeProfiles({ locale: optionalOption(args, "--locale") ?? "en" })
+    );
+    return;
+  }
   if (command === "variant" && args[0] === "create") {
     const projectDir = requirePositional(args, 1, "project");
     printJson(
       await createVariant(projectDir, {
         mode: requireOption(args, "--mode"),
-        theme: requireOption(args, "--theme")
+        themeId: optionalOption(args, "--theme") ?? undefined
       })
     );
     return;
@@ -139,7 +146,7 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|variant|finalize|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|finalize|open|pack|publish> [arguments]"
   );
 }
 

@@ -187,6 +187,19 @@ const THEMES = [
   }
 ];
 
+const LOCALIZED_THEME_LABELS = {
+  "warm-paper-terracotta": { "zh-CN": "暖纸赤陶", en: "Warm Paper Terracotta" },
+  "research-cobalt": { "zh-CN": "研究钴蓝", en: "Research Cobalt" },
+  "swiss-monochrome": { "zh-CN": "瑞士黑白", en: "Swiss Monochrome" },
+  "ink-teal": { "zh-CN": "墨海荧青", en: "Ink Teal" },
+  "linear-indigo": { "zh-CN": "线性靛蓝", en: "Linear Indigo" },
+  "signal-orange": { "zh-CN": "黑场信号橙", en: "Signal Orange" }
+};
+
+for (const theme of THEMES) {
+  theme.labels = LOCALIZED_THEME_LABELS[theme.themeId];
+}
+
 const THEME_MAP = new Map();
 for (const theme of THEMES) {
   validateTheme(theme);

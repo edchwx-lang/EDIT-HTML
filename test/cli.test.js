@@ -38,6 +38,42 @@ test("CLI create emits JSON and creates an inspectable project", async (t) => {
   );
 });
 
+test("CLI lists localized mode choices and applies each mode default theme", async (t) => {
+  const listed = spawnSync(
+    process.execPath,
+    [cli, "mode", "list", "--locale", "zh-CN"],
+    { cwd: root, encoding: "utf8" }
+  );
+  assert.equal(listed.status, 0, listed.stderr);
+  const modes = JSON.parse(listed.stdout);
+  assert.deepEqual(
+    modes.map(({ mode, label }) => ({ mode, label })),
+    [
+      { mode: "data-first", label: "数据优先" },
+      { mode: "evidence-first", label: "证据优先" }
+    ]
+  );
+  assert.match(modes[0].description, /高密度/);
+  assert.match(modes[1].description, /原文图表/);
+
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-cli-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.txt");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(source, "Evidence.", "utf8");
+  spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], {
+    cwd: root,
+    encoding: "utf8"
+  });
+  const created = spawnSync(
+    process.execPath,
+    [cli, "variant", "create", projectDir, "--mode", "data-first"],
+    { cwd: root, encoding: "utf8" }
+  );
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(JSON.parse(created.stdout).themeId, "ink-teal");
+});
+
 test("CLI exposes variant create, variant list, and finalize as one workflow", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-cli-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
