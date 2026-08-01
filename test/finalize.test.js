@@ -19,9 +19,12 @@ async function authoredVariant(t, html) {
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  const authoredHtml = /\bdata-report-mode\s*=/.test(html)
+    ? html
+    : html.replace(/<body\b/i, '<body data-report-mode="evidence-first"');
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
-    html,
+    authoredHtml,
     "utf8"
   );
   return { projectDir, variant };
@@ -50,7 +53,10 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
   );
   assert.match(savedArtifact, /data-theme="warm-paper-terracotta"/);
   assert.match(savedArtifact, /--report-accent:#CC785C/);
-  assert.match(savedArtifact, /<body><main data-block-id="summary">/);
+  assert.match(
+    savedArtifact,
+    /<body data-report-mode="evidence-first"><main data-block-id="summary">/
+  );
   assert.deepEqual(
     JSON.parse(
       await readFile(
@@ -176,4 +182,16 @@ test("finalizeVariant accepts a traceable derived numeric claim", async (t) => {
 
   const version = await finalizeVariant(projectDir, variant.variantId);
   assert.equal(version.variantId, variant.variantId);
+});
+
+test("finalizeVariant enforces that artifact mode matches the variant", async (t) => {
+  const { projectDir, variant } = await authoredVariant(
+    t,
+    '<!doctype html><html><body data-report-mode="data-first"><p>Wrong structure</p></body></html>'
+  );
+
+  await assert.rejects(
+    finalizeVariant(projectDir, variant.variantId),
+    /artifact must declare data-report-mode="evidence-first"/
+  );
 });

@@ -78,7 +78,7 @@ test("CLI exposes variant create, variant list, and finalize as one workflow", a
 
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
-    '<!doctype html><p data-edit-id="revenue" data-source-ref="brief.txt">42 million</p>',
+    '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="revenue" data-source-ref="brief.txt">42 million</p></body>',
     "utf8"
   );
   const finalized = spawnSync(

@@ -27,7 +27,7 @@ async function editorFixture(t) {
   );
   await writeFile(
     artifactPath,
-    '<!doctype html><h1 data-edit-id="title">Old</h1>',
+    '<!doctype html><body data-report-mode="evidence-first"><h1 data-edit-id="title">Old</h1></body>',
     "utf8"
   );
   return { projectDir, variant, artifactPath };
@@ -77,7 +77,7 @@ test("editor server applies an authenticated text patch", async (t) => {
   assert.equal(response.status, 200);
   assert.equal(
     await readFile(artifactPath, "utf8"),
-    '<!doctype html><h1 data-edit-id="title">New</h1>'
+    '<!doctype html><body data-report-mode="evidence-first"><h1 data-edit-id="title">New</h1></body>'
   );
 });
 

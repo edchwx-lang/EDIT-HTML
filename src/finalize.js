@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { validateModeArtifact } from "./artifact-contract.js";
 import { writeJsonAtomic, writeTextAtomic } from "./project.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
@@ -28,6 +29,9 @@ export async function finalizeVariant(
     "artifact.html"
   );
   const artifactHtml = await readFile(artifactPath, "utf8");
+  const analysis = JSON.parse(
+    await readFile(path.join(projectDir, "analysis.json"), "utf8")
+  );
   const manifest = {
     schemaVersion: 1,
     editIds: collectUniqueAttribute(artifactHtml, "data-edit-id"),
@@ -43,6 +47,7 @@ export async function finalizeVariant(
     new Set(project.sourceFiles.map((source) => source.name))
   );
   validateOfflineResources(artifactHtml);
+  validateModeArtifact({ html: artifactHtml, mode: variant.mode, analysis });
   const compiledArtifact = compileThemeIntoArtifact(
     artifactHtml,
     variant.themeId

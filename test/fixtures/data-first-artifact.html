@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <body data-report-mode="data-first">
+    <main>
+      <section data-kpi-id="revenue">Revenue</section>
+      <section data-kpi-id="growth">Growth</section>
+      <section data-kpi-id="margin">Margin</section>
+      <section data-kpi-id="capacity">Capacity</section>
+      <figure data-chart-id="sales" data-source-ref="brief.txt">
+        <svg><rect data-chart-mark fill="var(--report-chart-1)"></rect></svg>
+      </figure>
+      <script type="application/json" data-chart-data-for="sales">{"values":[42]}</script>
+      <figure data-chart-id="mix" data-source-ref="brief.txt">
+        <svg><path data-chart-mark stroke="var(--report-chart-2)"></path></svg>
+      </figure>
+      <script type="application/json" data-chart-data-for="mix">{"values":[58]}</script>
+    </main>
+  </body>
+</html>

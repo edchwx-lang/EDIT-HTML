@@ -28,14 +28,14 @@ test("restoring an old version creates a new descendant and preserves history", 
   );
   await writeFile(
     artifactPath,
-    '<!doctype html><html><body><h1 data-edit-id="title">First</h1></body></html>',
+    '<!doctype html><html><body data-report-mode="evidence-first"><h1 data-edit-id="title">First</h1></body></html>',
     "utf8"
   );
   const first = await finalizeVariant(projectDir, variant.variantId);
   await updateVariantTheme(projectDir, variant.variantId, "signal-orange");
   await writeFile(
     artifactPath,
-    '<!doctype html><html><body><h1 data-edit-id="title">Second</h1></body></html>',
+    '<!doctype html><html><body data-report-mode="evidence-first"><h1 data-edit-id="title">Second</h1></body></html>',
     "utf8"
   );
   const second = await finalizeVariant(projectDir, variant.variantId);

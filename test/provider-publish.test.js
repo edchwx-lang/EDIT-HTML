@@ -22,7 +22,7 @@ async function savedProject(t) {
   });
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
-    '<!doctype html><p data-edit-id="body">Saved</p>',
+    '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="body">Saved</p></body>',
     "utf8"
   );
   const version = await finalizeVariant(projectDir, variant.variantId);

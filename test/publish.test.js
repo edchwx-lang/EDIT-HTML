@@ -29,13 +29,13 @@ test("publishLocal exports the selected saved version, never the current draft",
   );
   await writeFile(
     artifactPath,
-    '<!doctype html><p data-edit-id="body">Saved</p>',
+    '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="body">Saved</p></body>',
     "utf8"
   );
   const version = await finalizeVariant(projectDir, variant.variantId);
   await writeFile(
     artifactPath,
-    '<!doctype html><p data-edit-id="body">Unsaved draft</p>',
+    '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="body">Unsaved draft</p></body>',
     "utf8"
   );
 
