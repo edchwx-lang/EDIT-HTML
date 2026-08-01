@@ -1,63 +1,59 @@
 ---
 name: edit-html-report
-description: Create, inspect, author, edit, version, package, and publish evidence-based HTML reports from user-provided TXT, Markdown, HTML, DOCX, PDF, or PPTX material. Use when a coding Agent needs to turn source documents into a traceable evidence-first or data-first report, modify an existing Edit HTML Report project, produce an offline single HTML, or publish a saved report through Netlify or Vercel.
+description: Use when turning TXT, Markdown, HTML, DOCX, PDF, or PPTX source material into an editable, traceable HTML report; revising an Edit HTML Report project; choosing data-first versus evidence-first; changing report colors; saving versions; or publishing through local output, Netlify, or Vercel.
 ---
 
 # Edit HTML Report
 
-Build reports through the model-neutral edit-html-report CLI. Use the active Agent for analysis and design judgment; use the CLI for deterministic project state, validation, versioning, editing, packaging, and publication.
+Use the active Agent for evidence analysis and report authorship. Use `edit-html-report` for deterministic extraction, project state, validation, local editing, immutable versions, and publication.
 
-## Enforce the fact boundary
+## Keep the fact boundary
 
-- Use only facts present in the user's source material.
-- Use web pages only as visual references when the user permits browsing.
-- Never insert an external statistic, claim, quotation, or inferred number.
-- Omit unsupported content. Do not fill gaps with plausible text.
+- Use only facts in the user's source material. Never invent or supplement claims, quotations, or numbers.
 - Preserve a source reference for every chart, number, and quantitative conclusion.
+- Treat web pages as visual references only when browsing is permitted.
+- Omit unsupported content and disclose unresolved extraction or source limitations.
 
-## Run the workflow
+## Run the complete workflow
 
-1. Run edit-html-report doctor.
-2. Create a project:
+1. Run `edit-html-report doctor`, then create the project:
 
        edit-html-report create <source> --out <project>
 
-3. Read project.json and analysis.json. Read references/agent-handoff.md before proposing the report plan.
-4. Recommend evidence-first or data-first and ask the user to confirm the mode when they have not already chosen one.
-5. Create a variant:
+2. Read `project.json`, `analysis.json`, and [references/agent-handoff.md](references/agent-handoff.md). Prepare `report-plan.json` from the extracted evidence.
 
-       edit-html-report variant create <project> --mode <mode> --theme <theme>
+3. Present both structural modes in the user's system language, recommend one with evidence from `analysis.json`, and obtain explicit confirmation unless the user already chose a mode:
+   - 数据优先：高密度 KPI、图表、表格和结构化比较；适合量化证据充足的材料。
+   - 证据优先：文字说明和论证重于新增图表，可保留原文图表、引文与脚注。
 
-6. Read references/huashu-report-profile.md and references/artifact-contract.md completely.
-7. Author artifact.html inside the new variant directory. Do not reuse another variant's DOM or overwrite another variant.
-8. Finalize and correct every reported violation:
+   Do not present light/dark or any color palette as a mode. Read [references/modes-and-themes.md](references/modes-and-themes.md) for the exact rules.
+
+4. Record the confirmed mode before creating one independent variant. Do not ask for a theme yet:
+
+       edit-html-report variant create <project> --mode <data-first|evidence-first>
+
+5. Read [references/huashu-report-profile.md](references/huashu-report-profile.md) and [references/artifact-contract.md](references/artifact-contract.md) completely. Author `artifact.html` in the new variant directory. Never reuse or overwrite another variant's DOM.
+
+6. Finalize and repair every validation failure. This creates a validation snapshot, not permission to skip editing:
 
        edit-html-report finalize <project> --variant <variant-id>
 
-9. Open the local editor when the user wants manual changes:
+7. Always open the tokenized loopback editor in the user's local browser before publication:
 
        edit-html-report open <project> --variant <variant-id>
 
-10. Save a version before packaging or publishing. Publish only the exact version the user selected.
+   Do not treat this as optional. Let the user edit content and select any of the six palettes. A theme change changes color state only; it must not change the mode, outline, DOM hierarchy, layout geometry, chart type, content, data, or citations.
 
-## Choose the mode and theme
+8. After the user finishes editing, save a new immutable version in the editor. Publish only that exact post-editor saved version. Never publish the mutable draft or silently substitute an earlier snapshot.
 
-- Use evidence-first for narrative reports, policy studies, qualitative findings, and sparse quantitative evidence. Default to editorial-light; offer editorial-dark.
-- Use data-first for dense metrics, comparisons, tables, dashboards, and repeated quantitative evidence. Default to tech-dark; offer consulting-light.
-- Change only theme tokens and chart palettes when switching a theme. Do not change the outline, DOM hierarchy, or claims.
+9. Publish to the user's selected target: local HTML, Netlify, or Vercel. If the target is already known, act without asking again. Never claim provider publication succeeded without the returned URL.
 
 ## Preserve editability
 
-- Edit text in place through data-edit-id.
-- Mark movable sections with data-block-id.
-- Mark replaceable images with data-image-id.
-- Mark charts with data-chart-id and embed their data.
-- Attach data-source-ref to every quantitative edit and chart.
-- Do not implement free-canvas positioning, arbitrary CSS controls, or absolute-positioned report layouts.
+- Use `data-edit-id` for editable text, `data-block-id` for movable sections, `data-image-id` for replaceable images, and `data-chart-id` for charts.
+- Embed chart data and all runtime assets. Keep the report offline-capable.
+- Avoid free-canvas positioning, absolute-positioned report layouts, and arbitrary CSS controls.
 
-## Complete the task
+## Report completion
 
-- Report the project path, variant ID, saved version ID, selected mode, and selected theme.
-- State which validation commands ran and whether they passed.
-- State any unsupported source format or unverified publication step explicitly.
-- Never claim publication succeeded without the provider command and returned URL.
+State the project path, variant ID, confirmed mode, selected theme, post-editor saved version ID, publication target, and returned URL or local path. List validation commands and results. Mark unverified steps explicitly.

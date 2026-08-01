@@ -1,4 +1,4 @@
 interface:
   display_name: "Edit HTML Report"
   short_description: "Build, edit, version, and publish evidence-based HTML reports"
-  default_prompt: "Use $edit-html-report to turn my source material into an editable, traceable HTML report."
+  default_prompt: "Use $edit-html-report to turn my source material into an editable, traceable HTML report, open the mandatory local editor, save the reviewed version, and publish only that version."

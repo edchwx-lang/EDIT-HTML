@@ -1,59 +1,36 @@
 # Huashu Report Profile
 
-Read this file only while designing or visually revising a report.
+Read this file only while designing or visually revising a report. It adapts selected Huashu Design principles; the supplied-material fact boundary always wins.
 
-This profile adapts selected report-design principles from Huashu-Design. The
-Edit HTML Report fact boundary always wins: do not browse to supplement report
-claims, even when a general design workflow would normally verify facts online.
+## Source and assets
 
-## Source and asset discipline
+- Let supplied content, brand rules, screenshots, and assets determine the design.
+- Use evidence-bearing images only. Never fabricate a recognizable product, logo, chart, or polished substitute.
+- Label or omit missing essentials. Browsing for visual references never authorizes adding external report facts.
 
-- Let the supplied content, brand system, screenshots, and assets determine the design. Do not start from a generic visual template when usable context exists.
-- Use real logos, product images, UI captures, and evidence-bearing illustrations when the user supplied them or explicitly permits acquiring visual assets.
-- Never replace a recognizable product with a hand-drawn SVG or CSS silhouette.
-- If an essential asset or fact is absent, use a plainly labeled placeholder or omit the element. Never fabricate a polished substitute.
-- An image must carry information. Remove decorative stock imagery that does not change the reader's understanding.
+## Information design by mode
 
-## Information design
+- Start with the reader's decision, not the source document order. Give each section one job.
+- Data-first: use purposeful density, responsive gutters, and a 1440px maximum content width. Quantitative evidence should appear through KPI blocks, charts, tables, and structured comparisons—not decorative dashboards.
+- Evidence-first: keep prose within 68–78ch using responsive gutters. Let explanation and argument lead; preserve useful original charts, quotations, footnotes, and source locations.
+- Use charts only when comparison, distribution, composition, position, or change is materially clearer than prose.
 
-- Start with the reader's decision, not the source document's order.
-- Give each section one job and one dominant visual relationship.
-- Prefer a clear argument sequence: context, evidence, implication, action.
-- Use charts only when position, comparison, distribution, composition, or change is materially clearer than prose.
-- Make evidence traceable without turning the page into a citation dump.
+## Typography and color
 
-## Typography
-
-- Use one expressive display face at most and one highly readable text family.
-- Do not default to Inter, Roboto, Arial, Helvetica, or an unmodified system stack for display type unless the brand calls for it.
-- Establish clear title, section, body, caption, and source levels.
-- Avoid oversized headings that consume a screen without adding orientation.
-- Keep paragraph width controlled and use spacing before decorative separators.
-
-## Color
-
-- Build from neutral surfaces, one primary family, and one functional accent family.
-- Reserve semantic colors for meaning; do not use a rainbow palette for decoration.
-- Maintain accessible contrast in both light and dark themes.
-- Keep chart colors stable across the report and across theme variants.
+- Establish distinct title, section, body, caption, and source levels. Avoid oversized headings and uncontrolled line length.
+- Typography, spacing, layout, and DOM structure belong to the confirmed mode and remain unchanged across themes.
+- Use the semantic variables in `artifact-contract.md`; never hard-code palette colors into report components or chart marks.
+- Maintain WCAG AA contrast and stable chart-series meaning in all six palettes.
 
 ## Anti-slop rules
 
-- Do not stack generic rounded cards for every section.
-- Do not decorate with meaningless gradients, glowing blobs, glass panels, or random icons.
-- Do not repeat the same three-column card layout page after page.
-- Do not use fake metrics, ornamental charts, unexplained percentages, or placeholder dashboards.
-- Do not hide weak hierarchy behind animation.
-- Avoid generic purple gradients, gratuitous emoji, decorative statistics, invented quotations, repeated bento grids, and GitHub-dark neon styling unless the brand itself requires them.
-- Use sparse layouts for narrative reports and purposeful density for data-heavy reports. Density must come from evidence, not decoration.
+- Do not stack generic rounded cards for every section or repeat one three-column layout throughout.
+- Avoid meaningless gradients, glow, glass panels, random icons, fake metrics, ornamental charts, invented quotations, decorative percentages, and repeated bento grids.
+- Do not hide weak hierarchy behind animation. Density must come from evidence.
 
-## Interaction and accessibility
+## Interaction, accessibility, and validation
 
-- Keep report reading primary; editing controls belong to the editor shell, not the artifact.
-- Use a 14px minimum web body size, 16px on mobile, 44×44px minimum interactive targets, and comfortable Chinese line height.
-- Target WCAG AA contrast: 4.5:1 for body text and 3:1 for large text.
-- Prefer `text-wrap: balance` for headings and `text-wrap: pretty` for prose when supported.
-
-## Validation
-
-Review at desktop and mobile widths. Check information hierarchy, density, chart legibility, source visibility, overflow, contrast, and keyboard focus. Open the result in a real browser, inspect console and page errors, and exercise editing interactions. Functional validation is automated; final visual quality requires side-by-side human review against the agreed reference.
+- Keep reading primary; editing controls belong to the local editor shell, not the artifact.
+- Use at least 14px body text on desktop, 16px on mobile, comfortable Chinese line height, visible focus, and 44×44px interactive targets.
+- Review desktop and mobile widths for hierarchy, density, chart legibility, source visibility, overflow, contrast, and keyboard focus.
+- Open the mandatory local editor, inspect browser errors, exercise editing and all required theme choices, save an immutable reviewed version, and publish only that saved version.
