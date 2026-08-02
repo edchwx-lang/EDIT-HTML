@@ -11,13 +11,19 @@ const TOKEN_VARIABLES = {
   focus: "--report-focus",
   positive: "--report-positive",
   warning: "--report-warning",
-  negative: "--report-negative"
+  negative: "--report-negative",
+  hover: "--report-hover",
+  selection: "--report-selection",
+  crosshair: "--report-crosshair",
+  tableHeader: "--report-table-header",
+  tableStripe: "--report-table-stripe",
+  evidenceHighlight: "--report-evidence-highlight"
 };
 
 export function renderThemeCss(theme) {
-  const declarations = Object.entries(TOKEN_VARIABLES).map(
-    ([token, variable]) => variable + ":" + theme.tokens[token]
-  );
+  const declarations = Object.entries(TOKEN_VARIABLES)
+    .filter(([token]) => theme.tokens[token])
+    .map(([token, variable]) => variable + ":" + theme.tokens[token]);
   theme.chart.categorical.forEach((color, index) => {
     declarations.push("--report-chart-" + (index + 1) + ":" + color);
   });

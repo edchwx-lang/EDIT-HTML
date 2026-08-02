@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   getTheme,
+  getLegacyTheme,
   listThemes,
+  migrateLegacyThemeId,
   normalizeThemeId,
   validateTheme
 } from "../src/themes.js";
@@ -15,9 +17,9 @@ test("theme registry exposes the six approved palettes in stable order", () => {
     [
       "warm-paper-terracotta",
       "research-cobalt",
-      "swiss-monochrome",
-      "ink-teal",
+      "sandstone-archive",
       "linear-indigo",
+      "institutional-navy-gold",
       "signal-orange"
     ]
   );
@@ -27,22 +29,28 @@ test("theme registry exposes the six approved palettes in stable order", () => {
   );
   assert.deepEqual(
     themes.map((theme) => theme.label),
-    ["暖纸赤陶", "研究钴蓝", "瑞士黑白", "墨海荧青", "线性靛蓝", "黑场信号橙"]
+    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "线性靛蓝", "海军蓝金", "黑场信号橙"]
   );
-  assert.equal(getTheme("ink-teal").labels["zh-CN"], "墨海荧青");
+  assert.equal(themes.every((theme) => theme.schemaVersion === 2), true);
+  assert.equal(themes.every((theme) => theme.chart.categorical.length === 8), true);
+  assert.equal(getTheme("institutional-navy-gold").labels["zh-CN"], "海军蓝金");
 });
 
-test("legacy theme ids migrate to approved palettes", () => {
+test("legacy theme ids remain readable but migrate explicitly", () => {
   assert.equal(normalizeThemeId("editorial-light"), "warm-paper-terracotta");
   assert.equal(normalizeThemeId("editorial-dark"), "ink-teal");
   assert.equal(normalizeThemeId("tech-dark"), "ink-teal");
   assert.equal(normalizeThemeId("consulting-light"), "research-cobalt");
   assert.equal(normalizeThemeId("signal-orange"), "signal-orange");
+  assert.equal(migrateLegacyThemeId("swiss-monochrome"), "sandstone-archive");
+  assert.equal(migrateLegacyThemeId("ink-teal"), "institutional-navy-gold");
+  assert.equal(getLegacyTheme("ink-teal").themeId, "ink-teal");
+  assert.equal(listThemes().some((theme) => theme.themeId === "ink-teal"), false);
 });
 
 test("theme validation rejects incomplete semantic and chart colors", () => {
   assert.throws(
-    () => validateTheme({ schemaVersion: 1, themeId: "broken" }),
+    () => validateTheme({ schemaVersion: 2, themeId: "broken" }),
     /theme "broken" requires labels/
   );
   assert.throws(() => getTheme("unknown"), /unknown theme "unknown"/);

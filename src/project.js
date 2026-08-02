@@ -4,6 +4,11 @@ import path from "node:path";
 
 import { analyzeTextDocument, recommendMode } from "./analysis.js";
 import { extractDocument } from "./extract.js";
+import {
+  buildSourceModel,
+  createInitialCoverageMap,
+  PROJECT_SCHEMA_VERSION
+} from "./report-model.js";
 
 async function writeJsonAtomic(filePath, value) {
   await writeTextAtomic(filePath, JSON.stringify(value, null, 2) + "\n");
@@ -25,25 +30,41 @@ export async function createProject(sourcePath, projectDir) {
   await mkdir(sourceDir, { recursive: true });
   await mkdir(path.join(projectDir, "variants"), { recursive: true });
   await mkdir(path.join(projectDir, "versions"), { recursive: true });
+  await mkdir(path.join(projectDir, "publications"), { recursive: true });
+  await mkdir(path.join(projectDir, "source-assets"), { recursive: true });
   await copyFile(sourcePath, path.join(sourceDir, sourceName));
 
+  const sourceSha256 = createHash("sha256").update(contents).digest("hex");
+
   const project = {
-    schemaVersion: 1,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
     projectId: randomUUID(),
     createdAt: new Date().toISOString(),
     activeVariantId: null,
     variants: [],
     versions: [],
+    publications: [],
     sourceFiles: [
       {
         name: sourceName,
-        sha256: createHash("sha256").update(contents).digest("hex")
+        sha256: sourceSha256
       }
     ]
   };
 
   await writeJsonAtomic(path.join(projectDir, "project.json"), project);
   const extracted = await extractDocument(sourceName, contents);
+  for (const asset of extracted.assets ?? []) {
+    const assetPath = path.join(projectDir, ...asset.path.split("/"));
+    await mkdir(path.dirname(assetPath), { recursive: true });
+    await writeFile(assetPath, asset.bytes);
+  }
+  const sourceModel = buildSourceModel(sourceName, extracted, sourceSha256);
+  await writeJsonAtomic(path.join(projectDir, "source-model.json"), sourceModel);
+  await writeJsonAtomic(
+    path.join(projectDir, "coverage-map.json"),
+    createInitialCoverageMap(sourceModel)
+  );
   const documents = [
     {
       ...analyzeTextDocument(sourceName, extracted.text),
@@ -52,12 +73,13 @@ export async function createProject(sourcePath, projectDir) {
     }
   ];
   await writeJsonAtomic(path.join(projectDir, "analysis.json"), {
-    schemaVersion: 1,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
     documents,
     recommendation: recommendMode(documents)
   });
   await writeJsonAtomic(path.join(projectDir, "deployments.json"), {
-    schemaVersion: 1,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    records: [],
     providers: {}
   });
   return project;

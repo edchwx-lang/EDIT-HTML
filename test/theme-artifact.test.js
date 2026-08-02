@@ -12,7 +12,10 @@ test("renderThemeCss exposes stable semantic and chart variables", () => {
   assert.match(css, /--report-canvas:#000000/);
   assert.match(css, /--report-accent:#FF6900/);
   assert.match(css, /--report-chart-1:#FF6900/);
-  assert.match(css, /--report-chart-3:#D53A24/);
+  assert.match(css, /--report-chart-3:#3EA6FF/);
+  assert.match(css, /--report-chart-8:#A8B0BC/);
+  assert.match(css, /--report-selection:/);
+  assert.match(css, /--report-table-header:/);
 });
 
 test("compileThemeIntoArtifact injects variables without changing body", () => {

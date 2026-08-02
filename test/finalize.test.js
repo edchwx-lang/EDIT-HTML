@@ -46,7 +46,7 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
   assert.equal(version.variantId, variant.variantId);
   assert.equal(version.message, "First review");
   assert.equal(version.themeId, "warm-paper-terracotta");
-  assert.equal(version.themeSchemaVersion, 1);
+  assert.equal(version.themeSchemaVersion, 2);
   const savedArtifact = await readFile(
     path.join(projectDir, "versions", version.versionId, "artifact.html"),
     "utf8"

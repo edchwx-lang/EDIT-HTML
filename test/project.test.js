@@ -17,7 +17,7 @@ test("createProject copies and hashes a source file into a new workspace", async
 
   const project = await createProject(source, projectDir);
 
-  assert.equal(project.schemaVersion, 1);
+  assert.equal(project.schemaVersion, 4);
   assert.equal(project.sourceFiles.length, 1);
   assert.equal(
     project.sourceFiles[0].sha256,
@@ -31,6 +31,13 @@ test("createProject copies and hashes a source file into a new workspace", async
     JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8")),
     project
   );
+  const sourceModel = JSON.parse(
+    await readFile(path.join(projectDir, "source-model.json"), "utf8")
+  );
+  assert.equal(sourceModel.schemaVersion, 4);
+  assert.equal(sourceModel.documents[0].units[0].text, "Revenue reached 42 million.");
+  assert.match(sourceModel.documents[0].units[0].sourceId, /^src-/);
+  assert.equal(sourceModel.documents[0].units[0].order, 0);
 });
 
 test("createProject writes deterministic plain-text analysis for Agent handoff", async (t) => {
@@ -46,10 +53,15 @@ test("createProject writes deterministic plain-text analysis for Agent handoff",
     await readFile(path.join(projectDir, "analysis.json"), "utf8")
   );
 
-  assert.equal(analysis.schemaVersion, 1);
+  assert.equal(analysis.schemaVersion, 4);
   assert.equal(analysis.documents[0].text, "Market evidence\nRevenue reached 42 million.");
   assert.equal(analysis.documents[0].numericTokenCount, 1);
   assert.equal(analysis.recommendation.mode, "evidence-first");
+  const coverage = JSON.parse(
+    await readFile(path.join(projectDir, "coverage-map.json"), "utf8")
+  );
+  assert.equal(coverage.schemaVersion, 4);
+  assert.equal(coverage.entries[0].status, "pending");
 });
 
 test("createProject analyzes DOCX through the format extractor", async (t) => {

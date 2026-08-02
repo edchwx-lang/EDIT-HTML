@@ -71,7 +71,7 @@ test("CLI lists localized mode choices and applies each mode default theme", asy
     { cwd: root, encoding: "utf8" }
   );
   assert.equal(created.status, 0, created.stderr);
-  assert.equal(JSON.parse(created.stdout).themeId, "ink-teal");
+  assert.equal(JSON.parse(created.stdout).themeId, "linear-indigo");
 });
 
 test("CLI exposes variant create, variant list, and finalize as one workflow", async (t) => {

@@ -18,7 +18,7 @@ test("mode profiles describe both choices in the requested locale", () => {
 });
 
 test("mode profiles keep structure defaults separate from theme colors", () => {
-  assert.equal(getModeProfile("data-first").defaultThemeId, "ink-teal");
+  assert.equal(getModeProfile("data-first").defaultThemeId, "linear-indigo");
   assert.equal(
     getModeProfile("evidence-first").defaultThemeId,
     "warm-paper-terracotta"

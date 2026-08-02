@@ -200,7 +200,7 @@ test("editor API lists six themes and compiles preview without changing draft HT
   assert.equal(themes.length, 6);
   assert.deepEqual(
     themes.map((theme) => theme.label),
-    ["暖纸赤陶", "研究钴蓝", "瑞士黑白", "墨海荧青", "线性靛蓝", "黑场信号橙"]
+    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "线性靛蓝", "海军蓝金", "黑场信号橙"]
   );
 
   const response = await fetch(editor.url + "/api/theme", {
