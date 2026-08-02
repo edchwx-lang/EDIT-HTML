@@ -1,3 +1,5 @@
+import { isVisualizationEligible } from "./chart-data.js";
+
 export function validateModeArtifact({ html, mode, report }) {
   const declaredMode = attributeValues(html, "data-report-mode")[0];
   if (declaredMode !== mode) {
@@ -34,12 +36,6 @@ export function validateVisibleChartMarks(html) {
       );
     }
   }
-}
-
-function isVisualizationEligible(dataset) {
-  if (dataset.kind !== "table" && dataset.kind !== "numeric-text") return false;
-  const rows = dataset.rows ?? [];
-  return rows.some((row) => row.slice(1).some((value) => Number.isFinite(Number(String(value).replaceAll(",", "")))));
 }
 
 function attributeValues(html, attribute) {

@@ -33,6 +33,44 @@ test("data-first renderer compiles canonical models into an interactive offline 
   assert.doesNotMatch(html, /(?:src|href)="https?:\/\//i);
 });
 
+test("data-first renders comparable paragraph metrics as an editable sourced chart", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-metrics-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.md");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(
+    source,
+    "# 市场趋势\n全球市场规模从 73.6 亿元增长至 101 亿元，复合增速为 5.5%。",
+    "utf8"
+  );
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "data-first" });
+
+  const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
+  const dataset = report.datasets.find((item) => item.kind === "numeric-text");
+  assert.deepEqual(dataset.columns, ["指标", "数值", "单位"]);
+  assert.equal(dataset.rows.filter((row) => row[2] === "亿元").length, 2);
+
+  const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
+  assert.match(html, new RegExp(`data-chart-id="chart-${dataset.datasetId}"`));
+  assert.match(html, /同单位指标对比（亿元）/);
+  assert.match(html, /data-chart-value="73\.6亿元"/);
+  assert.match(html, /data-source-ref="brief\.md#/);
+});
+
+test("data-first does not chart unrelated single-unit paragraph values", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-single-metrics-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.md");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(source, "# 判断\n2025 年市场增长 18%，功率达到 10kW。", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "data-first" });
+
+  const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
+  assert.doesNotMatch(html, /class="metric-chart-pair"/);
+});
+
 test("renderer supports material master-detail navigation without dropping dimensions", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));

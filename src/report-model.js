@@ -340,7 +340,9 @@ function collectDatasets(nodes) {
         nodeId: node.nodeId,
         kind: values.length === 1 ? "metric" : "numeric-text",
         label: node.text,
-        values: values.map((item) => ({ label: item.raw, value: item.value, unit: item.unit })),
+        columns: ["指标", "数值", "单位"],
+        rows: values.map((item) => [item.contextLabel, item.value, item.unit]),
+        values: values.map((item) => ({ label: item.raw, contextLabel: item.contextLabel, value: item.value, unit: item.unit })),
         sourceRefs: node.sourceRefs
       });
     }
@@ -349,11 +351,33 @@ function collectDatasets(nodes) {
 }
 
 function numericTokens(text = "") {
-  return [...text.matchAll(/[-+]?\d+(?:[.,]\d+)*(?:%|‰|亿元|万元|美元|GB\/s|Gbps|kW)?/gu)].map((match) => {
-    const raw = match[0];
+  const pattern = /(?<![\d.])[-+]?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:亿美元|亿元|万元|美元|GB\/s|Gbps|Tbps|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)?/gu;
+  return [...text.matchAll(pattern)].map((match, index) => {
+    const raw = match[0].trim();
     const numeric = raw.match(/[-+]?\d+(?:[.,]\d+)*/)?.[0] ?? "0";
-    return { raw, value: Number(numeric.replaceAll(",", "")), unit: raw.slice(numeric.length) };
+    return {
+      raw,
+      value: Number(numeric.replaceAll(",", "")),
+      unit: raw.slice(numeric.length).trim(),
+      contextLabel: metricContextLabel(text, match.index, match.index + match[0].length, index)
+    };
   });
+}
+
+function metricContextLabel(text, start, end, index) {
+  const beforeBoundary = Math.max(
+    text.lastIndexOf("。", start - 1), text.lastIndexOf("；", start - 1),
+    text.lastIndexOf("！", start - 1), text.lastIndexOf("？", start - 1),
+    text.lastIndexOf("\n", start - 1)
+  );
+  const afterCandidates = ["。", "；", "！", "？", "\n"]
+    .map((separator) => text.indexOf(separator, end))
+    .filter((position) => position >= 0);
+  const afterBoundary = afterCandidates.length ? Math.min(...afterCandidates) : text.length;
+  const before = text.slice(beforeBoundary + 1, start).replace(/\s+/gu, " ").trim().slice(-14);
+  const after = text.slice(end, afterBoundary).replace(/\s+/gu, " ").trim().slice(0, 8);
+  const label = (before + text.slice(start, end).trim() + after).trim();
+  return label || `指标 ${index + 1}`;
 }
 
 function componentFor(node, mode) {

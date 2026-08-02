@@ -35,7 +35,7 @@ test("data-first no longer enforces arbitrary KPI or chart minimums", () => {
 
   assert.doesNotThrow(() => validateModeArtifact({
     html, mode: "data-first", analysis: quantitativeAnalysis,
-    report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+    report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42], ["中国", 18]] }] }
   }));
 });
 
@@ -45,7 +45,7 @@ test("data-first rejects an eligible dataset that is not visualized", () => {
       html: '<body data-report-mode="data-first"></body>',
       mode: "data-first",
       analysis: quantitativeAnalysis,
-      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42], ["中国", 18]] }] }
     }),
     /eligible dataset "dataset-sales" requires a visualization/
   );
@@ -56,7 +56,7 @@ test("data-first charts require tooltip and selection-band interaction", () => {
     validateModeArtifact({
       html: '<body data-report-mode="data-first">' + chart("chart-dataset-sales") + '</body>',
       mode: "data-first",
-      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42], ["中国", 18]] }] }
     }),
     /interactive tooltip and selection band/
   );
@@ -70,6 +70,35 @@ test("evidence-first does not require KPI blocks or charts", () => {
       analysis: quantitativeAnalysis
     })
   );
+});
+
+test("data-first requires comparable numeric-text datasets but not isolated metrics", () => {
+  const comparable = {
+    datasetId: "dataset-market",
+    kind: "numeric-text",
+    columns: ["指标", "数值", "单位"],
+    rows: [["2024 年规模", 73.6, "亿元"], ["2030 年规模", 101, "亿元"]]
+  };
+  assert.throws(
+    () => validateModeArtifact({
+      html: '<body data-report-mode="data-first"></body>',
+      mode: "data-first",
+      report: { datasets: [comparable] }
+    }),
+    /eligible dataset "dataset-market" requires a visualization/
+  );
+  assert.doesNotThrow(() => validateModeArtifact({
+    html: '<body data-report-mode="data-first"></body>',
+    mode: "data-first",
+    report: {
+      datasets: [{
+        datasetId: "dataset-isolated",
+        kind: "numeric-text",
+        columns: ["指标", "数值", "单位"],
+        rows: [["市场增长", 18, "%"], ["机柜功率", 10, "kW"]]
+      }]
+    }
+  }));
 });
 
 test("artifact mode declaration must match the variant mode", () => {
