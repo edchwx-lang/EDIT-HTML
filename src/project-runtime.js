@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
 const runtimeFiles = [
-  "artifact-contract.js", "drafts.js", "editor-server.js", "editor-session.js",
+  "artifact-contract.js", "chart-data.js", "drafts.js", "editor-server.js", "editor-session.js",
   "editor-session-worker.js", "editor-shell.js", "finalize.js", "io.js",
   "publish.js", "renderer.js", "report-model.js", "theme-artifact.js",
   "themes.js", "variants.js", "versions.js", "modes/data-first.js",

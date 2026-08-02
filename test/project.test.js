@@ -40,6 +40,7 @@ test("createProject copies and hashes a source file into a new workspace", async
   assert.equal(sourceModel.documents[0].units[0].order, 0);
   await access(path.join(projectDir, "打开编辑器.cmd"));
   await access(path.join(projectDir, "open-editor.sh"));
+  await access(path.join(projectDir, ".editor-runtime", "src", "chart-data.js"));
   assert.match(await readFile(path.join(projectDir, "打开编辑器.cmd"), "utf8"), /%~dp0/);
   assert.match(await readFile(path.join(projectDir, "open-editor.sh"), "utf8"), /dirname/);
 });
