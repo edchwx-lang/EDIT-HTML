@@ -76,16 +76,18 @@ test("data-first preserves range direction and propagates its source unit", asyn
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.md");
   const projectDir = path.join(sandbox, "report");
-  await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层。", "utf8");
+  await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层，价值份额为75%-85%，基材采用FR-4。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
 
   const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
   const dataset = report.datasets.find((item) => item.kind === "numeric-text");
-  assert.deepEqual(dataset.rows.map((row) => [row[1], row[2]]), [[40, "层"], [78, "层"], [16, "层"], [24, "层"]]);
+  assert.deepEqual(dataset.rows.map((row) => [row[1], row[2]]), [[40, "层"], [78, "层"], [16, "层"], [24, "层"], [75, "%"], [85, "%"]]);
 
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.doesNotMatch(html, /<strong>-78<\/strong>/);
+  assert.doesNotMatch(html, /<strong>-85%<\/strong>/);
+  assert.doesNotMatch(html, /<strong>4<\/strong>/);
   assert.match(html, /data-chart-value="40层"/);
   assert.match(html, /data-chart-value="24层"/);
 });

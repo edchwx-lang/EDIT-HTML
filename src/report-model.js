@@ -351,29 +351,34 @@ function collectDatasets(nodes) {
 }
 
 function numericTokens(text = "") {
-  const pattern = /(?<![\d.])[-+]?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:亿美元|亿元|万元|美元|GB\/s|Gbps|Tbps|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)?/gu;
-  const values = [...text.matchAll(pattern)].map((match, index) => {
-    const raw = match[0].trim();
-    const numeric = raw.match(/[-+]?\d+(?:[.,]\d+)*/)?.[0] ?? "0";
-    return {
-      raw,
-      value: Number(numeric.replaceAll(",", "")),
-      unit: raw.slice(numeric.length).trim(),
-      contextLabel: metricContextLabel(text, match.index, match.index + match[0].length, index),
-      start: match.index,
-      end: match.index + match[0].length
-    };
-  });
-  for (let index = 0; index < values.length - 1; index += 1) {
-    const current = values[index];
-    const next = values[index + 1];
-    const separator = text.slice(current.end, next.start);
-    if (!current.unit && next.unit && /^\s*[-–—~至到]\s*$/u.test(separator)) {
-      current.unit = next.unit;
-      current.raw += next.unit;
+  const number = "[-+]?\\d+(?:,\\d{3})*(?:\\.\\d+)?";
+  const rangeNumber = "\\d+(?:,\\d{3})*(?:\\.\\d+)?";
+  const unit = "(?:亿美元|亿元|万元|美元|GB\\/s|Gbps|Tbps|GB|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)";
+  const pattern = new RegExp(
+    `(?<![A-Za-z0-9./-])(${number})\\s*(${unit})?(?:\\s*[-–—~至到]\\s*(${rangeNumber})\\s*(${unit})?)?(?![A-Za-z0-9])`,
+    "gu"
+  );
+  const values = [];
+  for (const match of text.matchAll(pattern)) {
+    const firstUnit = match[2] ?? match[4] ?? "";
+    values.push(metricToken(text, match[1], firstUnit, match.index, match.index + match[0].length, values.length));
+    if (match[3]) {
+      const secondUnit = match[4] ?? match[2] ?? "";
+      values.push(metricToken(text, match[3], secondUnit, match.index, match.index + match[0].length, values.length));
     }
   }
   return values;
+}
+
+function metricToken(text, numeric, unit, start, end, index) {
+  return {
+    raw: numeric + unit,
+    value: Number(numeric.replaceAll(",", "")),
+    unit,
+    contextLabel: metricContextLabel(text, start, end, index),
+    start,
+    end
+  };
 }
 
 function metricContextLabel(text, start, end, index) {
