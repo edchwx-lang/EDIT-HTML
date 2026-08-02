@@ -352,16 +352,28 @@ function collectDatasets(nodes) {
 
 function numericTokens(text = "") {
   const pattern = /(?<![\d.])[-+]?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:亿美元|亿元|万元|美元|GB\/s|Gbps|Tbps|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)?/gu;
-  return [...text.matchAll(pattern)].map((match, index) => {
+  const values = [...text.matchAll(pattern)].map((match, index) => {
     const raw = match[0].trim();
     const numeric = raw.match(/[-+]?\d+(?:[.,]\d+)*/)?.[0] ?? "0";
     return {
       raw,
       value: Number(numeric.replaceAll(",", "")),
       unit: raw.slice(numeric.length).trim(),
-      contextLabel: metricContextLabel(text, match.index, match.index + match[0].length, index)
+      contextLabel: metricContextLabel(text, match.index, match.index + match[0].length, index),
+      start: match.index,
+      end: match.index + match[0].length
     };
   });
+  for (let index = 0; index < values.length - 1; index += 1) {
+    const current = values[index];
+    const next = values[index + 1];
+    const separator = text.slice(current.end, next.start);
+    if (!current.unit && next.unit && /^\s*[-–—~至到]\s*$/u.test(separator)) {
+      current.unit = next.unit;
+      current.raw += next.unit;
+    }
+  }
+  return values;
 }
 
 function metricContextLabel(text, start, end, index) {

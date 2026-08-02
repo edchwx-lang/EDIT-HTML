@@ -89,12 +89,12 @@ function renderText(node, context) {
       '<div class="evidence-label">原文证据</div><p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' +
       renderCitation(node.sourceRefs) + '</article>';
   }
-  const values = numericTokens(node.text);
+  const dataset = context.report.datasets.find((item) => item.nodeId === node.nodeId);
+  const values = dataset?.values?.map((item) => item.label) ?? numericTokens(node.text);
   if (values.length) {
     const metric = '<article class="metric-evidence" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
       '<div class="metric-values">' + values.map((value) => '<strong>' + escapeHtml(value) + '</strong>').join('') + '</div>' +
       '<p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' + renderCitation(node.sourceRefs) + '</article>';
-    const dataset = context.report.datasets.find((item) => item.nodeId === node.nodeId);
     const chart = dataset ? renderChart(dataset, node.sourceRefs) : "";
     return chart ? '<div class="metric-chart-pair">' + metric + chart + '</div>' : metric;
   }

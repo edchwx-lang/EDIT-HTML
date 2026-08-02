@@ -26,8 +26,10 @@ function tableVisualization(dataset) {
   const chartRows = rows.flatMap((row, index) => {
     const parsed = selected.parsed[index];
     if (!parsed || parsed.value < 0) return [];
+    const preferredLabel = row[labelColumn];
+    const fallbackLabel = row.find((cell) => String(cell ?? "").trim() && !parseNumericCell(cell));
     return [{
-      label: String(row[labelColumn] ?? index + 1),
+      label: String(parseNumericCell(preferredLabel) ? (fallbackLabel ?? index + 1) : (preferredLabel ?? index + 1)),
       value: parsed.value,
       unit: parsed.unit,
       displayValue: parsed.raw
@@ -53,8 +55,9 @@ function numericTextVisualization(dataset) {
     displayValue: String(item.label ?? formatDisplayValue(item.value, item.unit))
   }));
   const rows = canonicalRows.length ? canonicalRows : legacyRows;
+  const uniqueRows = [...new Map(rows.map((row) => [`${row.unit}\u0000${row.value}`, row])).values()];
   const groups = new Map();
-  for (const row of rows) {
+  for (const row of uniqueRows) {
     if (!Number.isFinite(row.value) || row.value < 0 || !row.unit || NON_COMPARABLE_UNITS.has(row.unit)) continue;
     if (!groups.has(row.unit)) groups.set(row.unit, []);
     groups.get(row.unit).push(row);
