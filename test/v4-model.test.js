@@ -52,6 +52,30 @@ test("data-first scaffolding turns twelve material sections into a source-comple
   assert.equal(presentation.bindings.find((binding) => binding.nodeId === group.nodeId).component, "master-detail");
 });
 
+test("material overview paragraphs split an embedded global market sentence without losing either sentence", () => {
+  const units = [{ type: "paragraph", text: "二、AI服务器核心材料分析" }];
+  const numerals = ["一", "二", "三", "四"];
+  for (const [index, numeral] of numerals.entries()) {
+    units.push(
+      { type: "paragraph", text: "（" + numeral + "）材料" + index },
+      { type: "paragraph", text: "材料性能说明。根据研究数据，2024年全球市场规模为37.4亿美元。" },
+      { type: "paragraph", text: "国内材料进展。" },
+      { type: "paragraph", text: "深圳材料布局。" },
+      { type: "table", rows: [["技术现状", "现状"], ["技术难点", "难点"], ["价值链分析", "价值"]] }
+    );
+  }
+  const source = buildSourceModel("materials.docx", {
+    mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    text: "",
+    units
+  }, "sha");
+  const { report } = scaffoldReportModel(source, { variantId: "v", mode: "data-first" });
+  const first = report.nodes.find((node) => node.type === "entityGroup").entities[0];
+  assert.deepEqual(first.dimensions.slice(0, 4).map((dimension) => dimension.label), ["材料概览", "全球", "国内", "深圳"]);
+  assert.match(first.dimensions.find((dimension) => dimension.label === "材料概览").text, /材料性能说明/);
+  assert.match(first.dimensions.find((dimension) => dimension.label === "全球").text, /37\.4亿美元/);
+});
+
 test("cached source charts become traceable table datasets instead of disappearing", () => {
   const source = buildSourceModel("slides.pptx", {
     mediaType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",

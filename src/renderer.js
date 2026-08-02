@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { validateCoverage } from "./report-model.js";
+import { validateCoverage, walkNodes } from "./report-model.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { writeTextAtomic } from "./io.js";
 
@@ -167,7 +167,7 @@ function renderCitation(sourceRefs = []) {
 
 async function inlineAssets(projectDir, report) {
   const paths = new Set();
-  walk(report.nodes, (node) => { if (node.type === "image" && node.assetPath && !node.assetPath.startsWith("data:")) paths.add(node.assetPath); });
+  walkNodes(report.nodes, (node) => { if (node.type === "image" && node.assetPath && !node.assetPath.startsWith("data:")) paths.add(node.assetPath); });
   const assets = new Map();
   for (const assetPath of paths) {
     try {
@@ -192,7 +192,6 @@ function reportScript() {
   return `(()=>{const tooltip=document.querySelector('.chart-tooltip');document.querySelectorAll('.chart-row').forEach(row=>{const show=e=>{tooltip.textContent=row.dataset.chartLabel+'：'+row.dataset.chartValue;tooltip.style.display='block';tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY+14)+'px';const stage=row.closest('.chart-stage');const band=stage.querySelector('.chart-selection-band');band.style.width=Math.max(0,e.clientX-stage.getBoundingClientRect().left)+'px'};row.addEventListener('pointermove',show);row.addEventListener('focus',()=>show({clientX:row.getBoundingClientRect().right,clientY:row.getBoundingClientRect().top}));row.addEventListener('pointerleave',()=>{tooltip.style.display='none';row.closest('.chart-stage').querySelector('.chart-selection-band').style.width='0'});row.addEventListener('blur',()=>{tooltip.style.display='none'})});document.querySelectorAll('.master-detail').forEach(root=>{root.querySelectorAll('[data-entity-id]').forEach(button=>button.addEventListener('click',()=>{root.querySelectorAll('[data-entity-id]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));root.querySelectorAll('[data-entity-panel]').forEach(panel=>panel.hidden=panel.dataset.entityPanel!==button.dataset.entityId)}));root.querySelectorAll('.entity-panel').forEach(panel=>panel.querySelectorAll('[data-dimension]').forEach(button=>button.addEventListener('click',()=>{panel.querySelectorAll('[data-dimension]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));panel.querySelectorAll('[data-dimension-panel]').forEach(item=>item.hidden=item.dataset.dimensionPanel!==button.dataset.dimension)})))})})();`;
 }
 
-function walk(nodes, visitor) { for (const node of nodes ?? []) { visitor(node); walk(node.children, visitor); } }
 function formatAxisValue(value) { return Number.isInteger(value) ? String(value) : value.toFixed(1); }
 function numericTokens(text = '') { return text.match(/[-+]?\d+(?:[.,]\d+)*(?:%|‰|亿元|万元|美元|GB\/s|Gbps|kW)?/gu) ?? []; }
 function findNumericColumn(rows) { if (!rows.length) return -1; const width = Math.max(...rows.map((row) => row.length)); for (let column = 1; column < width; column += 1) if (rows.some((row) => Number.isFinite(Number(String(row[column]).replaceAll(',', ''))))) return column; return -1; }

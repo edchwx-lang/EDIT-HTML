@@ -221,9 +221,9 @@ function buildEntityDimensions(children) {
       if (!split) add(current, node);
       continue;
     }
-    const regionalSegments = splitRegionalNode(node);
-    if (regionalSegments) {
-      for (const segment of regionalSegments) {
+    const dimensionalSegments = splitDimensionalNode(node, current);
+    if (dimensionalSegments) {
+      for (const segment of dimensionalSegments) {
         current = segment.label ?? current;
         add(current, segment.node);
       }
@@ -250,22 +250,25 @@ function textDimension(text) {
   const opening = value.slice(0, 48);
   if (/(?:深圳|深汕)/.test(opening)) return "深圳";
   if (/^(?:国内|我国|中国)/.test(value) || /(?:国内|国产)/.test(opening)) return "国内";
-  if (/^(?:全球|海外)/.test(value) || /(?:市场集中|企业集中|供应商|美日.*(?:主导|垄断)|由.*(?:美|日).*(?:主导|垄断)|G4、G5级别.*垄断|目前.*(?:美|日|韩|企业).*(?:主导|垄断))/.test(opening)) return "全球";
+  if (/^(?:全球|海外)/.test(value) || /(?:全球.*(?:市场|规模|份额)|市场集中|企业集中|供应商|美日.*(?:主导|垄断)|由.*(?:美|日).*(?:主导|垄断)|G4、G5级别.*垄断|目前.*(?:美|日|韩|企业).*(?:主导|垄断))/.test(opening)) return "全球";
   if (/^建议/.test(value)) return "行动建议";
   if (/^表\s*\d+.*(?:技术现状|关键核心技术)/.test(value)) return "技术现状";
   return null;
 }
 
-function splitRegionalNode(node) {
-  if (!node.text || !/(?:深圳|深汕)/.test(node.text) || !/(?:国内|我国|中国|国产)/.test(node.text)) return null;
+function splitDimensionalNode(node, initialLabel) {
+  if (!node.text) return null;
   const sentences = node.text.match(/[^。！？]+[。！？]?/g)?.filter(Boolean) ?? [];
   if (sentences.length < 2) return null;
-  const segments = sentences.map((text, index) => ({
-    label: textDimension(text),
-    node: { ...node, nodeId: node.nodeId + "-segment-" + index, text }
-  }));
-  const labels = new Set(segments.map((segment) => segment.label).filter(Boolean));
-  return labels.has("深圳") && labels.has("国内") ? segments : null;
+  let activeLabel = initialLabel;
+  const segments = sentences.map((text, index) => {
+    activeLabel = textDimension(text) ?? activeLabel;
+    return {
+      label: activeLabel,
+      node: { ...node, nodeId: node.nodeId + "-segment-" + index, text }
+    };
+  });
+  return new Set(segments.map((segment) => segment.label)).size > 1 ? segments : null;
 }
 
 function tableDimension(label = "") {

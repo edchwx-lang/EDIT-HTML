@@ -39,6 +39,7 @@ test("renderer supports material master-detail navigation without dropping dimen
   const projectDir = path.join(sandbox, "report");
   await writeFile(source, "材料证据", "utf8");
   await createProject(source, projectDir);
+  await writeFile(path.join(projectDir, "source-assets", "nested.png"), Buffer.from("nested-image"));
   const variant = await createVariant(projectDir, { mode: "data-first" });
   const variantDir = path.join(projectDir, "variants", variant.variantId);
   const sourceRef = { sourceId: "src-material", documentName: "brief.txt", order: 0 };
@@ -48,7 +49,17 @@ test("renderer supports material master-detail navigation without dropping dimen
       nodeId: "materials", type: "entityGroup", title: "核心材料", sourceRefs: [sourceRef],
       entities: ["PCB", "HBM", "MLCC", "液冷"].map((title, index) => ({
         entityId: "material-" + index, title,
-        dimensions: ["全球市场", "国内情况", "深圳情况", "技术难点"].map((label) => ({ label, text: title + label, sourceRefs: [sourceRef] }))
+        dimensions: ["全球市场", "国内情况", "深圳情况", "技术难点"].map((label, dimensionIndex) => ({
+          label,
+          text: title + label,
+          sourceRefs: [sourceRef],
+          ...(index === 0 && dimensionIndex === 0 ? {
+            nodes: [
+              { nodeId: "nested-text", type: "paragraph", text: title + label, sourceRefs: [sourceRef] },
+              { nodeId: "nested-image", type: "image", assetPath: "source-assets/nested.png", sourceRefs: [sourceRef] }
+            ]
+          } : {})
+        }))
       }))
     }], datasets: [], overrides: []
   };
@@ -65,6 +76,8 @@ test("renderer supports material master-detail navigation without dropping dimen
   assert.match(html, /data-dimension="技术难点"/);
   assert.match(html, /PCB全球市场/);
   assert.match(html, /液冷技术难点/);
+  assert.match(html, /src="data:image\/png;base64,/);
+  assert.doesNotMatch(html, /src="source-assets\/nested\.png"/);
 });
 
 test("evidence-first renderer exposes claim, evidence, qualification, and source", async (t) => {
