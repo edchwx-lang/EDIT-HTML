@@ -62,6 +62,44 @@ test("extractDocument reads PPTX slides in numeric order", async () => {
   assert.equal(extracted.slideCount, 2);
 });
 
+test("extractDocument preserves PPTX images, chart caches, and speaker notes", async () => {
+  const pptx = zipSync({
+    "ppt/slides/slide1.xml": strToU8(
+      '<p:sld xmlns:p="urn:p" xmlns:a="urn:a" xmlns:r="urn:r" xmlns:c="urn:c"><p:cSld>' +
+      '<a:p><a:r><a:t>材料市场</a:t></a:r></a:p>' +
+      '<p:pic><p:nvPicPr><p:cNvPr id="1" name="图片" descr="材料图"/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill></p:pic>' +
+      '<c:chart r:id="rIdChart"/></p:cSld></p:sld>'
+    ),
+    "ppt/slides/_rels/slide1.xml.rels": strToU8(
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rIdImage" Target="../media/image1.png" Type="image"/>' +
+      '<Relationship Id="rIdChart" Target="../charts/chart1.xml" Type="chart"/>' +
+      '<Relationship Id="rIdNotes" Target="../notesSlides/notesSlide1.xml" Type="notesSlide"/>' +
+      '</Relationships>'
+    ),
+    "ppt/media/image1.png": strToU8("png"),
+    "ppt/charts/chart1.xml": strToU8(
+      '<c:chartSpace xmlns:c="urn:c"><c:chart><c:plotArea><c:barChart><c:ser>' +
+      '<c:tx><c:v>市场规模</c:v></c:tx><c:cat><c:strRef><c:strCache>' +
+      '<c:pt idx="0"><c:v>全球</c:v></c:pt><c:pt idx="1"><c:v>国内</c:v></c:pt>' +
+      '</c:strCache></c:strRef></c:cat><c:val><c:numRef><c:numCache>' +
+      '<c:pt idx="0"><c:v>42</c:v></c:pt><c:pt idx="1"><c:v>21</c:v></c:pt>' +
+      '</c:numCache></c:numRef></c:val></c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>'
+    ),
+    "ppt/notesSlides/notesSlide1.xml": strToU8(
+      '<p:notes xmlns:p="urn:p" xmlns:a="urn:a"><a:p><a:r><a:t>来源备注</a:t></a:r></a:p></p:notes>'
+    )
+  });
+
+  const extracted = await extractDocument("brief.pptx", pptx);
+  assert.deepEqual(extracted.units.map((unit) => unit.type), ["heading", "image", "chart", "note"]);
+  assert.equal(extracted.units[1].assetPath, "source-assets/image1.png");
+  assert.deepEqual(extracted.units[2].rows, [["类别", "市场规模"], ["全球", "42"], ["国内", "21"]]);
+  assert.equal(extracted.units[2].sourceStatus, "cached-data");
+  assert.equal(extracted.units[3].text, "来源备注");
+  assert.equal(extracted.assets[0].path, "source-assets/image1.png");
+});
+
 test("extractDocument reads text page by page from PDF", async () => {
   const extracted = await extractDocument("brief.pdf", minimalPdf("PDF evidence 42"));
 

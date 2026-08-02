@@ -25,7 +25,7 @@
       "properties": {
         "sourceId": { "type": "string" },
         "order": { "type": "integer", "minimum": 0 },
-        "type": { "enum": ["heading", "paragraph", "list", "table", "image", "footnote", "page", "slide"] },
+        "type": { "enum": ["heading", "paragraph", "list", "table", "image", "chart", "note", "footnote", "page", "slide"] },
         "substantive": { "type": "boolean" }
       },
       "additionalProperties": true

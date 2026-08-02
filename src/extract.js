@@ -95,24 +95,87 @@ function extractPptx(contents) {
   const files = unzipSync(contents);
   const slideNames = Object.keys(files).filter((item) => /^ppt\/slides\/slide\d+\.xml$/i.test(item)).sort((a, b) => slideNumber(a) - slideNumber(b));
   const units = [];
+  const assets = [];
+  const warnings = [];
   for (const slideName of slideNames) {
     const slide = slideNumber(slideName);
     const xml = strFromU8(files[slideName]);
+    assertWellFormed(xml, "PPTX " + slideName);
+    const relationshipPath = path.posix.join(path.posix.dirname(slideName), "_rels", path.posix.basename(slideName) + ".rels");
+    const relationships = relationshipMap(files[relationshipPath]);
     const paragraphs = xml.split(/<\/a:p>/i).map((paragraph) => [...paragraph.matchAll(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/gi)].map((match) => decodeXml(match[1])).join("")).filter(Boolean);
     paragraphs.forEach((text, index) => units.push({ type: index === 0 ? "heading" : "paragraph", level: index === 0 ? 1 : undefined, text, slide }));
     for (const table of xml.matchAll(/<a:tbl\b[\s\S]*?<\/a:tbl>/gi)) {
       const rows = [...table[0].matchAll(/<a:tr\b[\s\S]*?<\/a:tr>/gi)].map((row) => [...row[0].matchAll(/<a:tc\b[\s\S]*?<\/a:tc>/gi)].map((cell) => [...cell[0].matchAll(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/gi)].map((m) => decodeXml(m[1])).join("")));
       if (rows.length) units.push({ type: "table", rows, slide });
     }
+    for (const picture of xml.matchAll(/<p:pic\b[\s\S]*?<\/p:pic>/gi)) {
+      const relationshipId = picture[0].match(/<a:blip\b[^>]*\br:embed=["']([^"']+)["']/i)?.[1];
+      const relationship = relationships.get(relationshipId);
+      if (!relationship) continue;
+      const zipPath = resolveOoxmlTarget(slideName, relationship.target);
+      const bytes = files[zipPath];
+      if (!bytes) { warnings.push("PPTX image target is missing: " + zipPath); continue; }
+      const fileName = path.posix.basename(zipPath);
+      const assetPath = "source-assets/" + fileName;
+      if (!assets.some((asset) => asset.path === assetPath)) assets.push({ path: assetPath, bytes });
+      const properties = picture[0].match(/<p:cNvPr\b[^>]*>/i)?.[0] ?? "";
+      units.push({ type: "image", assetPath, alt: attributeValue(properties, "descr") || attributeValue(properties, "name") || fileName, slide });
+    }
+    for (const chartMatch of xml.matchAll(/<c:chart\b[^>]*\br:id=["']([^"']+)["'][^>]*\/?/gi)) {
+      const relationship = relationships.get(chartMatch[1]);
+      if (!relationship) continue;
+      const chartPath = resolveOoxmlTarget(slideName, relationship.target);
+      const chartXml = files[chartPath] ? strFromU8(files[chartPath]) : "";
+      const rows = chartRows(chartXml);
+      if (!rows.length) warnings.push("PPTX chart has no recoverable cache: " + chartPath);
+      units.push({ type: "chart", rows, slide, sourceStatus: rows.length ? "cached-data" : "unavailable", chartPath });
+    }
+    const notesRelationship = [...relationships.values()].find((item) => /notesSlide/i.test(item.type) || /notesSlides\//i.test(item.target));
+    if (notesRelationship) {
+      const notesPath = resolveOoxmlTarget(slideName, notesRelationship.target);
+      const notesXml = files[notesPath] ? strFromU8(files[notesPath]) : "";
+      const noteText = [...notesXml.matchAll(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/gi)].map((match) => decodeXml(match[1])).join(" ").trim();
+      if (noteText) units.push({ type: "note", text: noteText, slide });
+    }
   }
   return {
     mediaType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     text: slideNames.map((name) => units.filter((unit) => unit.slide === slideNumber(name) && ["heading", "paragraph"].includes(unit.type)).map((unit) => unit.text).join("\n")).join("\n\n"),
     units,
-    assets: [],
+    assets,
     slideCount: slideNames.length,
-    warnings: []
+    warnings
   };
+}
+
+function resolveOoxmlTarget(partName, target) {
+  return path.posix.normalize(path.posix.join(path.posix.dirname(partName), target.replace(/^\//, "")));
+}
+
+function chartRows(xml) {
+  if (!xml) return [];
+  const series = [...xml.matchAll(/<c:ser\b[\s\S]*?<\/c:ser>/gi)].map((match, seriesIndex) => {
+    const block = match[0];
+    const name = block.match(/<c:tx\b[\s\S]*?<c:v\b[^>]*>([\s\S]*?)<\/c:v>/i)?.[1] ?? "系列" + (seriesIndex + 1);
+    const categoryBlock = block.match(/<c:cat\b[\s\S]*?<\/c:cat>/i)?.[0] ?? "";
+    const valueBlock = block.match(/<c:val\b[\s\S]*?<\/c:val>/i)?.[0] ?? "";
+    return { name: decodeXml(name), categories: cachedPoints(categoryBlock), values: cachedPoints(valueBlock) };
+  });
+  if (!series.length) return [];
+  const indexes = [...new Set(series.flatMap((item) => [...item.categories.keys(), ...item.values.keys()]))].sort((a, b) => a - b);
+  return [
+    ["类别", ...series.map((item) => item.name)],
+    ...indexes.map((index) => [series.find((item) => item.categories.has(index))?.categories.get(index) ?? String(index + 1), ...series.map((item) => item.values.get(index) ?? "")])
+  ];
+}
+
+function cachedPoints(xml) {
+  const points = new Map();
+  for (const match of xml.matchAll(/<c:pt\b[^>]*idx=["'](\d+)["'][^>]*>[\s\S]*?<c:v\b[^>]*>([\s\S]*?)<\/c:v>[\s\S]*?<\/c:pt>/gi)) {
+    points.set(Number(match[1]), decodeXml(match[2]));
+  }
+  return points;
 }
 
 async function extractPdf(contents) {

@@ -299,6 +299,7 @@ function sourceUnitToReportNode(document, unit, variantId) {
     sourceRefs: [sourceRef(document, unit)]
   };
   if (unit.type === "table") return { ...base, rows: unit.rows, caption: unit.caption ?? "" };
+  if (unit.type === "chart") return { ...base, type: "table", originalType: "chart", rows: unit.rows ?? [], caption: unit.caption ?? "原始图表缓存数据", sourceStatus: unit.sourceStatus ?? "unavailable" };
   if (unit.type === "image") return { ...base, assetPath: unit.assetPath, alt: unit.alt ?? "", caption: unit.caption ?? "" };
   if (unit.type === "list") return { ...base, items: unit.items ?? [unit.text], ordered: unit.ordered ?? false };
   return { ...base, text: unit.text ?? "", page: unit.page ?? null, slide: unit.slide ?? null };

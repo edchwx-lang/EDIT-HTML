@@ -3,13 +3,21 @@
   "$id": "https://edit-html-report.local/schemas/v2/theme.schema.json",
   "title": "Semantic Report Theme V2",
   "type": "object",
-  "required": ["schemaVersion", "themeId", "appearance", "tokens", "chartSeries"],
+  "required": ["schemaVersion", "themeId", "appearance", "tokens", "chart"],
   "properties": {
     "schemaVersion": { "const": 2 },
     "themeId": { "type": "string" },
     "appearance": { "enum": ["light", "dark"] },
     "tokens": { "type": "object" },
-    "chartSeries": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" } }
+    "chart": {
+      "type": "object",
+      "required": ["categorical", "grid", "axis", "tooltipBackground", "tooltipText", "directLabels", "patternFallback"],
+      "properties": {
+        "categorical": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" } },
+        "directLabels": { "const": true },
+        "patternFallback": { "const": true }
+      }
+    }
   },
   "additionalProperties": true
 }

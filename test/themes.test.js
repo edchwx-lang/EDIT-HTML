@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  auditThemeAccessibility,
   getTheme,
   getLegacyTheme,
   listThemes,
@@ -54,4 +55,17 @@ test("theme validation rejects incomplete semantic and chart colors", () => {
     /theme "broken" requires labels/
   );
   assert.throws(() => getTheme("unknown"), /unknown theme "unknown"/);
+});
+
+test("all six themes pass text, focus, tooltip, legend, and color-vision audits", () => {
+  for (const theme of listThemes()) {
+    const audit = auditThemeAccessibility(theme);
+    assert.equal(audit.bodyContrast >= 4.5, true, theme.themeId + " body contrast");
+    assert.equal(audit.focusContrast >= 3, true, theme.themeId + " focus contrast");
+    assert.equal(audit.tooltipContrast >= 4.5, true, theme.themeId + " tooltip contrast");
+    assert.equal(audit.uniqueSeries, 8);
+    assert.deepEqual(Object.keys(audit.colorVision), ["protanopia", "deuteranopia", "tritanopia"]);
+    assert.equal(audit.redundantLegendEncoding, true);
+    assert.equal(audit.passes, true);
+  }
 });

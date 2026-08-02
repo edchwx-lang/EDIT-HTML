@@ -44,3 +44,26 @@ test("V3 migration dry-run is non-mutating and real migration preserves legacy a
   await access(path.join(projectDir, "打开编辑器.cmd"));
   await access(path.join(projectDir, ".editor-runtime", "open-editor.mjs"));
 });
+
+test("failed V3 migration leaves the original project untouched and removes staging", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-migrate-failure-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const projectDir = path.join(sandbox, "broken");
+  await mkdir(path.join(projectDir, "source"), { recursive: true });
+  await writeFile(path.join(projectDir, "source", "brief.txt"), "Evidence", "utf8");
+  const original = {
+    schemaVersion: 3,
+    projectId: "broken-project",
+    sourceFiles: [{ name: "brief.txt", sha256: "legacy" }],
+    variants: [{ mode: "data-first", themeId: "ink-teal" }],
+    versions: []
+  };
+  await writeFile(path.join(projectDir, "project.json"), JSON.stringify(original), "utf8");
+  await writeFile(path.join(projectDir, "analysis.json"), JSON.stringify({ documents: [] }), "utf8");
+
+  await assert.rejects(() => migrateProject(projectDir), /variantId|path/);
+  assert.deepEqual(JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8")), original);
+  await assert.rejects(() => access(path.join(projectDir, "source-model.json")), /ENOENT/);
+  const siblings = await import("node:fs/promises").then(({ readdir }) => readdir(sandbox));
+  assert.equal(siblings.some((name) => name.startsWith(".migration-")), false);
+});

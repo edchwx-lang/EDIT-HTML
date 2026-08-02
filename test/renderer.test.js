@@ -26,6 +26,7 @@ test("data-first renderer compiles canonical models into an interactive offline 
   assert.match(html, /data-chart-id=/);
   assert.match(html, /class="chart-tooltip"/);
   assert.match(html, /class="chart-selection-band"/);
+  assert.match(html, /class="chart-axis"/);
   assert.match(html, /--report-chart-8:/);
   assert.ok(html.indexOf("市场规模") < html.indexOf("技术约束"));
   assert.doesNotMatch(html, /(?:src|href)="https?:\/\//i);
@@ -79,4 +80,20 @@ test("evidence-first renderer exposes claim, evidence, qualification, and source
   assert.match(html, /class="evidence-chain"/);
   assert.match(html, /class="source-citation"/);
   assert.match(html, /阅读宽度/);
+});
+
+test("data-first charts add non-color encodings after the eighth series", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-series-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.md");
+  const projectDir = path.join(sandbox, "report");
+  const rows = Array.from({ length: 10 }, (_, index) => `| 系列${index + 1} | ${index + 1} |`).join("\n");
+  await writeFile(source, "# 对比\n| 系列 | 数值 |\n| --- | ---: |\n" + rows, "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "data-first" });
+  const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
+  assert.match(html, /data-series-reused="true"/);
+  assert.match(html, /data-series-symbol="(?:diamond|square|circle|triangle)"/);
+  assert.match(html, /repeating-linear-gradient/);
+  assert.match(html, /border-style:dashed/);
 });

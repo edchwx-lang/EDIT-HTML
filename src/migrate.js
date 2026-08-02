@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { access, mkdir, readFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { access, cp, mkdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { extractDocument } from "./extract.js";
@@ -15,6 +15,7 @@ import {
 import { migrateLegacyThemeId, THEME_SCHEMA_VERSION } from "./themes.js";
 
 export async function migrateProject(projectDir, { dryRun = false } = {}) {
+  projectDir = path.resolve(projectDir);
   const projectPath = path.join(projectDir, "project.json");
   const original = JSON.parse(await readFile(projectPath, "utf8"));
   if (original.schemaVersion === PROJECT_SCHEMA_VERSION) {
@@ -43,6 +44,44 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
   await packProject(projectDir, backupPath);
   summary.backupPath = backupPath;
 
+  const stagingPath = path.join(path.dirname(projectDir), ".migration-stage-" + randomUUID());
+  const rollbackPath = path.join(path.dirname(projectDir), ".migration-rollback-" + randomUUID());
+  let stagingPromoted = false;
+  let originalMoved = false;
+  await cp(projectDir, stagingPath, {
+    recursive: true,
+    filter: (source) => {
+      const name = path.basename(source);
+      return name !== ".runtime" && !name.startsWith(".migration-");
+    }
+  });
+  try {
+    await migrateProjectFiles(stagingPath, original, variants, summary, backupPath);
+    await validateMigratedProject(stagingPath, variants);
+    await rename(projectDir, rollbackPath);
+    originalMoved = true;
+    try {
+      await rename(stagingPath, projectDir);
+      stagingPromoted = true;
+    } catch (error) {
+      await rename(rollbackPath, projectDir);
+      originalMoved = false;
+      throw error;
+    }
+    await rm(rollbackPath, { recursive: true, force: true });
+    originalMoved = false;
+    return summary;
+  } finally {
+    if (!stagingPromoted) await rm(stagingPath, { recursive: true, force: true });
+    if (originalMoved && await exists(rollbackPath) && !await exists(projectDir)) {
+      await rename(rollbackPath, projectDir);
+    }
+  }
+}
+
+async function migrateProjectFiles(projectDir, original, variants, summary, backupPath) {
+  const projectPath = path.join(projectDir, "project.json");
+
   const sourceModel = await importLegacySourceModel(projectDir, original);
   await writeJsonAtomic(path.join(projectDir, "source-model.json"), sourceModel);
   let coverage = createInitialCoverageMap(sourceModel);
@@ -50,6 +89,7 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
   const migratedVariants = [];
   for (const stored of variants) {
     const variantId = stored.variantId;
+    if (!variantId) throw new Error("legacy variant requires variantId");
     const variantDir = path.join(projectDir, "variants", variantId);
     await mkdir(variantDir, { recursive: true });
     const themeId = migrateLegacyThemeId(stored.themeId ?? stored.theme);
@@ -117,7 +157,7 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
     fromSchemaVersion: summary.fromSchemaVersion,
     toSchemaVersion: PROJECT_SCHEMA_VERSION,
     backupPath,
-    themeMappings,
+    themeMappings: summary.themeMappings,
     historicalArtifactsModified: false
   };
   await writeJsonAtomic(path.join(projectDir, "migration-log.json"), migrationLog);
@@ -128,7 +168,25 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
     publications: original.publications ?? []
   });
   await installProjectEditorRuntime(projectDir);
-  return summary;
+}
+
+async function validateMigratedProject(projectDir, variants) {
+  const [project, sourceModel, coverage] = await Promise.all([
+    readJson(path.join(projectDir, "project.json")),
+    readJson(path.join(projectDir, "source-model.json")),
+    readJson(path.join(projectDir, "coverage-map.json"))
+  ]);
+  if (project.schemaVersion !== PROJECT_SCHEMA_VERSION || sourceModel.schemaVersion !== PROJECT_SCHEMA_VERSION || coverage.schemaVersion !== PROJECT_SCHEMA_VERSION) {
+    throw new Error("migration staging validation failed: schema version mismatch");
+  }
+  for (const variant of variants) {
+    if (!variant.variantId) throw new Error("legacy variant requires variantId");
+    await Promise.all([
+      access(path.join(projectDir, "variants", variant.variantId, "variant.json")),
+      access(path.join(projectDir, "variants", variant.variantId, "report-model.json")),
+      access(path.join(projectDir, "variants", variant.variantId, "presentation-plan.json"))
+    ]);
+  }
 }
 
 async function importLegacySourceModel(projectDir, project) {
@@ -155,6 +213,10 @@ async function readMaybe(filePath, fallback) {
     if (error.code === "ENOENT") return fallback;
     throw error;
   }
+}
+
+async function readJson(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
 }
 
 async function exists(filePath) {

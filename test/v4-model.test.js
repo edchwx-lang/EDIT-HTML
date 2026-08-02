@@ -52,6 +52,23 @@ test("data-first scaffolding turns twelve material sections into a source-comple
   assert.equal(presentation.bindings.find((binding) => binding.nodeId === group.nodeId).component, "master-detail");
 });
 
+test("cached source charts become traceable table datasets instead of disappearing", () => {
+  const source = buildSourceModel("slides.pptx", {
+    mediaType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    text: "",
+    units: [
+      { type: "heading", level: 1, text: "市场", slide: 1 },
+      { type: "chart", rows: [["类别", "规模"], ["全球", "42"]], sourceStatus: "cached-data", slide: 1 }
+    ]
+  }, "sha");
+  const { report } = scaffoldReportModel(source, { variantId: "v", mode: "data-first" });
+  const chart = report.nodes[0].children[0];
+  assert.equal(chart.type, "table");
+  assert.equal(chart.originalType, "chart");
+  assert.deepEqual(chart.rows, [["类别", "规模"], ["全球", "42"]]);
+  assert.equal(report.datasets[0].sourceRefs[0].slide, 1);
+});
+
 test("DOCX source model preserves heading, paragraph, table, image, and order", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-v4-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));

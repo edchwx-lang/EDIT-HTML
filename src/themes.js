@@ -26,7 +26,7 @@ const THEMES = [
   theme("warm-paper-terracotta", "暖纸赤陶", "Warm Paper Terracotta", "light", {
     canvas: "#F5F0E8", surface: "#FFFDFC", surfaceAlt: "#E8DED0",
     text: "#191919", textMuted: "#6F675F", border: "#D8CEC1",
-    accent: "#CC785C", focus: "#CC785C", positive: "#2F7D63",
+    accent: "#CC785C", focus: "#A34F37", positive: "#2F7D63",
     warning: "#A56A23", negative: "#A63E32"
   }, ["#CC785C", "#4F7C82", "#D39B45", "#75639A", "#69935B", "#B65D73", "#3F6FA6", "#8B6655"]),
   theme("research-cobalt", "研究钴蓝", "Research Cobalt", "light", {
@@ -116,7 +116,37 @@ export function validateTheme(item) {
   for (const background of [item.tokens.canvas, item.tokens.surface]) {
     if (contrastRatio(item.tokens.text, background) < 4.5) throw new Error('theme "' + identity + '" text contrast is below WCAG AA');
   }
+  const audit = auditThemeAccessibility(item);
+  if (!audit.passes) throw new Error('theme "' + identity + '" fails accessibility audit');
   return item;
+}
+
+export function auditThemeAccessibility(item) {
+  const colors = item.chart?.categorical ?? [];
+  const colorVision = Object.fromEntries(["protanopia", "deuteranopia", "tritanopia"].map((kind) => [
+    kind,
+    minimumPairDistance(colors.map((color) => simulateColorVision(color, kind)))
+  ]));
+  const bodyContrast = Math.min(
+    contrastRatio(item.tokens.text, item.tokens.canvas),
+    contrastRatio(item.tokens.text, item.tokens.surface)
+  );
+  const focusContrast = Math.min(
+    contrastRatio(item.tokens.focus, item.tokens.canvas),
+    contrastRatio(item.tokens.focus, item.tokens.surface)
+  );
+  const tooltipContrast = contrastRatio(item.chart.tooltipText, item.chart.tooltipBackground);
+  const uniqueSeries = new Set(colors).size;
+  const redundantLegendEncoding = item.chart.directLabels === true && item.chart.patternFallback === true;
+  return {
+    bodyContrast,
+    focusContrast,
+    tooltipContrast,
+    uniqueSeries,
+    colorVision,
+    redundantLegendEncoding,
+    passes: bodyContrast >= 4.5 && focusContrast >= 3 && tooltipContrast >= 4.5 && uniqueSeries === 8 && redundantLegendEncoding
+  };
 }
 
 function theme(themeId, zh, en, appearance, base, categorical) {
@@ -137,7 +167,9 @@ function theme(themeId, zh, en, appearance, base, categorical) {
       grid: base.border,
       axis: base.textMuted,
       tooltipBackground: base.text,
-      tooltipText: base.surface
+      tooltipText: base.surface,
+      directLabels: true,
+      patternFallback: true
     }
   };
 }
@@ -182,6 +214,28 @@ function luminance(color) {
 
 function hexChannels(color) {
   return color.slice(1).match(/.{2}/g).map((channel) => Number.parseInt(channel, 16));
+}
+
+function simulateColorVision(color, kind) {
+  const matrices = {
+    protanopia: [[0.567, 0.433, 0], [0.558, 0.442, 0], [0, 0.242, 0.758]],
+    deuteranopia: [[0.625, 0.375, 0], [0.7, 0.3, 0], [0, 0.3, 0.7]],
+    tritanopia: [[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]]
+  };
+  const channels = hexChannels(color);
+  return matrices[kind].map((row) => Math.round(row.reduce((sum, coefficient, index) => sum + coefficient * channels[index], 0)));
+}
+
+function minimumPairDistance(colors) {
+  if (colors.length < 2) return 0;
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let left = 0; left < colors.length; left += 1) {
+    for (let right = left + 1; right < colors.length; right += 1) {
+      const distance = Math.sqrt(colors[left].reduce((sum, value, index) => sum + (value - colors[right][index]) ** 2, 0));
+      minimum = Math.min(minimum, distance);
+    }
+  }
+  return minimum;
 }
 
 function deepFreeze(value) {
