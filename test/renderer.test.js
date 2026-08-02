@@ -24,6 +24,7 @@ test("data-first renderer compiles canonical models into an interactive offline 
   assert.match(html, /data-theme="linear-indigo"/);
   assert.match(html, /max-width:1440px/);
   assert.match(html, /data-chart-id=/);
+  assert.match(html, /class="interactive-chart"[^>]*data-chart-id="[^"]+"[^>]*data-node-id="[^"]+"/);
   assert.match(html, /class="chart-tooltip"/);
   assert.match(html, /class="chart-selection-band"/);
   assert.match(html, /class="chart-axis"/);

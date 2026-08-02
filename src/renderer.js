@@ -132,7 +132,7 @@ function renderChart(dataset, sourceRefs) {
     return '<button class="chart-row" type="button" data-chart-label="' + escapeAttribute(label) + '" data-chart-value="' + escapeAttribute(value) + '"' + (reused ? ' data-series-reused="true" data-series-symbol="' + symbol + '"' : '') + '><span>' + (reused ? '<em class="series-symbol" aria-hidden="true">◆</em>' : '') + escapeHtml(label) + '</span><i class="chart-mark" data-chart-mark style="' + markStyle + '"></i><b>' + escapeHtml(value) + '</b></button>';
   }).join('');
   const axis = '<div class="chart-axis" aria-label="数值坐标">' + [0, 0.25, 0.5, 0.75, 1].map((ratio) => '<span>' + escapeHtml(formatAxisValue(max * ratio)) + '</span>').join('') + '</div>';
-  return '<figure class="interactive-chart" data-chart-id="' + escapeAttribute(chartId) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>数据对比</figcaption><div class="chart-stage"><div class="chart-selection-band"></div>' + marks + '</div>' + axis +
+  return '<figure class="interactive-chart" data-chart-id="' + escapeAttribute(chartId) + '" data-node-id="' + escapeAttribute(dataset.nodeId) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>数据对比</figcaption><div class="chart-stage"><div class="chart-selection-band"></div>' + marks + '</div>' + axis +
     '<script type="application/json" data-chart-data-for="' + escapeAttribute(chartId) + '">' + escapeScriptJson(JSON.stringify(dataset)) + '</script></figure>';
 }
 
