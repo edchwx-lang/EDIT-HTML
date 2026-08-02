@@ -1,6 +1,6 @@
 # Huashu-Design attribution
 
-The report-design guidance in `huashu-report-profile.md` is adapted from
+The report-design guidance in `presentation-plan.md` is adapted from
 Huashu-Design.
 
 MIT License

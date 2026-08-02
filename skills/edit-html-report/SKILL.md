@@ -1,59 +1,38 @@
 ---
 name: edit-html-report
-description: Use when turning TXT, Markdown, HTML, DOCX, PDF, or PPTX source material into an editable, traceable HTML report; revising an Edit HTML Report project; choosing data-first versus evidence-first; changing report colors; saving versions; or publishing through local output, Netlify, or Vercel.
+description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT research reports and project proposals into source-faithful, editable, versioned HTML reports; choosing data-first versus evidence-first; changing report palettes; reopening the local editor; restoring versions; or publishing traceable local/public artifacts.
 ---
 
-# Edit HTML Report
+# Edit HTML Report V4
 
-Use the active Agent for evidence analysis and report authorship. Use `edit-html-report` for deterministic extraction, project state, validation, local editing, immutable versions, and publication.
-
-## Keep the fact boundary
-
-- Use only facts in the user's source material. Never invent or supplement claims, quotations, or numbers.
-- Preserve a source reference for every chart, number, and quantitative conclusion.
-- Treat web pages as visual references only when browsing is permitted.
-- Omit unsupported content and disclose unresolved extraction or source limitations.
+Build reports from structured content, never by directly rewriting generated HTML. `source-model.json` is immutable extraction, `coverage-map.json` is the completeness lock, `report-model.json` is the editable fact source, `presentation-plan.json` is Huashu Design's layout-only output, and `artifact.html` is deterministic output.
 
 ## Run the complete workflow
 
-1. Run `edit-html-report doctor`, then create the project:
+1. Run `edit-html-report doctor`. Create a V4 project with `edit-html-report create <source> --out <project>`, or inspect migration first with `edit-html-report migrate <project> --dry-run`.
+2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect extraction warnings, every substantive source unit, and coverage before choosing a mode.
+3. Present both structural choices in the user's system language, recommend one, explain why, and ask only for the mode unless the user already selected it:
+   - 数据优先：原文结构 + 高密度可视化 + 分层交互；突出 data。
+   - 证据优先：判断—证据—解释—边界—来源；突出 insight。
+4. After confirmation, create exactly one variant with `edit-html-report variant create <project> --mode <data-first|evidence-first>`. Do not ask for a palette before this step.
+5. Read the selected mode reference completely: [references/data-first.md](references/data-first.md) or [references/evidence-first.md](references/evidence-first.md). Read [references/presentation-plan.md](references/presentation-plan.md) and [references/artifact-contract.md](references/artifact-contract.md) completely.
+6. Run `edit-html-report render <project> --variant <id>` and `edit-html-report validate <project> --variant <id>`. Fix the models or presentation plan; never hand-edit `artifact.html` as the source of truth.
+7. Read [references/editor-publication.md](references/editor-publication.md) completely. Open the persistent local editor with `edit-html-report editor open <project> --variant <id>`. This step is mandatory before publication.
+8. Let the user edit, switch among the six palettes, and save an immutable version. Do not close the editor after saving. Publish only the latest explicitly saved version; never publish a dirty draft.
+9. Report the project path, variant ID, mode, palette, saved version ID, publication record/path or URL, coverage result, warnings, and verification results.
 
-       edit-html-report create <source> --out <project>
+## Enforce the fact boundary
 
-2. Read `project.json`, `analysis.json`, and [references/agent-handoff.md](references/agent-handoff.md). Prepare `report-plan.json` from the extracted evidence.
+- Do not invent, supplement, weaken, or reverse facts, numbers, qualifications, citations, or source relationships.
+- Preserve first-level section order. Allow only local claim-evidence grouping or like-object comparison.
+- A substantive unit may be omitted only as duplicate/format-only content with an explicit coverage reason.
+- Derived values require formula, inputs, and source IDs. User edits retain original value, source IDs, timestamp, and `user-override` provenance.
+- Huashu Design may choose components, grids, hierarchy, responsive behavior, and interaction only. It may not rewrite content or coverage.
 
-3. Present both structural modes in the user's system language, recommend one with evidence from `analysis.json`, and obtain explicit confirmation unless the user already chose a mode:
-   - 数据优先：高密度 KPI、图表、表格和结构化比较；适合量化证据充足的材料。
-   - 证据优先：文字说明和论证重于新增图表，可保留原文图表、引文与脚注。
+## Route supporting work
 
-   Do not present light/dark or any color palette as a mode. Read [references/modes-and-themes.md](references/modes-and-themes.md) for the exact rules.
+- Theme changes or palette questions: read [references/themes.md](references/themes.md).
+- V3 projects, legacy HTML, or compatibility: read [references/migration.md](references/migration.md).
+- Editor recovery, history, local/public publication, or dirty-state questions: read [references/editor-publication.md](references/editor-publication.md).
 
-4. Record the confirmed mode before creating one independent variant. Do not ask for a theme yet:
-
-       edit-html-report variant create <project> --mode <data-first|evidence-first>
-
-5. Read [references/huashu-report-profile.md](references/huashu-report-profile.md) and [references/artifact-contract.md](references/artifact-contract.md) completely. Author `artifact.html` in the new variant directory. Never reuse or overwrite another variant's DOM.
-
-6. Finalize and repair every validation failure. This creates a validation snapshot, not permission to skip editing:
-
-       edit-html-report finalize <project> --variant <variant-id>
-
-7. Always open the tokenized loopback editor in the user's local browser before publication:
-
-       edit-html-report open <project> --variant <variant-id>
-
-   Do not treat this as optional. Let the user edit content and select any of the six palettes. A theme change changes color state only; it must not change the mode, outline, DOM hierarchy, layout geometry, chart type, content, data, or citations.
-
-8. After the user finishes editing, save a new immutable version in the editor. Publish only that exact post-editor saved version. Never publish the mutable draft or silently substitute an earlier snapshot.
-
-9. Publish to the user's selected target: local HTML, Netlify, or Vercel. If the target is already known, act without asking again. Never claim provider publication succeeded without the returned URL.
-
-## Preserve editability
-
-- Use `data-edit-id` for editable text, `data-block-id` for movable sections, `data-image-id` for replaceable images, and `data-chart-id` for charts.
-- Embed chart data and all runtime assets. Keep the report offline-capable.
-- Avoid free-canvas positioning, absolute-positioned report layouts, and arbitrary CSS controls.
-
-## Report completion
-
-State the project path, variant ID, confirmed mode, selected theme, post-editor saved version ID, publication target, and returned URL or local path. List validation commands and results. Mark unverified steps explicitly.
+Do not skip the editor, saved-version checkpoint, coverage validation, or publication record.

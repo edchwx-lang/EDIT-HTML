@@ -1,37 +1,11 @@
-# Artifact Contract
+# Deterministic Artifact Contract
 
-Read this file before authoring or repairing a variant.
+- `artifact.html` declares `data-report-mode` and is generated from V4 models.
+- Stable report nodes use `data-node-id`; editable text uses `data-edit-id`; movable regions use `data-block-id`; replaceable images use `data-image-id`; charts use `data-chart-id`.
+- Every editable numeric value and chart carries a source reference. Derived values carry a readable formula.
+- Chart data is embedded as `application/json`; visible chart marks use `var(--report-chart-1)` through `var(--report-chart-8)`.
+- Runtime CSS, JavaScript, images, fonts, chart data, and interactions are local/inline. Published HTML contains no editor toolbar, token, credential, analytics, remote runtime import, or network fetch.
+- Responsive layout uses semantic flow, desktop/mobile gutters, keyboard focus, readable Chinese type, and no absolute positioning for report content.
+- Theme compilation changes semantic color tokens and `data-theme` only.
 
-## Identity and mode
-
-- Place the mutable draft at `variants/<variant-id>/artifact.html`.
-- Declare the variant mode on the artifact with `data-report-mode="data-first"` or `data-report-mode="evidence-first"`.
-- Assign unique `data-edit-id`, `data-block-id`, `data-image-id`, `data-kpi-id`, and `data-chart-id` values where applicable.
-- Attach `data-source-ref` to every chart and editable element containing a number.
-- Mark calculated values with `data-derived="true"` and a human-readable `data-formula`.
-
-Use a source file name as the first segment of `data-source-ref`; append a page, slide, heading, paragraph, table, or cell locator when available.
-
-## Charts
-
-Embed every chart dataset as JSON in `<script type="application/json" data-chart-data-for="<chart-id>">`. Each chart needs a descendant visual element carrying `data-chart-mark` whose `style`, `fill`, or `stroke` uses `var(--report-chart-N)`. Do not hard-code chart colors.
-
-For quantitatively sufficient data-first material, provide at least four unique KPI blocks and two unique charts, unless the artifact declares exactly `data-density-exception="insufficient-quantitative-evidence"`. Evidence-first has no chart minimum.
-
-## Semantic theme variables
-
-Use only these theme-owned variables for color:
-
-- `--report-canvas`, `--report-surface`, `--report-surface-alt`;
-- `--report-text`, `--report-text-muted`, `--report-border`;
-- `--report-accent`, `--report-focus`;
-- `--report-positive`, `--report-warning`, `--report-negative`;
-- `--report-chart-1`, `--report-chart-2`, `--report-chart-3` and future numbered chart colors;
-- `--report-chart-grid`, `--report-chart-axis`;
-- `--report-chart-tooltip-background`, `--report-chart-tooltip-text`.
-
-Theme switches must not change layout, typography, content, data, or chart type.
-
-## Offline and responsive output
-
-Inline CSS, JavaScript, fonts, icons, images, chart runtime, and chart data. Do not use remote runtime URLs, imports, analytics, trackers, or network fetches. Use semantic document flow and responsive gutters; avoid absolute positioning for report content.
+Validate with `edit-html-report validate <project> --variant <id>` before saving a version. Never repair a V4 artifact by editing the HTML directly; repair the report model, presentation plan, renderer, or theme.
