@@ -81,6 +81,20 @@ test("renderer supports material master-detail navigation without dropping dimen
   assert.doesNotMatch(html, /src="source-assets\/nested\.png"/);
 });
 
+test("document titles render once as the editable report header and empty chapter dividers stay compact", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-title-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.txt");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(source, "AI服务器核心材料专题研究报告\n一、发展情况\n（一）技术情况\n正文。", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "data-first" });
+  const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
+  assert.match(html, /<h1 data-edit-id="[^"]+"[^>]*>AI服务器核心材料专题研究报告<\/h1>/);
+  assert.doesNotMatch(html, /<h2[^>]*>AI服务器核心材料专题研究报告<\/h2>/);
+  assert.match(html, /class="report-section structural-section"/);
+});
+
 test("evidence-first renderer exposes claim, evidence, qualification, and source", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
