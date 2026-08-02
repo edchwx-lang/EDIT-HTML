@@ -28,6 +28,16 @@ test("editor session is backgrounded, reused, stopped, and restarted", async (t)
   assert.equal(metadata.variantId, variant.variantId);
   assert.equal(metadata.projectDir, path.resolve(projectDir));
 
+  const savedResponse = await fetch(first.url + "/api/versions", {
+    method: "POST",
+    headers: { authorization: "Bearer " + first.token, "content-type": "application/json" },
+    body: JSON.stringify({ message: "Session checkpoint" })
+  });
+  assert.equal(savedResponse.status, 201);
+  const savedVersion = await savedResponse.json();
+  const updatedMetadata = JSON.parse(await readFile(path.join(projectDir, ".runtime", "editor-session.json"), "utf8"));
+  assert.equal(updatedMetadata.activeVersionId, savedVersion.versionId);
+
   const reused = await ensureEditorSession(projectDir, { variantId: variant.variantId });
   assert.equal(reused.reused, true);
   assert.equal(reused.sessionId, first.sessionId);

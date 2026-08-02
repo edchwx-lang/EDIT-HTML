@@ -11,6 +11,7 @@ const variantId = option(args, "--variant");
 const token = option(args, "--token");
 const sessionId = option(args, "--session-id");
 let requestShutdown;
+let sessionMetadata = null;
 const shutdownRequested = new Promise((resolve) => { requestShutdown = resolve; });
 
 const editor = await startEditorServer({
@@ -18,11 +19,16 @@ const editor = await startEditorServer({
   variantId,
   token,
   sessionId,
-  onShutdown: requestShutdown
+  onShutdown: requestShutdown,
+  onActiveVersion: async (activeVersionId) => {
+    if (!sessionMetadata) return;
+    sessionMetadata = { ...sessionMetadata, activeVersionId };
+    await recordEditorSession(projectDir, sessionMetadata);
+  }
 });
 const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
 const activeVersionId = project.versions.filter((item) => item.variantId === variantId).at(-1)?.versionId ?? null;
-await recordEditorSession(projectDir, {
+sessionMetadata = {
   schemaVersion: 4,
   pid: process.pid,
   port: editor.port,
@@ -33,7 +39,8 @@ await recordEditorSession(projectDir, {
   activeVersionId,
   startedAt: new Date().toISOString(),
   url: editor.url
-});
+};
+await recordEditorSession(projectDir, sessionMetadata);
 
 process.once("SIGINT", requestShutdown);
 process.once("SIGTERM", requestShutdown);

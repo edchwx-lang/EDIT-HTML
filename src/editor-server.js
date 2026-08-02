@@ -26,7 +26,8 @@ export async function startEditorServer({
   port = 0,
   sessionId = randomUUID(),
   onShutdown = null,
-  onReveal = null
+  onReveal = null,
+  onActiveVersion = null
 }) {
   const host = "127.0.0.1";
   const token = requestedToken ?? randomBytes(32).toString("base64url");
@@ -82,7 +83,9 @@ export async function startEditorServer({
       }
       if (request.method === "POST" && url.pathname === "/api/versions") {
         const body = await readJsonBody(request);
-        sendJson(response, 201, await finalizeVariant(projectDir, variantId, { message: body.message ?? "" }));
+        const version = await finalizeVariant(projectDir, variantId, { message: body.message ?? "" });
+        if (onActiveVersion) await onActiveVersion(version.versionId);
+        sendJson(response, 201, version);
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/versions") {
@@ -95,7 +98,9 @@ export async function startEditorServer({
         return sendHtml(response, await readVersionArtifact(projectDir, versionRoute[1]));
       }
       if (versionRoute && request.method === "POST" && versionRoute[2] === "restore") {
-        sendJson(response, 201, await restoreVersion(projectDir, versionRoute[1]));
+        const version = await restoreVersion(projectDir, versionRoute[1]);
+        if (onActiveVersion) await onActiveVersion(version.versionId);
+        sendJson(response, 201, version);
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/publications") {
