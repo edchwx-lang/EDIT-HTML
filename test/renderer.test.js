@@ -84,6 +84,9 @@ test("data-first preserves range direction and propagates its source unit", asyn
   const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
   const dataset = report.datasets.find((item) => item.kind === "numeric-text");
   assert.deepEqual(dataset.rows.map((row) => [row[1], row[2]]), [[40, "层"], [78, "层"], [16, "层"], [24, "层"], [75, "%"], [85, "%"]]);
+  assert.deepEqual(dataset.rows.slice(0, 4).map((row) => row[0]), [
+    "40–78层 · 下限", "40–78层 · 上限", "16–24层 · 下限", "16–24层 · 上限"
+  ]);
 
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.doesNotMatch(html, /<strong>-78<\/strong>/);

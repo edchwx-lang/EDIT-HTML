@@ -363,10 +363,19 @@ function numericTokens(text = "") {
     const firstUnit = match[2] ?? match[4] ?? "";
     const characterAfter = text[match.index + match[0].length] ?? "";
     if (!firstUnit && !match[4] && /[A-Za-z0-9]/u.test(characterAfter)) continue;
-    values.push(metricToken(text, match[1], firstUnit, match.index, match.index + match[0].length, values.length));
+    const first = metricToken(text, match[1], firstUnit, match.index, match.index + match[0].length, values.length);
     if (match[3]) {
       const secondUnit = match[4] ?? match[2] ?? "";
-      values.push(metricToken(text, match[3], secondUnit, match.index, match.index + match[0].length, values.length));
+      const rangeLabel = firstUnit === secondUnit
+        ? `${match[1]}–${match[3]}${secondUnit}`
+        : `${match[1]}${firstUnit}–${match[3]}${secondUnit}`;
+      first.contextLabel = rangeLabel + " · 下限";
+      values.push(first);
+      const second = metricToken(text, match[3], secondUnit, match.index, match.index + match[0].length, values.length);
+      second.contextLabel = rangeLabel + " · 上限";
+      values.push(second);
+    } else {
+      values.push(first);
     }
   }
   return values;
