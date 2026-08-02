@@ -6,13 +6,28 @@ import path from "node:path";
 import { applyDraftPatch, redoDraft, undoDraft } from "./drafts.js";
 import { renderEditorShell } from "./editor-shell.js";
 import { finalizeVariant } from "./finalize.js";
-import { listPublications, publishLocal, publishProvider } from "./publish.js";
+import {
+  listPublications,
+  publishLocal,
+  publishProvider,
+  readPublicationArtifact,
+  republishPublication,
+  revealPublication
+} from "./publish.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { listThemes } from "./themes.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 import { restoreVersion } from "./versions.js";
 
-export async function startEditorServer({ projectDir, variantId, token: requestedToken, port = 0, sessionId = randomUUID(), onShutdown = null }) {
+export async function startEditorServer({
+  projectDir,
+  variantId,
+  token: requestedToken,
+  port = 0,
+  sessionId = randomUUID(),
+  onShutdown = null,
+  onReveal = null
+}) {
   const host = "127.0.0.1";
   const token = requestedToken ?? randomBytes(32).toString("base64url");
   const artifactPath = path.join(projectDir, "variants", variantId, "artifact.html");
@@ -95,9 +110,18 @@ export async function startEditorServer({ projectDir, variantId, token: requeste
         sendJson(response, 201, publication);
         return;
       }
-      const publicationRoute = url.pathname.match(/^\/api\/publications\/([^/]+)\/artifact$/);
-      if (request.method === "GET" && publicationRoute) {
-        return sendHtml(response, await readFile(path.join(projectDir, "publications", publicationRoute[1], "report.html"), "utf8"));
+      const publicationRoute = url.pathname.match(/^\/api\/publications\/([^/]+)\/(artifact|reveal|republish)$/);
+      if (request.method === "GET" && publicationRoute?.[2] === "artifact") {
+        return sendHtml(response, await readPublicationArtifact(projectDir, publicationRoute[1]));
+      }
+      if (request.method === "POST" && publicationRoute?.[2] === "reveal") {
+        const result = await revealPublication(projectDir, publicationRoute[1], onReveal ? { runner: onReveal } : undefined);
+        sendJson(response, 200, result);
+        return;
+      }
+      if (request.method === "POST" && publicationRoute?.[2] === "republish") {
+        sendJson(response, 201, await republishPublication(projectDir, publicationRoute[1]));
+        return;
       }
       if (request.method === "GET" && url.pathname === "/api/publish") {
         await sendSavedVersion(projectDir, url.searchParams.get("version"), response);

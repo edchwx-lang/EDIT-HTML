@@ -111,6 +111,8 @@ test("editor root renders mode-aware controls, contextual actions, and history d
   assert.match(html, /editButton\.textContent=editing\?'完成':'编辑'/);
   assert.match(html, /class="drawer" data-drawer="versions"/);
   assert.match(html, /class="drawer" data-drawer="publications"/);
+  assert.match(html, /data-reveal-publication=/);
+  assert.match(html, /data-republish-publication=/);
   assert.match(html, /class="dialog" data-dialog="chart"/);
   assert.doesNotMatch(html, /prompt\('编辑图表 JSON'/);
   assert.doesNotMatch(html, /status\('Draft saved'\);\s*},\{once:true\}/);
@@ -146,9 +148,14 @@ test("editor API exposes health, canonical draft, revision conflict, preview, an
   assert.equal((await restored.json()).restoredFromVersionId, version.versionId);
 });
 
-test("editor API records and lists canonical publications", async (t) => {
+test("editor API records, reveals, and republishes canonical publications", async (t) => {
   const { projectDir, variant } = await editorFixture(t);
-  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  const revealed = [];
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    onReveal: async (targetPath) => revealed.push(targetPath)
+  });
   t.after(() => editor.close());
   const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
   const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "Publish" }) });
@@ -162,6 +169,23 @@ test("editor API records and lists canonical publications", async (t) => {
   assert.equal(publication.status, "published");
   const history = await (await fetch(editor.url + "/api/publications", { headers })).json();
   assert.equal(history[0].publicationId, publication.publicationId);
+  const reveal = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/reveal", {
+    method: "POST", headers, body: "{}"
+  });
+  assert.equal(reveal.status, 200, await reveal.text());
+  assert.equal(revealed.length, 1);
+  assert.match(revealed[0], /publications[\\/].+[\\/]report\.html$/);
+
+  const republished = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/republish", {
+    method: "POST", headers, body: "{}"
+  });
+  const republishedBody = await republished.text();
+  assert.equal(republished.status, 201, republishedBody);
+  const republishedRecord = JSON.parse(republishedBody);
+  assert.notEqual(republishedRecord.publicationId, publication.publicationId);
+  assert.equal(republishedRecord.versionId, publication.versionId);
+  const updatedHistory = await (await fetch(editor.url + "/api/publications", { headers })).json();
+  assert.equal(updatedHistory.length, 2);
 });
 
 test("editor API exposes undo, redo, and saved-version actions", async (t) => {

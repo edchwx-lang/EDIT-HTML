@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
@@ -16,19 +16,39 @@ export async function applyDraftPatch(projectDir, variantId, patch) {
   const patches = state.patches.slice(0, state.cursor);
   if (MODEL_PATCH_TYPES.has(patch.type)) {
     const report = JSON.parse(await readFile(paths.model, "utf8"));
+    const coverage = JSON.parse(await readFile(paths.coverage, "utf8"));
     if (patch.baseRevision !== report.revision) {
       const error = new Error("draft revision conflict");
       error.code = "REVISION_CONFLICT";
       error.currentRevision = report.revision;
       throw error;
     }
-    const updated = applyModelOperation(report, patch);
+    const storedPatch = patch.type === "replaceAsset"
+      ? await persistReplacementAsset(projectDir, variantId, patch)
+      : patch;
+    const updated = applyModelOperation(report, storedPatch);
+    const updatedCoverage = updateCoverageForOperation(coverage, report, updated, storedPatch);
     updated.revision = report.revision + 1;
     updated.updatedAt = new Date().toISOString();
-    patches.push({ kind: "model", forward: patch, before: report, after: updated });
-    await writeJsonAtomic(paths.model, updated);
-    await writeDraftState(paths, { patches, cursor: patches.length });
-    await renderVariant(projectDir, variantId);
+    patches.push({
+      kind: "model",
+      forward: storedPatch,
+      before: report,
+      after: updated,
+      beforeCoverage: coverage,
+      afterCoverage: updatedCoverage
+    });
+    try {
+      await writeJsonAtomic(paths.model, updated);
+      await writeJsonAtomic(paths.coverage, updatedCoverage);
+      await renderVariant(projectDir, variantId);
+      await writeDraftState(paths, { patches, cursor: patches.length });
+    } catch (error) {
+      await writeJsonAtomic(paths.model, report);
+      await writeJsonAtomic(paths.coverage, coverage);
+      await renderVariant(projectDir, variantId);
+      throw error;
+    }
     return { revision: updated.revision };
   }
   const html = await readFile(paths.artifact, "utf8");
@@ -50,12 +70,21 @@ export async function undoDraft(projectDir, variantId) {
   const patch = state.patches[state.cursor - 1];
   if (patch.kind === "model") {
     const current = JSON.parse(await readFile(paths.model, "utf8"));
+    const currentCoverage = JSON.parse(await readFile(paths.coverage, "utf8"));
     const restored = structuredClone(patch.before);
     restored.revision = current.revision + 1;
     restored.updatedAt = new Date().toISOString();
-    await writeJsonAtomic(paths.model, restored);
-    await writeDraftCursor(paths, state.cursor - 1);
-    await renderVariant(projectDir, variantId);
+    try {
+      await writeJsonAtomic(paths.model, restored);
+      if (patch.beforeCoverage) await writeJsonAtomic(paths.coverage, patch.beforeCoverage);
+      await renderVariant(projectDir, variantId);
+      await writeDraftCursor(paths, state.cursor - 1);
+    } catch (error) {
+      await writeJsonAtomic(paths.model, current);
+      await writeJsonAtomic(paths.coverage, currentCoverage);
+      await renderVariant(projectDir, variantId);
+      throw error;
+    }
     return true;
   }
   const html = await readFile(paths.artifact, "utf8");
@@ -72,12 +101,21 @@ export async function redoDraft(projectDir, variantId) {
   const patch = state.patches[state.cursor];
   if (patch.kind === "model") {
     const current = JSON.parse(await readFile(paths.model, "utf8"));
+    const currentCoverage = JSON.parse(await readFile(paths.coverage, "utf8"));
     const restored = structuredClone(patch.after);
     restored.revision = current.revision + 1;
     restored.updatedAt = new Date().toISOString();
-    await writeJsonAtomic(paths.model, restored);
-    await writeDraftCursor(paths, state.cursor + 1);
-    await renderVariant(projectDir, variantId);
+    try {
+      await writeJsonAtomic(paths.model, restored);
+      if (patch.afterCoverage) await writeJsonAtomic(paths.coverage, patch.afterCoverage);
+      await renderVariant(projectDir, variantId);
+      await writeDraftCursor(paths, state.cursor + 1);
+    } catch (error) {
+      await writeJsonAtomic(paths.model, current);
+      await writeJsonAtomic(paths.coverage, currentCoverage);
+      await renderVariant(projectDir, variantId);
+      throw error;
+    }
     return true;
   }
   const html = await readFile(paths.artifact, "utf8");
@@ -92,6 +130,7 @@ function draftPaths(projectDir, variantId) {
   return {
     artifact: path.join(variantDir, "artifact.html"),
     model: path.join(variantDir, "report-model.json"),
+    coverage: path.join(projectDir, "coverage-map.json"),
     patches: path.join(variantDir, "draft-patches.jsonl"),
     cursor: path.join(variantDir, "draft-cursor.json")
   };
@@ -167,10 +206,10 @@ function applyModelOperation(report, patch) {
   if (patch.type === "replaceAsset") {
     const found = findReportNode(updated, patch.nodeId);
     if (!found || found.node.type !== "image") throw new Error('unknown image node "' + patch.nodeId + '"');
-    if (!/^data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,/i.test(patch.value)) throw new Error("replacement image must be an embedded data URL");
     const originalValue = found.node.assetData ?? found.node.assetPath;
-    found.node.assetData = patch.value;
-    recordOverride(updated, { nodeId: patch.nodeId, field: "assetData", originalValue, value: patch.value, sourceRefs: found.node.sourceRefs ?? [] });
+    found.node.assetPath = patch.assetPath;
+    delete found.node.assetData;
+    recordOverride(updated, { nodeId: patch.nodeId, field: "assetPath", originalValue, value: patch.assetPath, sourceRefs: found.node.sourceRefs ?? [] });
     return updated;
   }
   const location = locateNode(updated.nodes, patch.nodeId);
@@ -181,19 +220,65 @@ function applyModelOperation(report, patch) {
     const target = location.index + offset;
     if (target < 0 || target >= location.container.length) throw new Error('node "' + patch.nodeId + '" cannot move ' + patch.direction);
     [location.container[location.index], location.container[target]] = [location.container[target], location.container[location.index]];
+    recordOverride(updated, {
+      nodeId: patch.nodeId,
+      field: "structure",
+      originalValue: { index: location.index },
+      value: { index: target, direction: patch.direction },
+      sourceRefs: location.node.sourceRefs ?? []
+    });
     return updated;
   }
   if (patch.type === "deleteNode") {
+    const deletedIds = collectNodeIds(location.node);
+    const sourceRefs = collectSourceRefs(location.node);
     location.container.splice(location.index, 1);
+    updated.datasets = (updated.datasets ?? []).filter((dataset) => !deletedIds.has(dataset.nodeId));
+    recordOverride(updated, {
+      nodeId: patch.nodeId,
+      field: "structure",
+      originalValue: location.node,
+      value: null,
+      sourceRefs
+    });
     return updated;
   }
   if (patch.type === "cloneNode") {
     const clone = structuredClone(location.node);
-    rewriteNodeIds(clone, patch.newNodeId ?? "node-" + randomUUID());
+    const idMap = rewriteNodeIds(clone, patch.newNodeId ?? "node-" + randomUUID());
     location.container.splice(location.index + 1, 0, clone);
+    for (const dataset of updated.datasets ?? []) {
+      const clonedNodeId = idMap.get(dataset.nodeId);
+      if (!clonedNodeId) continue;
+      updated.datasets.push({
+        ...structuredClone(dataset),
+        datasetId: "dataset-" + clonedNodeId,
+        nodeId: clonedNodeId
+      });
+    }
+    recordOverride(updated, {
+      nodeId: patch.nodeId,
+      field: "structure",
+      originalValue: null,
+      value: { clonedNodeId: clone.nodeId },
+      sourceRefs: clone.sourceRefs ?? []
+    });
     return updated;
   }
   throw new Error('unsupported patch type "' + patch.type + '"');
+}
+
+async function persistReplacementAsset(projectDir, variantId, patch) {
+  const match = String(patch.value ?? "").match(/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!match) throw new Error("replacement image must be an embedded data URL");
+  const extension = ({ jpeg: "jpg", "svg+xml": "svg" })[match[1].toLowerCase()] ?? match[1].toLowerCase();
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length) throw new Error("replacement image is empty");
+  const relativePath = "variants/" + variantId + "/assets/replacement-" + randomUUID() + "." + extension;
+  const absolutePath = path.join(projectDir, ...relativePath.split("/"));
+  await mkdir(path.dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, bytes);
+  return { ...patch, assetPath: relativePath, value: undefined };
 }
 
 function recordOverride(report, change) {
@@ -211,15 +296,72 @@ function locateNode(nodes, nodeId) {
     if (node.nodeId === nodeId) return { node, container: nodes, index };
     const child = locateNode(node.children, nodeId);
     if (child) return child;
+    for (const entity of node.entities ?? []) {
+      for (const dimension of entity.dimensions ?? []) {
+        const nested = locateNode(dimension.nodes, nodeId);
+        if (nested) return nested;
+      }
+    }
   }
   return null;
 }
 
 function rewriteNodeIds(node, rootId) {
   const oldRoot = node.nodeId;
+  const idMap = new Map();
   walkNodes([node], (child) => {
+    const oldId = child.nodeId;
     child.nodeId = child.nodeId === oldRoot ? rootId : rootId + "-" + randomUUID().slice(0, 8);
+    idMap.set(oldId, child.nodeId);
   });
+  return idMap;
+}
+
+function updateCoverageForOperation(coverage, before, after, patch) {
+  if (patch.type !== "deleteNode") return structuredClone(coverage);
+  const deletedNode = findReportNode(before, patch.nodeId)?.node;
+  const deletedSources = new Set(collectSourceRefs(deletedNode).map((ref) => ref.sourceId));
+  const nodeIdsBySource = new Map();
+  walkNodes(after.nodes ?? [], (node) => {
+    for (const ref of node.sourceRefs ?? []) {
+      if (!nodeIdsBySource.has(ref.sourceId)) nodeIdsBySource.set(ref.sourceId, new Set());
+      nodeIdsBySource.get(ref.sourceId).add(node.nodeId);
+    }
+  });
+  const updated = structuredClone(coverage);
+  updated.updatedAt = new Date().toISOString();
+  for (const entry of updated.entries ?? []) {
+    const reportNodeIds = [...(nodeIdsBySource.get(entry.sourceId) ?? [])];
+    if (reportNodeIds.length) {
+      entry.reportNodeIds = reportNodeIds;
+      continue;
+    }
+    if (deletedSources.has(entry.sourceId)) {
+      entry.status = "omitted";
+      entry.reportNodeIds = [];
+      entry.reason = 'user deleted report node "' + patch.nodeId + '"';
+    }
+  }
+  return updated;
+}
+
+function collectNodeIds(node) {
+  const ids = new Set();
+  if (node) walkNodes([node], (child) => ids.add(child.nodeId));
+  return ids;
+}
+
+function collectSourceRefs(node) {
+  const refs = [];
+  const seen = new Set();
+  if (node) walkNodes([node], (child) => {
+    for (const ref of child.sourceRefs ?? []) {
+      if (seen.has(ref.sourceId)) continue;
+      seen.add(ref.sourceId);
+      refs.push(ref);
+    }
+  });
+  return refs;
 }
 
 function applyHtmlOperation(html, patch) {

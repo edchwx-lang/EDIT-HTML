@@ -14,7 +14,9 @@ export async function publishLocal(projectDir, versionId, outputPath) {
     status: "published"
   });
   if (outputPath) {
-    await copyFile(publicationArtifactPath(projectDir, publication.publicationId), outputPath);
+    const resolvedOutputPath = path.resolve(outputPath);
+    await mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+    await copyFile(publicationArtifactPath(projectDir, publication.publicationId), resolvedOutputPath);
   }
   await appendPublication(projectDir, publication);
   return publication;
@@ -66,6 +68,28 @@ export async function publishProvider(projectDir, versionId, provider, { runner 
 export async function listPublications(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   return [...(project.publications ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function republishPublication(projectDir, publicationId, options = {}) {
+  const publication = await findPublication(projectDir, publicationId);
+  if (publication.target === "public") {
+    return publishProvider(projectDir, publication.versionId, publication.provider, options);
+  }
+  return publishLocal(projectDir, publication.versionId, publication.outputPath ?? null);
+}
+
+export async function revealPublication(projectDir, publicationId, { runner = revealPath } = {}) {
+  const publication = await findPublication(projectDir, publicationId);
+  const targetPath = publication.outputPath
+    ? path.resolve(publication.outputPath)
+    : resolveCanonicalPath(projectDir, publication.canonicalPath);
+  await runner(targetPath);
+  return { publicationId, targetPath };
+}
+
+export async function readPublicationArtifact(projectDir, publicationId) {
+  const publication = await findPublication(projectDir, publicationId);
+  return readFile(resolveCanonicalPath(projectDir, publication.canonicalPath), "utf8");
 }
 
 async function publicationContext(projectDir, versionId) {
@@ -128,6 +152,37 @@ async function appendPublication(projectDir, publication) {
 
 function publicationArtifactPath(projectDir, publicationId) {
   return path.join(projectDir, "publications", publicationId, "report.html");
+}
+
+async function findPublication(projectDir, publicationId) {
+  const publication = (await listPublications(projectDir)).find((item) => item.publicationId === publicationId);
+  if (!publication) throw new Error('unknown publication "' + publicationId + '"');
+  return publication;
+}
+
+function resolveCanonicalPath(projectDir, relativePath) {
+  const root = path.resolve(projectDir);
+  const resolved = path.resolve(root, relativePath);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) throw new Error("publication path escapes project directory");
+  return resolved;
+}
+
+function revealPath(targetPath) {
+  return new Promise((resolve, reject) => {
+    let child;
+    if (process.platform === "win32") {
+      child = spawn("explorer.exe", ["/select," + targetPath], { detached: true, stdio: "ignore", windowsHide: true });
+    } else if (process.platform === "darwin") {
+      child = spawn("open", ["-R", targetPath], { detached: true, stdio: "ignore" });
+    } else {
+      child = spawn("xdg-open", [path.dirname(targetPath)], { detached: true, stdio: "ignore" });
+    }
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
 }
 
 function netlifyRequest(stagingDir, previous) {
