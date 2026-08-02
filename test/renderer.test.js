@@ -56,6 +56,7 @@ test("data-first renders comparable paragraph metrics as an editable sourced cha
   assert.match(html, /同单位指标对比（亿元）/);
   assert.match(html, /data-chart-value="73\.6亿元"/);
   assert.match(html, /data-source-ref="brief\.md#/);
+  assert.match(html, /\.metric-chart-pair>\.metric-evidence\{grid-column:auto/);
 });
 
 test("data-first does not chart unrelated single-unit paragraph values", async (t) => {
@@ -76,7 +77,7 @@ test("data-first preserves range direction and propagates its source unit", asyn
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.md");
   const projectDir = path.join(sandbox, "report");
-  await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层，价值份额为75%-85%，基材采用FR-4。", "utf8");
+  await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层FR-4，价值份额为75%-85%。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
 

@@ -355,12 +355,14 @@ function numericTokens(text = "") {
   const rangeNumber = "\\d+(?:,\\d{3})*(?:\\.\\d+)?";
   const unit = "(?:亿美元|亿元|万元|美元|GB\\/s|Gbps|Tbps|GB|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)";
   const pattern = new RegExp(
-    `(?<![A-Za-z0-9./-])(${number})\\s*(${unit})?(?:\\s*[-–—~至到]\\s*(${rangeNumber})\\s*(${unit})?)?(?![A-Za-z0-9])`,
+    `(?<![A-Za-z0-9./-])(${number})\\s*(${unit})?(?:\\s*[-–—~至到]\\s*(${rangeNumber})\\s*(${unit})?)?`,
     "gu"
   );
   const values = [];
   for (const match of text.matchAll(pattern)) {
     const firstUnit = match[2] ?? match[4] ?? "";
+    const characterAfter = text[match.index + match[0].length] ?? "";
+    if (!firstUnit && !match[4] && /[A-Za-z0-9]/u.test(characterAfter)) continue;
     values.push(metricToken(text, match[1], firstUnit, match.index, match.index + match[0].length, values.length));
     if (match[3]) {
       const secondUnit = match[4] ?? match[2] ?? "";
