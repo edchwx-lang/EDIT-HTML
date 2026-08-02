@@ -4,7 +4,8 @@ import path from "node:path";
 
 import { extractDocument } from "./extract.js";
 import { packProject } from "./packaging.js";
-import { writeJsonAtomic } from "./project.js";
+import { writeJsonAtomic } from "./io.js";
+import { installProjectEditorRuntime } from "./project-runtime.js";
 import {
   buildSourceModel,
   createInitialCoverageMap,
@@ -126,6 +127,7 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
     variants: migratedVariants,
     publications: original.publications ?? []
   });
+  await installProjectEditorRuntime(projectDir);
   return summary;
 }
 

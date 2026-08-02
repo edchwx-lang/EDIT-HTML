@@ -26,6 +26,7 @@ test("packProject creates a portable ZIP with relative project paths", async (t)
     '<!doctype html><p data-edit-id="body">Evidence.</p>',
     "utf8"
   );
+  await writeFile(path.join(projectDir, ".runtime", "editor-session.json"), "secret", "utf8");
 
   await packProject(projectDir, archivePath);
   const archive = await readFile(archivePath);
@@ -44,5 +45,7 @@ test("packProject creates a portable ZIP with relative project paths", async (t)
     '<!doctype html><p data-edit-id="body">Evidence.</p>'
   );
   assert.equal(Object.keys(files).some((name) => path.isAbsolute(name)), false);
+  assert.equal(Object.keys(files).some((name) => name.startsWith(".runtime/")), false);
+  assert.equal(Object.keys(files).includes("打开编辑器.cmd"), true);
+  assert.equal(Object.keys(files).includes("open-editor.sh"), true);
 });
-

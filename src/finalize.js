@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { validateModeArtifact } from "./artifact-contract.js";
-import { writeJsonAtomic, writeTextAtomic } from "./project.js";
+import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
 import { PROJECT_SCHEMA_VERSION, validateCoverage } from "./report-model.js";

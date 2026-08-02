@@ -12,6 +12,7 @@ export async function packProject(projectDir, archivePath) {
 async function collectFiles(root, directory, files) {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries) {
+    if (entry.name === ".runtime" || entry.name.startsWith(".migration-") || entry.name.endsWith(".tmp")) continue;
     const absolutePath = path.join(directory, entry.name);
     if (entry.isSymbolicLink()) {
       throw new Error("symbolic links are not allowed in portable projects");

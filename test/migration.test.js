@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -41,4 +41,6 @@ test("V3 migration dry-run is non-mutating and real migration preserves legacy a
   const log = JSON.parse(await readFile(path.join(projectDir, "migration-log.json"), "utf8"));
   assert.deepEqual(log.themeMappings, [{ from: "ink-teal", to: "institutional-navy-gold", variantId }]);
   assert.match(migrated.backupPath, /legacy-v3-.*\.zip$/);
+  await access(path.join(projectDir, "打开编辑器.cmd"));
+  await access(path.join(projectDir, ".editor-runtime", "open-editor.mjs"));
 });

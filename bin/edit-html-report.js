@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 import { access, cp, mkdir, readFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { finalizeVariant } from "../src/finalize.js";
-import { startEditorServer } from "../src/editor-server.js";
+import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
+import { migrateProject } from "../src/migrate.js";
 import { listModeProfiles } from "../src/modes/index.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
 import { publishLocal, publishProvider } from "../src/publish.js";
+import { renderVariant } from "../src/renderer.js";
+import { validateVariant } from "../src/validate.js";
 import { createVariant, listVariants } from "../src/variants.js";
 
 const packageRoot = path.resolve(
@@ -64,6 +66,22 @@ async function main(argv) {
     );
     return;
   }
+  if (command === "migrate") {
+    const projectDir = requirePositional(args, 0, "project");
+    printJson(await migrateProject(projectDir, { dryRun: args.includes("--dry-run") }));
+    return;
+  }
+  if (command === "render") {
+    const projectDir = requirePositional(args, 0, "project");
+    const variantId = requireOption(args, "--variant");
+    printJson({ variantId, artifactPath: await renderVariant(projectDir, variantId) });
+    return;
+  }
+  if (command === "validate") {
+    const projectDir = requirePositional(args, 0, "project");
+    printJson(await validateVariant(projectDir, requireOption(args, "--variant")));
+    return;
+  }
   if (command === "install") {
     const codexRoot =
       optionalOption(args, "--codex-dir") ??
@@ -107,7 +125,7 @@ async function main(argv) {
       await publishLocal(
         projectDir,
         requireOption(args, "--version"),
-        requireOption(args, "--out")
+        optionalOption(args, "--out")
       )
     );
     return;
@@ -126,43 +144,34 @@ async function main(argv) {
     );
     return;
   }
-  if (command === "open") {
-    const projectDir = requirePositional(args, 0, "project");
-    const editor = await startEditorServer({
-      projectDir,
-      variantId: requireOption(args, "--variant")
+  if (command === "open" || (command === "editor" && args[0] === "open")) {
+    const offset = command === "open" ? 0 : 1;
+    const projectDir = requirePositional(args, offset, "project");
+    await migrateIfNeeded(projectDir);
+    const session = await ensureEditorSession(projectDir, {
+      variantId: optionalOption(args, "--variant") ?? undefined
     });
-    const editorUrl = editor.url + "/?token=" + encodeURIComponent(editor.token);
-    process.stdout.write(JSON.stringify({ url: editorUrl, host: editor.host }) + "\n");
+    const editorUrl = session.url + "/?token=" + encodeURIComponent(session.token);
+    printJson({ ...session, url: editorUrl });
     if (!args.includes("--no-browser")) launchBrowser(editorUrl);
-    process.once("SIGINT", async () => {
-      await editor.close();
-      process.exit(0);
-    });
-    process.once("SIGTERM", async () => {
-      await editor.close();
-      process.exit(0);
-    });
+    return;
+  }
+  if (command === "editor" && args[0] === "status") {
+    printJson(await getEditorSessionStatus(requirePositional(args, 1, "project")));
+    return;
+  }
+  if (command === "editor" && args[0] === "stop") {
+    printJson(await stopEditorSession(requirePositional(args, 1, "project")));
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|finalize|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 
-function launchBrowser(url) {
-  const command =
-    process.platform === "win32"
-      ? { file: "cmd", args: ["/c", "start", "", url] }
-      : process.platform === "darwin"
-        ? { file: "open", args: [url] }
-        : { file: "xdg-open", args: [url] };
-  const child = spawn(command.file, command.args, {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true
-  });
-  child.unref();
+async function migrateIfNeeded(projectDir) {
+  const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
+  if ((project.schemaVersion ?? 1) < 4) await migrateProject(projectDir);
 }
 
 async function exists(filePath) {

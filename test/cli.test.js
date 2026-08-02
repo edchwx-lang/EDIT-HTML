@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { spawn, spawnSync } from "node:child_process";
-import { once } from "node:events";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -200,7 +199,7 @@ test("CLI doctor reports whether the local runtime can execute the package", () 
   });
 });
 
-test("CLI open starts a tokenized loopback editor without a browser when requested", async (t) => {
+test("CLI open is a background alias for editor open and the session remains reusable", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-open-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.txt");
@@ -231,7 +230,7 @@ test("CLI open starts a tokenized loopback editor without a browser when request
     "utf8"
   );
 
-  const child = spawn(
+  const openedResult = spawnSync(
     process.execPath,
     [
       cli,
@@ -241,40 +240,38 @@ test("CLI open starts a tokenized loopback editor without a browser when request
       variant.variantId,
       "--no-browser"
     ],
-    { cwd: root, stdio: ["ignore", "pipe", "pipe"] }
+    { cwd: root, encoding: "utf8", timeout: 10000 }
   );
-  t.after(() => {
-    if (!child.killed) child.kill();
-  });
-  const line = await firstLine(child.stdout, child, 5000);
-  const opened = JSON.parse(line);
+  assert.equal(openedResult.status, 0, openedResult.stderr);
+  const opened = JSON.parse(openedResult.stdout);
   assert.match(opened.url, /^http:\/\/127\.0\.0\.1:\d+\/\?token=/);
   assert.equal((await fetch(opened.url)).status, 200);
-  child.kill();
-  await once(child, "exit");
+  const status = spawnSync(process.execPath, [cli, "editor", "status", projectDir], { cwd: root, encoding: "utf8" });
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(JSON.parse(status.stdout).running, true);
+  assert.equal(JSON.parse(status.stdout).sessionId, opened.sessionId);
+
+  const reopened = spawnSync(process.execPath, [cli, "editor", "open", projectDir, "--no-browser"], { cwd: root, encoding: "utf8" });
+  assert.equal(reopened.status, 0, reopened.stderr);
+  assert.equal(JSON.parse(reopened.stdout).reused, true);
+
+  const stopped = spawnSync(process.execPath, [cli, "editor", "stop", projectDir], { cwd: root, encoding: "utf8" });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  assert.equal(JSON.parse(stopped.stdout).stopped, true);
 });
 
-function firstLine(stream, child, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    let value = "";
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error("timed out waiting for CLI output"));
-    }, timeoutMs);
-    stream.setEncoding("utf8");
-    stream.on("data", (chunk) => {
-      value += chunk;
-      const newline = value.indexOf("\n");
-      if (newline !== -1) {
-        clearTimeout(timer);
-        resolve(value.slice(0, newline));
-      }
-    });
-    child.once("exit", (code) => {
-      if (!value.includes("\n")) {
-        clearTimeout(timer);
-        reject(new Error("CLI exited before opening editor with code " + code));
-      }
-    });
-  });
-}
+test("CLI render and validate compile a V4 variant", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-render-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.txt");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(source, "Evidence 42.", "utf8");
+  spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], { cwd: root, encoding: "utf8" });
+  const variant = JSON.parse(spawnSync(process.execPath, [cli, "variant", "create", projectDir, "--mode", "evidence-first"], { cwd: root, encoding: "utf8" }).stdout);
+
+  const rendered = spawnSync(process.execPath, [cli, "render", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
+  assert.equal(rendered.status, 0, rendered.stderr);
+  const validated = spawnSync(process.execPath, [cli, "validate", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
+  assert.equal(validated.status, 0, validated.stderr);
+  assert.equal(JSON.parse(validated.stdout).valid, true);
+});

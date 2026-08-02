@@ -64,6 +64,12 @@ test("publishProvider deploys the selected version through Netlify CLI and recor
     await readFile(path.join(projectDir, "deployments.json"), "utf8")
   );
   assert.equal(metadata.providers.netlify.versionId, version.versionId);
+  assert.equal(metadata.records.length, 1);
+  assert.equal(metadata.records[0].publicationId, deployment.publicationId);
+  assert.equal(
+    JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8")).publications.length,
+    1
+  );
   assert.equal(JSON.stringify(metadata).toLowerCase().includes("token"), false);
 });
 
@@ -99,4 +105,5 @@ test("publishProvider deploys the selected version through Vercel CLI", async (t
     await readFile(path.join(projectDir, "deployments.json"), "utf8")
   );
   assert.equal(metadata.providers.vercel.versionId, version.versionId);
+  assert.equal(metadata.records.length, 1);
 });

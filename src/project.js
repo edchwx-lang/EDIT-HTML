@@ -1,27 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { analyzeTextDocument, recommendMode } from "./analysis.js";
 import { extractDocument } from "./extract.js";
+import { writeJsonAtomic, writeTextAtomic } from "./io.js";
+import { installProjectEditorRuntime } from "./project-runtime.js";
 import {
   buildSourceModel,
   createInitialCoverageMap,
   PROJECT_SCHEMA_VERSION
 } from "./report-model.js";
-
-async function writeJsonAtomic(filePath, value) {
-  await writeTextAtomic(filePath, JSON.stringify(value, null, 2) + "\n");
-}
-
-async function writeTextAtomic(filePath, value) {
-  const temporaryPath = path.join(
-    path.dirname(filePath),
-    "." + path.basename(filePath) + "." + randomUUID() + ".tmp"
-  );
-  await writeFile(temporaryPath, value, "utf8");
-  await rename(temporaryPath, filePath);
-}
 
 export async function createProject(sourcePath, projectDir) {
   const contents = await readFile(sourcePath);
@@ -32,6 +21,7 @@ export async function createProject(sourcePath, projectDir) {
   await mkdir(path.join(projectDir, "versions"), { recursive: true });
   await mkdir(path.join(projectDir, "publications"), { recursive: true });
   await mkdir(path.join(projectDir, "source-assets"), { recursive: true });
+  await mkdir(path.join(projectDir, ".runtime"), { recursive: true });
   await copyFile(sourcePath, path.join(sourceDir, sourceName));
 
   const sourceSha256 = createHash("sha256").update(contents).digest("hex");
@@ -82,7 +72,8 @@ export async function createProject(sourcePath, projectDir) {
     records: [],
     providers: {}
   });
+  await installProjectEditorRuntime(projectDir);
   return project;
 }
 
-export { writeJsonAtomic, writeTextAtomic };
+export { writeJsonAtomic, writeTextAtomic } from "./io.js";

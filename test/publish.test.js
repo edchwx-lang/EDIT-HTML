@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
-import { publishLocal } from "../src/publish.js";
+import { listPublications, publishLocal } from "../src/publish.js";
 import { createVariant } from "../src/variants.js";
 
 test("publishLocal exports the selected saved version, never the current draft", async (t) => {
@@ -39,10 +39,22 @@ test("publishLocal exports the selected saved version, never the current draft",
     "utf8"
   );
 
-  await publishLocal(projectDir, version.versionId, output);
+  const publication = await publishLocal(projectDir, version.versionId, output);
 
   const published = await readFile(output, "utf8");
   assert.match(published, /data-theme="warm-paper-terracotta"/);
   assert.match(published, /<p data-edit-id="body">Saved<\/p>/);
   assert.doesNotMatch(published, /Unsaved draft/);
+  assert.match(publication.publicationId, /^[0-9a-f-]{36}$/);
+  assert.equal(publication.status, "published");
+  assert.equal(publication.themeId, "warm-paper-terracotta");
+  assert.equal(
+    await readFile(path.join(projectDir, "publications", publication.publicationId, "report.html"), "utf8"),
+    published
+  );
+  assert.equal((await listPublications(projectDir))[0].outputPath, output);
+  assert.equal(
+    JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8")).publications[0].publicationId,
+    publication.publicationId
+  );
 });

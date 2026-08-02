@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -38,6 +38,10 @@ test("createProject copies and hashes a source file into a new workspace", async
   assert.equal(sourceModel.documents[0].units[0].text, "Revenue reached 42 million.");
   assert.match(sourceModel.documents[0].units[0].sourceId, /^src-/);
   assert.equal(sourceModel.documents[0].units[0].order, 0);
+  await access(path.join(projectDir, "打开编辑器.cmd"));
+  await access(path.join(projectDir, "open-editor.sh"));
+  assert.match(await readFile(path.join(projectDir, "打开编辑器.cmd"), "utf8"), /%~dp0/);
+  assert.match(await readFile(path.join(projectDir, "open-editor.sh"), "utf8"), /dirname/);
 });
 
 test("createProject writes deterministic plain-text analysis for Agent handoff", async (t) => {

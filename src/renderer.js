@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { validateCoverage } from "./report-model.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
-import { writeTextAtomic } from "./project.js";
+import { writeTextAtomic } from "./io.js";
 
 export async function renderVariant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);

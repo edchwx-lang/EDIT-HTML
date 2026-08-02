@@ -81,7 +81,7 @@ test("editor server applies an authenticated text patch", async (t) => {
   );
 });
 
-test("editor root renders a full-viewport toolbar without a sidebar", async (t) => {
+test("editor root renders mode-aware controls, contextual actions, and history drawers", async (t) => {
   const { projectDir, variant } = await editorFixture(t);
   const editor = await startEditorServer({
     projectDir,
@@ -101,15 +101,67 @@ test("editor root renders a full-viewport toolbar without a sidebar", async (t) 
   assert.match(html, /浅色配色/);
   assert.match(html, /深色配色/);
   assert.match(html, /data-action="publish"[^>]*disabled[^>]*>发布<\/button>/);
-  assert.match(html, /data-action="image">替换图片<\/button>/);
-  assert.match(html, /data-action="chart">编辑图表数据<\/button>/);
-  assert.match(html, /data-action="block-up">上移<\/button>/);
-  assert.match(html, /data-action="block-down">下移<\/button>/);
-  assert.match(html, /data-action="block-copy">复制<\/button>/);
-  assert.match(html, /data-action="block-delete">删除<\/button>/);
-  assert.match(html, /node\.addEventListener\('blur',async\(\)=>/);
+  assert.match(html, /data-action="publications">发布历史<\/button>/);
+  assert.match(html, /data-context-action="replace-image">替换图片<\/button>/);
+  assert.match(html, /data-context-action="edit-chart">编辑数据<\/button>/);
+  assert.match(html, /data-context-action="move-up">上移<\/button>/);
+  assert.match(html, /data-context-action="move-down">下移<\/button>/);
+  assert.match(html, /data-context-action="clone">复制<\/button>/);
+  assert.match(html, /data-context-action="delete">删除<\/button>/);
+  assert.match(html, /editButton\.textContent=editing\?'完成':'编辑'/);
+  assert.match(html, /class="drawer" data-drawer="versions"/);
+  assert.match(html, /class="drawer" data-drawer="publications"/);
+  assert.match(html, /class="dialog" data-dialog="chart"/);
+  assert.doesNotMatch(html, /prompt\('编辑图表 JSON'/);
   assert.doesNotMatch(html, /status\('Draft saved'\);\s*},\{once:true\}/);
   assert.doesNotMatch(html, /sidebar/i);
+});
+
+test("editor API exposes health, canonical draft, revision conflict, preview, and restore", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  t.after(() => editor.close());
+  assert.equal((await fetch(editor.url + "/api/health")).status, 200);
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  const draft = await (await fetch(editor.url + "/api/draft", { headers })).json();
+  const nodeId = draft.nodes[0].children[0].nodeId;
+  const changed = await fetch(editor.url + "/api/draft", {
+    method: "PATCH", headers,
+    body: JSON.stringify({ type: "setText", nodeId, value: "Model edit", baseRevision: draft.revision })
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).revision, draft.revision + 1);
+  const stale = await fetch(editor.url + "/api/draft", {
+    method: "PATCH", headers,
+    body: JSON.stringify({ type: "setText", nodeId, value: "Stale", baseRevision: draft.revision })
+  });
+  assert.equal(stale.status, 409);
+  const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "V4" }) });
+  const version = await saved.json();
+  const preview = await fetch(editor.url + "/api/versions/" + version.versionId + "/preview", { headers });
+  assert.equal(preview.status, 200);
+  assert.match(await preview.text(), /Model edit/);
+  const restored = await fetch(editor.url + "/api/versions/" + version.versionId + "/restore", { method: "POST", headers, body: "{}" });
+  assert.equal(restored.status, 201);
+  assert.equal((await restored.json()).restoredFromVersionId, version.versionId);
+});
+
+test("editor API records and lists canonical publications", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "Publish" }) });
+  const version = await saved.json();
+  const published = await fetch(editor.url + "/api/publish", {
+    method: "POST", headers,
+    body: JSON.stringify({ versionId: version.versionId, target: "local" })
+  });
+  assert.equal(published.status, 201);
+  const publication = await published.json();
+  assert.equal(publication.status, "published");
+  const history = await (await fetch(editor.url + "/api/publications", { headers })).json();
+  assert.equal(history[0].publicationId, publication.publicationId);
 });
 
 test("editor API exposes undo, redo, and saved-version actions", async (t) => {

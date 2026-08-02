@@ -2,7 +2,7 @@ import { access, copyFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { finalizeVariant } from "./finalize.js";
-import { writeTextAtomic } from "./project.js";
+import { writeTextAtomic } from "./io.js";
 import { renderVariant } from "./renderer.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 

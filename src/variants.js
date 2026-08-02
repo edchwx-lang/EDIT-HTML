@@ -3,7 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getModeProfile } from "./modes/index.js";
-import { writeJsonAtomic } from "./project.js";
+import { writeJsonAtomic } from "./io.js";
 import {
   PROJECT_SCHEMA_VERSION,
   scaffoldReportModel
