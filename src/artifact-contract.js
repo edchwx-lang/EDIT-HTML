@@ -1,33 +1,20 @@
-import { getModeProfile } from "./modes/index.js";
-
-const DENSITY_EXCEPTION = "insufficient-quantitative-evidence";
-
-export function validateModeArtifact({ html, mode, analysis }) {
-  const profile = getModeProfile(mode);
+export function validateModeArtifact({ html, mode, report }) {
   const declaredMode = attributeValues(html, "data-report-mode")[0];
   if (declaredMode !== mode) {
     throw new Error(`artifact must declare data-report-mode="${mode}"`);
   }
 
   validateVisibleChartMarks(html);
-  if (mode !== "data-first" || !hasSufficientQuantitativeEvidence(analysis)) {
-    return;
+  if (mode !== "data-first" || !report) return;
+  const chartIds = new Set(attributeValues(html, "data-chart-id"));
+  for (const dataset of report.datasets ?? []) {
+    if (!isVisualizationEligible(dataset)) continue;
+    if (!chartIds.has("chart-" + dataset.datasetId)) {
+      throw new Error(`eligible dataset "${dataset.datasetId}" requires a visualization`);
+    }
   }
-  if (attributeValues(html, "data-density-exception").includes(DENSITY_EXCEPTION)) {
-    return;
-  }
-
-  const kpiCount = new Set(attributeValues(html, "data-kpi-id")).size;
-  if (kpiCount < profile.minKpiCount) {
-    throw new Error(
-      `data-first requires at least ${profile.minKpiCount} KPI blocks; found ${kpiCount}`
-    );
-  }
-  const chartCount = new Set(attributeValues(html, "data-chart-id")).size;
-  if (chartCount < profile.minChartCount) {
-    throw new Error(
-      `data-first requires at least ${profile.minChartCount} charts; found ${chartCount}`
-    );
+  if (chartIds.size && (!/class=["'][^"']*chart-tooltip/i.test(html) || !/class=["'][^"']*chart-selection-band/i.test(html))) {
+    throw new Error("data-first charts require an interactive tooltip and selection band");
   }
 }
 
@@ -49,11 +36,10 @@ export function validateVisibleChartMarks(html) {
   }
 }
 
-function hasSufficientQuantitativeEvidence(analysis) {
-  const recommendation = analysis?.recommendation ?? {};
-  const count = Number(recommendation.numericTokenCount ?? 0);
-  const threshold = Number(recommendation.quantitativeThreshold ?? 8);
-  return count >= threshold;
+function isVisualizationEligible(dataset) {
+  if (dataset.kind !== "table" && dataset.kind !== "numeric-text") return false;
+  const rows = dataset.rows ?? [];
+  return rows.some((row) => row.slice(1).some((value) => Number.isFinite(Number(String(value).replaceAll(",", "")))));
 }
 
 function attributeValues(html, attribute) {

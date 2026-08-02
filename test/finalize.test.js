@@ -47,6 +47,8 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
   assert.equal(version.message, "First review");
   assert.equal(version.themeId, "warm-paper-terracotta");
   assert.equal(version.themeSchemaVersion, 2);
+  assert.equal(version.schemaVersion, 4);
+  assert.equal(version.reportRevision, 0);
   const savedArtifact = await readFile(
     path.join(projectDir, "versions", version.versionId, "artifact.html"),
     "utf8"
@@ -60,11 +62,19 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
   assert.deepEqual(
     JSON.parse(
       await readFile(
-        path.join(projectDir, "versions", version.versionId, "version.json"),
+      path.join(projectDir, "versions", version.versionId, "version.json"),
         "utf8"
       )
     ),
     version
+  );
+  assert.equal(
+    JSON.parse(await readFile(path.join(projectDir, "versions", version.versionId, "report-model.json"), "utf8")).schemaVersion,
+    4
+  );
+  assert.equal(
+    JSON.parse(await readFile(path.join(projectDir, "versions", version.versionId, "presentation-plan.json"), "utf8")).contentMutationAllowed,
+    false
   );
   assert.deepEqual(
     JSON.parse(
@@ -79,7 +89,7 @@ test("finalizeVariant creates an immutable saved version for a valid artifact", 
       )
     ),
     {
-      schemaVersion: 1,
+      schemaVersion: 4,
       editIds: ["title", "revenue"],
       blockIds: ["summary"],
       imageIds: [],

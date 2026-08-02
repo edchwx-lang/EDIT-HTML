@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { validateModeArtifact } from "./artifact-contract.js";
 import { writeJsonAtomic, writeTextAtomic } from "./project.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
+import { PROJECT_SCHEMA_VERSION, validateCoverage } from "./report-model.js";
 
 export async function finalizeVariant(
   projectDir,
@@ -32,8 +33,16 @@ export async function finalizeVariant(
   const analysis = JSON.parse(
     await readFile(path.join(projectDir, "analysis.json"), "utf8")
   );
+  const reportModel = await readJsonMaybe(
+    path.join(projectDir, "variants", variantId, "report-model.json")
+  );
+  const presentationPlan = await readJsonMaybe(
+    path.join(projectDir, "variants", variantId, "presentation-plan.json")
+  );
+  const coverageMap = await readJsonMaybe(path.join(projectDir, "coverage-map.json"));
+  if (reportModel && coverageMap) validateCoverage(coverageMap, reportModel);
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
     editIds: collectUniqueAttribute(artifactHtml, "data-edit-id"),
     blockIds: collectUniqueAttribute(artifactHtml, "data-block-id"),
     imageIds: collectUniqueAttribute(artifactHtml, "data-image-id"),
@@ -47,7 +56,13 @@ export async function finalizeVariant(
     new Set(project.sourceFiles.map((source) => source.name))
   );
   validateOfflineResources(artifactHtml);
-  validateModeArtifact({ html: artifactHtml, mode: variant.mode, analysis });
+  validateModeArtifact({
+    html: artifactHtml,
+    mode: variant.mode,
+    analysis,
+    report: reportModel,
+    presentation: presentationPlan
+  });
   const compiledArtifact = compileThemeIntoArtifact(
     artifactHtml,
     variant.themeId
@@ -62,7 +77,7 @@ export async function finalizeVariant(
     [...project.versions].reverse().find((item) => item.variantId === variantId) ??
     null;
   const version = {
-    schemaVersion: 1,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
     versionId,
     variantId,
     parentVersionId: parentVersion?.versionId ?? null,
@@ -70,6 +85,9 @@ export async function finalizeVariant(
     message,
     themeId: variant.themeId,
     themeSchemaVersion: variant.themeSchemaVersion,
+    reportRevision: reportModel?.revision ?? null,
+    hasUserOverrides: Boolean(reportModel?.overrides?.length),
+    modelBacked: Boolean(reportModel && /\bdata-node-id\s*=/.test(artifactHtml)),
     ...(restoredFromVersionId ? { restoredFromVersionId } : {}),
     artifactSha256: createHash("sha256")
       .update(compiledArtifact, "utf8")
@@ -82,9 +100,36 @@ export async function finalizeVariant(
     compiledArtifact
   );
   await writeJsonAtomic(path.join(versionDir, "version.json"), version);
+  if (reportModel) {
+    await copyFile(
+      path.join(projectDir, "variants", variantId, "report-model.json"),
+      path.join(versionDir, "report-model.json")
+    );
+  }
+  if (presentationPlan) {
+    await copyFile(
+      path.join(projectDir, "variants", variantId, "presentation-plan.json"),
+      path.join(versionDir, "presentation-plan.json")
+    );
+  }
+  if (coverageMap) {
+    await copyFile(
+      path.join(projectDir, "coverage-map.json"),
+      path.join(versionDir, "coverage-map.json")
+    );
+  }
   project.versions.push(version);
   await writeJsonAtomic(projectPath, project);
   return version;
+}
+
+async function readJsonMaybe(filePath) {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 function validateCharts(html) {

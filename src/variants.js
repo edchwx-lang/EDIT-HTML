@@ -8,6 +8,7 @@ import {
   PROJECT_SCHEMA_VERSION,
   scaffoldReportModel
 } from "./report-model.js";
+import { renderVariant } from "./renderer.js";
 import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
 
 export async function createVariant(projectDir, { mode, themeId, theme }) {
@@ -46,6 +47,7 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
   project.variants.push(variant);
   project.activeVariantId = variant.variantId;
   await writeJsonAtomic(projectPath, project);
+  await renderVariant(projectDir, variant.variantId);
   return variant;
 }
 

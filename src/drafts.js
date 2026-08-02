@@ -1,20 +1,46 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { writeJsonAtomic, writeTextAtomic } from "./project.js";
+import { findReportNode, walkNodes } from "./report-model.js";
+import { renderVariant } from "./renderer.js";
+
+const MODEL_PATCH_TYPES = new Set([
+  "setText", "setDataCell", "moveNode", "cloneNode", "deleteNode", "replaceAsset"
+]);
 
 export async function applyDraftPatch(projectDir, variantId, patch) {
   const paths = draftPaths(projectDir, variantId);
-  const html = await readFile(paths.artifact, "utf8");
-  const result = applyOperation(html, patch);
   const state = await readDraftState(paths);
   const patches = state.patches.slice(0, state.cursor);
+  if (MODEL_PATCH_TYPES.has(patch.type)) {
+    const report = JSON.parse(await readFile(paths.model, "utf8"));
+    if (patch.baseRevision !== report.revision) {
+      const error = new Error("draft revision conflict");
+      error.code = "REVISION_CONFLICT";
+      error.currentRevision = report.revision;
+      throw error;
+    }
+    const updated = applyModelOperation(report, patch);
+    updated.revision = report.revision + 1;
+    updated.updatedAt = new Date().toISOString();
+    patches.push({ kind: "model", forward: patch, before: report, after: updated });
+    await writeJsonAtomic(paths.model, updated);
+    await writeDraftState(paths, { patches, cursor: patches.length });
+    await renderVariant(projectDir, variantId);
+    return { revision: updated.revision };
+  }
+  const html = await readFile(paths.artifact, "utf8");
+  const result = applyHtmlOperation(html, patch);
   patches.push({
+    kind: "html",
     forward: patch,
     inverse: result.inverse
   });
   await writeTextAtomic(paths.artifact, result.html);
   await writeDraftState(paths, { patches, cursor: patches.length });
+  return { ok: true };
 }
 
 export async function undoDraft(projectDir, variantId) {
@@ -22,8 +48,18 @@ export async function undoDraft(projectDir, variantId) {
   const state = await readDraftState(paths);
   if (state.cursor === 0) return false;
   const patch = state.patches[state.cursor - 1];
+  if (patch.kind === "model") {
+    const current = JSON.parse(await readFile(paths.model, "utf8"));
+    const restored = structuredClone(patch.before);
+    restored.revision = current.revision + 1;
+    restored.updatedAt = new Date().toISOString();
+    await writeJsonAtomic(paths.model, restored);
+    await writeDraftCursor(paths, state.cursor - 1);
+    await renderVariant(projectDir, variantId);
+    return true;
+  }
   const html = await readFile(paths.artifact, "utf8");
-  const updated = applyOperation(html, patch.inverse).html;
+  const updated = applyHtmlOperation(html, patch.inverse).html;
   await writeTextAtomic(paths.artifact, updated);
   await writeDraftCursor(paths, state.cursor - 1);
   return true;
@@ -34,8 +70,18 @@ export async function redoDraft(projectDir, variantId) {
   const state = await readDraftState(paths);
   if (state.cursor === state.patches.length) return false;
   const patch = state.patches[state.cursor];
+  if (patch.kind === "model") {
+    const current = JSON.parse(await readFile(paths.model, "utf8"));
+    const restored = structuredClone(patch.after);
+    restored.revision = current.revision + 1;
+    restored.updatedAt = new Date().toISOString();
+    await writeJsonAtomic(paths.model, restored);
+    await writeDraftCursor(paths, state.cursor + 1);
+    await renderVariant(projectDir, variantId);
+    return true;
+  }
   const html = await readFile(paths.artifact, "utf8");
-  const updated = applyOperation(html, patch.forward).html;
+  const updated = applyHtmlOperation(html, patch.forward).html;
   await writeTextAtomic(paths.artifact, updated);
   await writeDraftCursor(paths, state.cursor + 1);
   return true;
@@ -45,6 +91,7 @@ function draftPaths(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
   return {
     artifact: path.join(variantDir, "artifact.html"),
+    model: path.join(variantDir, "report-model.json"),
     patches: path.join(variantDir, "draft-patches.jsonl"),
     cursor: path.join(variantDir, "draft-cursor.json")
   };
@@ -78,10 +125,104 @@ async function writeDraftState(paths, state) {
 }
 
 async function writeDraftCursor(paths, cursor) {
-  await writeJsonAtomic(paths.cursor, { schemaVersion: 1, cursor });
+  await writeJsonAtomic(paths.cursor, { schemaVersion: 4, cursor });
 }
 
-function applyOperation(html, patch) {
+function applyModelOperation(report, patch) {
+  const updated = structuredClone(report);
+  if (patch.type === "setText") {
+    const found = findReportNode(updated, patch.nodeId);
+    if (!found) throw new Error('unknown node "' + patch.nodeId + '"');
+    const field = found.node.type === "section" ? "title" : "text";
+    if (typeof found.node[field] !== "string") throw new Error('node "' + patch.nodeId + '" is not text editable');
+    const originalValue = found.node[field];
+    found.node[field] = String(patch.value);
+    recordOverride(updated, {
+      nodeId: patch.nodeId,
+      field,
+      originalValue,
+      value: found.node[field],
+      sourceRefs: found.node.sourceRefs ?? []
+    });
+    return updated;
+  }
+  if (patch.type === "setDataCell") {
+    const datasetIndex = updated.datasets.findIndex((item) => item.datasetId === patch.datasetId);
+    if (datasetIndex === -1) throw new Error('unknown dataset "' + patch.datasetId + '"');
+    const dataset = updated.datasets[datasetIndex];
+    if (!dataset.rows?.[patch.row] || patch.column < 0 || patch.column >= dataset.rows[patch.row].length) throw new Error("unknown dataset cell");
+    const originalValue = dataset.rows[patch.row][patch.column];
+    dataset.rows[patch.row][patch.column] = patch.value;
+    const table = findReportNode(updated, dataset.nodeId)?.node;
+    if (table?.type === "table" && table.rows?.[patch.row + 1]) table.rows[patch.row + 1][patch.column] = patch.value;
+    recordOverride(updated, {
+      nodeId: dataset.nodeId,
+      field: "datasets." + datasetIndex + ".rows." + patch.row + "." + patch.column,
+      originalValue,
+      value: patch.value,
+      sourceRefs: dataset.sourceRefs ?? []
+    });
+    return updated;
+  }
+  if (patch.type === "replaceAsset") {
+    const found = findReportNode(updated, patch.nodeId);
+    if (!found || found.node.type !== "image") throw new Error('unknown image node "' + patch.nodeId + '"');
+    if (!/^data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,/i.test(patch.value)) throw new Error("replacement image must be an embedded data URL");
+    const originalValue = found.node.assetData ?? found.node.assetPath;
+    found.node.assetData = patch.value;
+    recordOverride(updated, { nodeId: patch.nodeId, field: "assetData", originalValue, value: patch.value, sourceRefs: found.node.sourceRefs ?? [] });
+    return updated;
+  }
+  const location = locateNode(updated.nodes, patch.nodeId);
+  if (!location) throw new Error('unknown node "' + patch.nodeId + '"');
+  if (patch.type === "moveNode") {
+    const offset = patch.direction === "up" || patch.direction === "left" ? -1 : patch.direction === "down" || patch.direction === "right" ? 1 : 0;
+    if (!offset) throw new Error('invalid node direction "' + patch.direction + '"');
+    const target = location.index + offset;
+    if (target < 0 || target >= location.container.length) throw new Error('node "' + patch.nodeId + '" cannot move ' + patch.direction);
+    [location.container[location.index], location.container[target]] = [location.container[target], location.container[location.index]];
+    return updated;
+  }
+  if (patch.type === "deleteNode") {
+    location.container.splice(location.index, 1);
+    return updated;
+  }
+  if (patch.type === "cloneNode") {
+    const clone = structuredClone(location.node);
+    rewriteNodeIds(clone, patch.newNodeId ?? "node-" + randomUUID());
+    location.container.splice(location.index + 1, 0, clone);
+    return updated;
+  }
+  throw new Error('unsupported patch type "' + patch.type + '"');
+}
+
+function recordOverride(report, change) {
+  report.overrides ??= [];
+  report.overrides.push({
+    ...change,
+    changedAt: new Date().toISOString(),
+    provenance: "user-override"
+  });
+}
+
+function locateNode(nodes, nodeId) {
+  for (let index = 0; index < (nodes ?? []).length; index += 1) {
+    const node = nodes[index];
+    if (node.nodeId === nodeId) return { node, container: nodes, index };
+    const child = locateNode(node.children, nodeId);
+    if (child) return child;
+  }
+  return null;
+}
+
+function rewriteNodeIds(node, rootId) {
+  const oldRoot = node.nodeId;
+  walkNodes([node], (child) => {
+    child.nodeId = child.nodeId === oldRoot ? rootId : rootId + "-" + randomUUID().slice(0, 8);
+  });
+}
+
+function applyHtmlOperation(html, patch) {
   if (patch.type === "replaceText") {
     const replacement = escapeHtml(patch.value);
     const result = replaceEditableInnerHtml(html, patch.editId, replacement);

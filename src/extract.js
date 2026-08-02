@@ -142,12 +142,28 @@ function markdownUnits(text) {
     if (paragraph.length) units.push({ type: "paragraph", text: paragraph.join(" ") });
     paragraph = [];
   };
-  for (const raw of text.split(/\r?\n/)) {
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
     const line = raw.trim();
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
     if (heading) { flush(); units.push({ type: "heading", level: heading[1].length, text: heading[2] }); continue; }
     const list = line.match(/^([-*+] |\d+[.)] )(.+)$/);
     if (list) { flush(); units.push({ type: "list", text: list[2], items: [list[2]], ordered: /^\d/.test(line) }); continue; }
+    if (/^\|.*\|$/.test(line)) {
+      flush();
+      const tableLines = [];
+      while (index < lines.length && /^\|.*\|$/.test(lines[index].trim())) {
+        tableLines.push(lines[index].trim());
+        index += 1;
+      }
+      index -= 1;
+      const rows = tableLines
+        .filter((item) => !/^\|?\s*:?-{3,}/.test(item.replace(/\|\s*$/, "").replace(/^\|/, "")))
+        .map((item) => item.replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim()));
+      if (rows.length) units.push({ type: "table", rows });
+      continue;
+    }
     if (!line) { flush(); continue; }
     paragraph.push(line);
   }

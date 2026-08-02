@@ -26,44 +26,39 @@ function chart(id, color = 1) {
   );
 }
 
-test("data-first rejects a quantitatively rich artifact with fewer than four KPIs", () => {
+test("data-first no longer enforces arbitrary KPI or chart minimums", () => {
   const html =
     '<body data-report-mode="data-first">' +
-    '<section data-kpi-id="one"></section>' +
-    '<section data-kpi-id="two"></section>' +
-    '<section data-kpi-id="three"></section>' +
-    chart("sales") +
-    chart("margin", 2) +
+    '<div class="chart-tooltip"></div><div class="chart-selection-band"></div>' +
+    chart("chart-dataset-sales") +
     "</body>";
 
+  assert.doesNotThrow(() => validateModeArtifact({
+    html, mode: "data-first", analysis: quantitativeAnalysis,
+    report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+  }));
+});
+
+test("data-first rejects an eligible dataset that is not visualized", () => {
   assert.throws(
-    () => validateModeArtifact({ html, mode: "data-first", analysis: quantitativeAnalysis }),
-    /data-first requires at least 4 KPI blocks; found 3/
+    () => validateModeArtifact({
+      html: '<body data-report-mode="data-first"></body>',
+      mode: "data-first",
+      analysis: quantitativeAnalysis,
+      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+    }),
+    /eligible dataset "dataset-sales" requires a visualization/
   );
 });
 
-test("data-first rejects a quantitatively rich artifact with fewer than two charts", () => {
-  const html =
-    '<body data-report-mode="data-first">' +
-    ["one", "two", "three", "four"]
-      .map((id) => `<section data-kpi-id="${id}"></section>`)
-      .join("") +
-    chart("sales") +
-    "</body>";
-
-  assert.throws(
-    () => validateModeArtifact({ html, mode: "data-first", analysis: quantitativeAnalysis }),
-    /data-first requires at least 2 charts; found 1/
-  );
-});
-
-test("the exact insufficient-evidence exception bypasses data-first density minimums", () => {
-  const html =
-    '<body data-report-mode="data-first" ' +
-    'data-density-exception="insufficient-quantitative-evidence"></body>';
-
-  assert.doesNotThrow(() =>
-    validateModeArtifact({ html, mode: "data-first", analysis: quantitativeAnalysis })
+test("data-first charts require tooltip and selection-band interaction", () => {
+  assert.throws(() =>
+    validateModeArtifact({
+      html: '<body data-report-mode="data-first">' + chart("chart-dataset-sales") + '</body>',
+      mode: "data-first",
+      report: { datasets: [{ datasetId: "dataset-sales", kind: "table", rows: [["全球", 42]] }] }
+    }),
+    /interactive tooltip and selection band/
   );
 });
 
