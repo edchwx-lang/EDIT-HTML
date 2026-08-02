@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4/project.schema.json",
+  "title": "Edit HTML Report V4 Project",
+  "type": "object",
+  "required": ["schemaVersion", "projectId", "sourceFiles", "variants", "versions", "publications"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "activeVariantId": { "type": ["string", "null"] },
+    "sourceFiles": { "type": "array", "items": { "type": "object", "required": ["name", "sha256"] } },
+    "variants": { "type": "array" },
+    "versions": { "type": "array" },
+    "publications": { "type": "array" }
+  },
+  "additionalProperties": true
+}

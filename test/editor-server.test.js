@@ -270,3 +270,29 @@ test("editor API lists six themes and compiles preview without changing draft HT
   assert.match(preview, /data-theme="signal-orange"/);
   assert.match(preview, /--report-accent:#FF6900/);
 });
+
+test("saving a model-backed draft clears dirty state so the saved version can publish", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-model-save-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.md");
+  const projectDir = path.join(sandbox, "report");
+  await writeFile(source, "# 市场\n规模 42 亿元\n\n| 地区 | 数值 |\n| --- | ---: |\n| 全球 | 10 |", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "data-first" });
+  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  const draft = await (await fetch(editor.url + "/api/draft", { headers })).json();
+  const dataset = draft.datasets.find((item) => item.kind === "table");
+  const patched = await fetch(editor.url + "/api/draft", {
+    method: "PATCH", headers,
+    body: JSON.stringify({ type: "setDataCell", datasetId: dataset.datasetId, row: 0, column: 1, value: "99", baseRevision: draft.revision })
+  });
+  assert.equal(patched.status, 200, await patched.text());
+
+  const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "checkpoint" }) });
+  assert.equal(saved.status, 201, await saved.text());
+  const state = await (await fetch(editor.url + "/api/project", { headers })).json();
+  assert.equal(state.dirty, false);
+  assert.ok(state.latestVersionId);
+});

@@ -54,7 +54,7 @@ export function renderReport({ report, presentation, assets = new Map() }) {
 
 function renderNode(node, context) {
   if (node.type === "legacyHtml") return '<section class="legacy-html" data-node-id="' + escapeAttribute(node.nodeId) + '">' + node.html + '</section>';
-  if (node.type === "entityGroup") return renderMasterDetail(node);
+  if (node.type === "entityGroup") return renderMasterDetail(node, context);
   if (node.type === "section") return renderSection(node, context);
   if (node.type === "table") return renderTable(node, context);
   if (node.type === "image") return renderImage(node, context.assets);
@@ -69,7 +69,7 @@ function renderSection(section, context) {
     binding: context.bindings.get(child.nodeId)
   })).join("");
   return '<section id="' + escapeAttribute(section.nodeId) + '" class="report-section" data-block-id="' + escapeAttribute(section.nodeId) + '" data-node-id="' + escapeAttribute(section.nodeId) + '">' +
-    '<header class="section-heading"><span>' + index + '</span><h2 data-edit-id="' + escapeAttribute(section.nodeId) + '">' + escapeHtml(section.title) + '</h2></header>' +
+    '<header class="section-heading"><span>' + index + '</span><h2 data-edit-id="' + escapeAttribute(section.nodeId) + '"' + sourceAttribute(section) + '>' + escapeHtml(section.title) + '</h2></header>' +
     '<div class="section-content">' + children + '</div></section>';
 }
 
@@ -77,22 +77,22 @@ function renderText(node, mode) {
   const source = sourceAttribute(node);
   if (mode === "evidence-first") {
     return '<article class="evidence-chain" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
-      '<div class="evidence-label">原文证据</div><p data-edit-id="' + escapeAttribute(node.nodeId) + '">' + escapeHtml(node.text ?? "") + '</p>' +
+      '<div class="evidence-label">原文证据</div><p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' +
       renderCitation(node.sourceRefs) + '</article>';
   }
   const values = numericTokens(node.text);
   if (values.length) {
     return '<article class="metric-evidence" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
       '<div class="metric-values">' + values.map((value) => '<strong>' + escapeHtml(value) + '</strong>').join('') + '</div>' +
-      '<p data-edit-id="' + escapeAttribute(node.nodeId) + '">' + escapeHtml(node.text ?? "") + '</p>' + renderCitation(node.sourceRefs) + '</article>';
+      '<p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' + renderCitation(node.sourceRefs) + '</article>';
   }
   return '<p class="narrative-block" data-edit-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>';
 }
 
 function renderList(node) {
   const tag = node.ordered ? "ol" : "ul";
-  return '<' + tag + ' class="structured-list" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '>' +
-    (node.items ?? []).map((item) => '<li data-edit-id="' + escapeAttribute(node.nodeId) + '">' + escapeHtml(item) + '</li>').join('') + '</' + tag + '>';
+  return '<' + tag + ' class="structured-list" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '" data-edit-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '>' +
+    (node.items ?? []).map((item) => '<li>' + escapeHtml(item) + '</li>').join('') + '</' + tag + '>';
 }
 
 function renderTable(node, context) {
@@ -133,12 +133,20 @@ function renderImage(node, assets) {
   return '<figure class="source-figure" data-image-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '><img src="' + escapeAttribute(source) + '" alt="' + escapeAttribute(node.alt ?? '') + '"><figcaption>' + escapeHtml(node.caption || node.alt || '') + '</figcaption></figure>';
 }
 
-function renderMasterDetail(node) {
+function renderMasterDetail(node, context) {
   const entities = node.entities ?? [];
   const buttons = entities.map((entity, index) => '<button type="button" data-entity-id="' + escapeAttribute(entity.entityId) + '" aria-selected="' + (index === 0) + '">' + escapeHtml(entity.title) + '</button>').join('');
   const panels = entities.map((entity, entityIndex) => {
     const tabs = entity.dimensions.map((dimension, index) => '<button type="button" data-dimension="' + escapeAttribute(dimension.label) + '" aria-selected="' + (index === 0) + '">' + escapeHtml(dimension.label) + '</button>').join('');
-    const dimensions = entity.dimensions.map((dimension, index) => '<article data-dimension-panel="' + escapeAttribute(dimension.label) + '"' + (index ? ' hidden' : '') + '><h4>' + escapeHtml(dimension.label) + '</h4><p>' + escapeHtml(dimension.text) + '</p>' + renderCitation(dimension.sourceRefs) + '</article>').join('');
+    const dimensions = entity.dimensions.map((dimension, index) => {
+      const contents = dimension.nodes?.length
+        ? dimension.nodes.map((child) => renderNode(child, {
+            ...context,
+            binding: context.bindings.get(child.nodeId)
+          })).join("")
+        : '<p>' + escapeHtml(dimension.text) + '</p>';
+      return '<article data-dimension-panel="' + escapeAttribute(dimension.label) + '"' + (index ? ' hidden' : '') + '><h4>' + escapeHtml(dimension.label) + '</h4>' + contents + renderCitation(dimension.sourceRefs) + '</article>';
+    }).join('');
     return '<div class="entity-panel" data-entity-panel="' + escapeAttribute(entity.entityId) + '"' + (entityIndex ? ' hidden' : '') + '><header><h3>' + escapeHtml(entity.title) + '</h3><div class="dimension-tabs">' + tabs + '</div></header>' + dimensions + '</div>';
   }).join('');
   return '<section class="report-section master-detail" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"><header class="section-heading"><span>◎</span><h2>' + escapeHtml(node.title) + '</h2></header><div class="master-detail-grid"><aside class="entity-selector">' + buttons + '</aside><div class="entity-detail">' + panels + '</div></div></section>';

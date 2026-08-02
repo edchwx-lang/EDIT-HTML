@@ -68,6 +68,9 @@ test("extractDocument reads text page by page from PDF", async () => {
   assert.equal(extracted.mediaType, "application/pdf");
   assert.equal(extracted.text, "PDF evidence 42");
   assert.equal(extracted.pageCount, 1);
+  assert.equal(extracted.units[0].pageImagePath, "source-assets/pdf-page-1.png");
+  assert.equal(extracted.assets[0].path, "source-assets/pdf-page-1.png");
+  assert.equal(Buffer.from(extracted.assets[0].bytes).subarray(1, 4).toString("ascii"), "PNG");
 });
 
 function minimalPdf(text) {

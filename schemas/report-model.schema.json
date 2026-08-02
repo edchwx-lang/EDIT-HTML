@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4/report-model.schema.json",
+  "title": "Canonical Editable Report Model",
+  "type": "object",
+  "required": ["schemaVersion", "variantId", "mode", "revision", "nodes", "datasets", "overrides"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "variantId": { "type": "string" },
+    "mode": { "enum": ["data-first", "evidence-first"] },
+    "revision": { "type": "integer", "minimum": 0 },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "datasets": { "type": "array" },
+    "overrides": { "type": "array" }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["nodeId", "type", "sourceRefs"],
+      "properties": {
+        "nodeId": { "type": "string" },
+        "type": { "type": "string" },
+        "sourceRefs": { "type": "array" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

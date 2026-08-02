@@ -117,22 +117,56 @@ function extractPptx(contents) {
 
 async function extractPdf(contents) {
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const { createCanvas } = await import("@napi-rs/canvas");
   const data = contents instanceof Uint8Array ? new Uint8Array(contents.buffer.slice(contents.byteOffset, contents.byteOffset + contents.byteLength)) : new Uint8Array(contents);
   const document = await getDocument({ data, useSystemFonts: true, disableFontFace: true }).promise;
   try {
     const pages = [];
     const units = [];
+    const assets = [];
+    const warnings = [];
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
       const text = content.items.map((item) => item.str).join(" ").replace(/\s+/g, " ").trim();
+      const viewport = page.getViewport({ scale: 1.5 });
+      let canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      try {
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      } catch (error) {
+        canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#111111";
+        context.font = "18px sans-serif";
+        drawWrappedText(context, text || "PDF page " + pageNumber, 42, 56, Math.max(200, canvas.width - 84), 28);
+        warnings.push("PDF page " + pageNumber + " used a text image fallback: " + error.message);
+      }
+      const pageImagePath = "source-assets/pdf-page-" + pageNumber + ".png";
+      assets.push({ path: pageImagePath, bytes: canvas.toBuffer("image/png") });
       pages.push(text);
-      if (text) units.push({ type: "page", page: pageNumber, text });
+      units.push({ type: "page", page: pageNumber, text, pageImagePath });
     }
-    return { mediaType: "application/pdf", text: pages.join("\n\n"), units, assets: [], pageCount: document.numPages, warnings: [] };
+    return { mediaType: "application/pdf", text: pages.join("\n\n"), units, assets, pageCount: document.numPages, warnings };
   } finally {
     await document.destroy();
   }
+}
+
+function drawWrappedText(context, text, x, y, maxWidth, lineHeight) {
+  let line = "";
+  for (const character of text) {
+    const candidate = line + character;
+    if (context.measureText(candidate).width > maxWidth && line) {
+      context.fillText(line, x, y);
+      line = character;
+      y += lineHeight;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) context.fillText(line, x, y);
 }
 
 function markdownUnits(text) {

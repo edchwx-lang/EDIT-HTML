@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4/source-model.schema.json",
+  "title": "Immutable Extracted Source Model",
+  "type": "object",
+  "required": ["schemaVersion", "documents"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["documentId", "name", "sha256", "units"],
+        "properties": {
+          "units": { "type": "array", "items": { "$ref": "#/$defs/unit" } },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "unit": {
+      "type": "object",
+      "required": ["sourceId", "order", "type", "substantive"],
+      "properties": {
+        "sourceId": { "type": "string" },
+        "order": { "type": "integer", "minimum": 0 },
+        "type": { "enum": ["heading", "paragraph", "list", "table", "image", "footnote", "page", "slide"] },
+        "substantive": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

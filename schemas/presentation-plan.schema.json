@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4/presentation-plan.schema.json",
+  "title": "Huashu Presentation Plan",
+  "type": "object",
+  "required": ["schemaVersion", "variantId", "mode", "contentMutationAllowed", "bindings"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "variantId": { "type": "string" },
+    "mode": { "enum": ["data-first", "evidence-first"] },
+    "contentMutationAllowed": { "const": false },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["nodeId", "component", "layout", "interaction"],
+        "not": { "anyOf": [{ "required": ["text"] }, { "required": ["value"] }, { "required": ["sourceRefs"] }] }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -17,10 +17,12 @@
   "files": [
     "bin",
     "src",
+    "schemas",
     "skills"
   ],
   "license": "MIT",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.3",
     "fast-xml-parser": "5.2.5",
     "fflate": "0.8.2",
     "pdfjs-dist": "4.10.38"

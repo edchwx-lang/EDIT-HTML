@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v2/theme.schema.json",
+  "title": "Semantic Report Theme V2",
+  "type": "object",
+  "required": ["schemaVersion", "themeId", "appearance", "tokens", "chartSeries"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "themeId": { "type": "string" },
+    "appearance": { "enum": ["light", "dark"] },
+    "tokens": { "type": "object" },
+    "chartSeries": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" } }
+  },
+  "additionalProperties": true
+}

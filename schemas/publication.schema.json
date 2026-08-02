@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4/publication.schema.json",
+  "title": "Immutable Publication Record",
+  "type": "object",
+  "required": ["schemaVersion", "publicationId", "versionId", "target", "sha256", "canonicalPath", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "publicationId": { "type": "string" },
+    "versionId": { "type": "string" },
+    "target": { "enum": ["local", "public"] },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "canonicalPath": { "type": "string" },
+    "url": { "type": ["string", "null"] }
+  },
+  "additionalProperties": true
+}

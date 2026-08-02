@@ -7,7 +7,50 @@ import { strToU8, zipSync } from "fflate";
 
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
-import { validateCoverage } from "../src/report-model.js";
+import { buildSourceModel, scaffoldReportModel, validateCoverage } from "../src/report-model.js";
+
+test("source model infers unstyled Chinese report headings without changing order", () => {
+  const source = buildSourceModel("report.docx", {
+    mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    text: "",
+    units: [
+      { type: "paragraph", text: "AI服务器核心材料专题研究报告" },
+      { type: "paragraph", text: "一、AI服务器核心材料发展情况" },
+      { type: "paragraph", text: "（一）AI服务器材料技术发展情况" },
+      { type: "paragraph", text: "正文保持原样。" }
+    ]
+  }, "sha");
+  assert.deepEqual(source.documents[0].units.map((unit) => unit.type), ["heading", "heading", "heading", "paragraph"]);
+  assert.deepEqual(source.documents[0].units.slice(0, 3).map((unit) => unit.level), [0, 1, 2]);
+  assert.deepEqual(source.documents[0].units.map((unit) => unit.order), [0, 1, 2, 3]);
+});
+
+test("data-first scaffolding turns twelve material sections into a source-complete master-detail group", () => {
+  const units = [
+    { type: "paragraph", text: "二、AI服务器核心材料分析" }
+  ];
+  const numerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+  for (const [index, numeral] of numerals.entries()) {
+    const material = "材料" + String(index + 1);
+    units.push(
+      { type: "paragraph", text: "（" + numeral + "）" + material },
+      { type: "paragraph", text: material + "概览" },
+      { type: "paragraph", text: index === 0 ? material + "市场集中度较高，主要由美日企业垄断。" : "全球" + material + "市场" },
+      { type: "paragraph", text: index === 0 ? "当前" + material + "国产化率持续提升。依托深汕园区，深圳加快" + material + "布局。" : "国内" + material + "进展" },
+      { type: "paragraph", text: index === 0 ? "补充说明。" : "深圳" + material + "布局" },
+      { type: "table", rows: [["技术现状", material + "现状"], ["技术难点", material + "难点"], ["价值链分析", material + "价值"]] }
+    );
+  }
+  const source = buildSourceModel("materials.docx", { mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", text: "", units }, "sha");
+  const { report, coverage, presentation } = scaffoldReportModel(source, { variantId: "v", mode: "data-first" });
+  const group = report.nodes.find((node) => node.type === "entityGroup");
+  assert.equal(group.entities.length, 12);
+  assert.deepEqual(group.entities.map((entity) => entity.title), numerals.map((_, index) => "材料" + String(index + 1)));
+  assert.deepEqual(group.entities[0].dimensions.map((dimension) => dimension.label), ["材料概览", "全球", "国内", "深圳", "技术现状", "技术难点", "价值链分析"]);
+  assert.equal(coverage.entries.every((entry) => entry.status === "preserved"), true);
+  assert.doesNotThrow(() => validateCoverage(coverage, report));
+  assert.equal(presentation.bindings.find((binding) => binding.nodeId === group.nodeId).component, "master-detail");
+});
 
 test("DOCX source model preserves heading, paragraph, table, image, and order", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-v4-"));
