@@ -29,10 +29,24 @@
   "$defs": {
     "node": {
       "type": "object",
-      "required": ["nodeId", "type", "sourceRefs", "factIds"],
+      "required": ["nodeId", "type", "sourceRefs", "factIds", "displayIntent"],
       "properties": {
         "nodeId": { "type": "string" },
         "type": { "type": "string" },
+        "displayIntent": { "enum": ["narrative", "metric", "chart-support", "evidence", "warning"] },
+        "metric": {
+          "type": "object",
+          "required": ["label", "value", "unit", "time", "scope", "source"],
+          "properties": {
+            "label": { "type": "string", "minLength": 1 },
+            "value": { "type": ["number", "string"] },
+            "unit": { "type": "string" },
+            "time": { "type": "string", "minLength": 1 },
+            "scope": { "type": "string", "minLength": 1 },
+            "source": { "type": "object" }
+          },
+          "additionalProperties": true
+        },
         "sourceRefs": { "type": "array" },
         "factIds": { "type": "array", "items": { "type": "string" } },
         "children": { "type": "array", "items": { "$ref": "#/$defs/node" } }

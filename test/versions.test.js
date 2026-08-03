@@ -10,6 +10,7 @@ import { createProject } from "../src/project.js";
 import { restoreVersion } from "../src/versions.js";
 import { createVariant, updateVariantTheme } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
+import { confirmEditorReview } from "../src/editor-review.js";
 
 test("restoring an old version creates a new descendant and preserves history", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -34,6 +35,7 @@ test("restoring an old version creates a new descendant and preserves history", 
     '<!doctype html><html><body data-report-mode="evidence-first"><h1 data-edit-id="title">First</h1></body></html>',
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-version-one" });
   const first = await finalizeVariant(projectDir, variant.variantId);
   await updateVariantTheme(projectDir, variant.variantId, "signal-orange");
   await writeFile(
@@ -41,6 +43,7 @@ test("restoring an old version creates a new descendant and preserves history", 
     '<!doctype html><html><body data-report-mode="evidence-first"><h1 data-edit-id="title">Second</h1></body></html>',
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-version-two" });
   const second = await finalizeVariant(projectDir, variant.variantId);
 
   const restored = await restoreVersion(projectDir, first.versionId);
@@ -76,6 +79,7 @@ test("restoring a V4 version restores its model snapshot and creates a descendan
   const nodeId = report.nodes[0].children[0].nodeId;
   const first = await finalizeVariant(projectDir, variant.variantId, { message: "First model" });
   await applyDraftPatch(projectDir, variant.variantId, { type: "setText", nodeId, value: "第二版。", baseRevision: report.revision });
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-version-model-two" });
   const second = await finalizeVariant(projectDir, variant.variantId, { message: "Second model" });
 
   const restored = await restoreVersion(projectDir, first.versionId);

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Edit HTML Report V4.1.1"
+  display_name: "Edit HTML Report V4.2"
   short_description: "Build traceable Huashu-designed HTML reports"
-  default_prompt: "Use $edit-html-report to convert my source into a traceable V4.1.1 report with a confirmed Huashu design package."
+  default_prompt: "Use $edit-html-report V4.2 to convert my source with a selected executable Huashu candidate and visible editor confirmation."

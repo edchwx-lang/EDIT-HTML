@@ -8,6 +8,8 @@ import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
 import { listPublications, publishLocal } from "../src/publish.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
+import { confirmEditorReview } from "../src/editor-review.js";
 
 test("publishLocal exports the selected saved version, never the current draft", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -21,6 +23,7 @@ test("publishLocal exports the selected saved version, never the current draft",
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const artifactPath = path.join(
     projectDir,
     "variants",
@@ -32,6 +35,7 @@ test("publishLocal exports the selected saved version, never the current draft",
     '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="body">Saved</p></body>',
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-publish-editor" });
   const version = await finalizeVariant(projectDir, variant.variantId);
   await writeFile(
     artifactPath,

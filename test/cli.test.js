@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { completeTestHuashuDesign } from "./helpers/huashu.js";
+import { completeTestHuashuDesign, writeTestHuashuCandidate } from "./helpers/huashu.js";
+import { confirmEditorReview } from "../src/editor-review.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "edit-html-report.js");
@@ -104,19 +105,22 @@ test("CLI exposes variant create, variant list, and finalize as one workflow", a
   );
   assert.equal(created.status, 0, created.stderr);
   const variant = JSON.parse(created.stdout);
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const listed = spawnSync(
     process.execPath,
     [cli, "variant", "list", projectDir],
     { cwd: root, encoding: "utf8" }
   );
-  assert.deepEqual(JSON.parse(listed.stdout), [variant]);
+  assert.equal(JSON.parse(listed.stdout)[0].variantId, variant.variantId);
+  assert.ok(JSON.parse(listed.stdout)[0].designSelection.candidateId);
 
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
     '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="revenue" data-source-ref="brief.txt">42 million</p></body>',
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-cli-editor" });
   const finalized = spawnSync(
     process.execPath,
     [cli, "finalize", projectDir, "--variant", variant.variantId],
@@ -200,6 +204,46 @@ test("CLI doctor reports whether the local runtime can execute the package", () 
   });
 });
 
+test("CLI imports, lists, confirms, and reports executable design candidates", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-candidate-cli-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "brief.txt");
+  const projectDir = path.join(sandbox, "report");
+  const candidateDir = path.join(sandbox, "candidate");
+  await writeFile(source, "Revenue reached 42 million.", "utf8");
+  spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], { cwd: root, encoding: "utf8" });
+  const created = spawnSync(process.execPath, [
+    cli, "variant", "create", projectDir, "--mode", "data-first"
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(created.status, 0, created.stderr);
+  const variant = JSON.parse(created.stdout);
+  await writeTestHuashuCandidate(projectDir, variant.variantId, candidateDir);
+
+  const imported = spawnSync(process.execPath, [
+    cli, "design", "candidate", "import", projectDir,
+    "--variant", variant.variantId, "--from", candidateDir
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(imported.status, 0, imported.stderr);
+  assert.equal(JSON.parse(imported.stdout).manifest.candidateId, "candidate-test");
+
+  const listed = spawnSync(process.execPath, [
+    cli, "design", "candidate", "list", projectDir, "--variant", variant.variantId
+  ], { cwd: root, encoding: "utf8" });
+  assert.deepEqual(JSON.parse(listed.stdout).map((item) => item.candidateId), ["candidate-test"]);
+
+  const confirmed = spawnSync(process.execPath, [
+    cli, "design", "candidate", "confirm", projectDir,
+    "--variant", variant.variantId, "--candidate", "candidate-test"
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+  assert.equal(JSON.parse(confirmed.stdout).designSelection.candidateId, "candidate-test");
+
+  const status = spawnSync(process.execPath, [
+    cli, "design", "candidate", "status", projectDir, "--variant", variant.variantId
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(JSON.parse(status.stdout).state, "candidate-confirmed");
+});
+
 test("CLI open is a background alias for editor open and the session remains reusable", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-open-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
@@ -270,15 +314,15 @@ test("CLI render and validate compile a V4 variant", async (t) => {
   spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], { cwd: root, encoding: "utf8" });
   const variant = JSON.parse(spawnSync(process.execPath, [cli, "variant", "create", projectDir, "--mode", "evidence-first"], { cwd: root, encoding: "utf8" }).stdout);
 
-  const pendingStatus = spawnSync(process.execPath, [cli, "design", "status", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
+  const pendingStatus = spawnSync(process.execPath, [cli, "design", "candidate", "status", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
   assert.equal(pendingStatus.status, 0, pendingStatus.stderr);
-  assert.equal(JSON.parse(pendingStatus.stdout).state, "awaiting-package");
+  assert.equal(JSON.parse(pendingStatus.stdout).state, "awaiting-candidate");
   const blocked = spawnSync(process.execPath, [cli, "render", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
   assert.notEqual(blocked.status, 0);
-  assert.match(blocked.stderr, /confirmed Huashu design package/);
+  assert.match(blocked.stderr, /confirmed executable Huashu design candidate/);
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
-  const confirmedStatus = spawnSync(process.execPath, [cli, "design", "status", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
-  assert.equal(JSON.parse(confirmedStatus.stdout).state, "confirmed");
+  const confirmedStatus = spawnSync(process.execPath, [cli, "design", "candidate", "status", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
+  assert.equal(JSON.parse(confirmedStatus.stdout).state, "candidate-confirmed");
   const rendered = spawnSync(process.execPath, [cli, "render", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
   assert.equal(rendered.status, 0, rendered.stderr);
   const validated = spawnSync(process.execPath, [cli, "validate", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });

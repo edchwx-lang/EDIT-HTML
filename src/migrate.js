@@ -10,6 +10,8 @@ import {
   buildSourceModel,
   createInitialCoverageMap,
   createLegacyPresentationPlan,
+  PACKAGE_VERSION,
+  PIPELINE_VERSION,
   PROJECT_SCHEMA_VERSION
 } from "./report-model.js";
 import { migrateLegacyThemeId, THEME_SCHEMA_VERSION } from "./themes.js";
@@ -19,7 +21,20 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
   const projectPath = path.join(projectDir, "project.json");
   const original = JSON.parse(await readFile(projectPath, "utf8"));
   if (original.schemaVersion === PROJECT_SCHEMA_VERSION) {
-    return { changed: false, fromSchemaVersion: 4, toSchemaVersion: 4, backupPath: null };
+    if (
+      original.packageVersion === PACKAGE_VERSION &&
+      original.pipelineVersion === PIPELINE_VERSION
+    ) {
+      return {
+        changed: false,
+        fromSchemaVersion: 4,
+        toSchemaVersion: 4,
+        fromPackageVersion: PACKAGE_VERSION,
+        toPackageVersion: PACKAGE_VERSION,
+        backupPath: null
+      };
+    }
+    return migrateV411Project(projectDir, original, { dryRun });
   }
   const variants = original.variants ?? [];
   const themeMappings = variants.flatMap((variant) => {
@@ -79,6 +94,135 @@ export async function migrateProject(projectDir, { dryRun = false } = {}) {
   }
 }
 
+async function migrateV411Project(projectDir, original, { dryRun }) {
+  const variants = original.variants ?? [];
+  const themeMappings = variants.flatMap((variant) => {
+    const from = variant.themeId ?? variant.theme;
+    const to = migrateLegacyThemeId(from);
+    return from && from !== to ? [{ from, to, variantId: variant.variantId }] : [];
+  });
+  const summary = {
+    changed: true,
+    fromSchemaVersion: PROJECT_SCHEMA_VERSION,
+    toSchemaVersion: PROJECT_SCHEMA_VERSION,
+    fromPackageVersion: original.packageVersion ?? "4.1.1",
+    toPackageVersion: PACKAGE_VERSION,
+    fromPipelineVersion: original.pipelineVersion ?? "4.1.1",
+    toPipelineVersion: PIPELINE_VERSION,
+    themeMappings,
+    backupPath: null
+  };
+  if (dryRun) return summary;
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(
+    path.dirname(projectDir),
+    path.basename(projectDir) + "-v4-1-1-" + stamp + ".zip"
+  );
+  await packProject(projectDir, backupPath);
+  summary.backupPath = backupPath;
+
+  const stagingPath = path.join(path.dirname(projectDir), ".migration-stage-" + randomUUID());
+  const rollbackPath = path.join(path.dirname(projectDir), ".migration-rollback-" + randomUUID());
+  let stagingPromoted = false;
+  let originalMoved = false;
+  await cp(projectDir, stagingPath, {
+    recursive: true,
+    filter: (source) => {
+      const name = path.basename(source);
+      return name !== ".runtime" && !name.startsWith(".migration-");
+    }
+  });
+  try {
+    const migratedVariants = [];
+    for (const stored of variants) {
+      if (!stored.variantId) throw new Error("V4.1.1 variant requires variantId");
+      const variantPath = path.join(stagingPath, "variants", stored.variantId, "variant.json");
+      const diskVariant = JSON.parse(await readFile(variantPath, "utf8"));
+      const themeId = migrateLegacyThemeId(diskVariant.themeId ?? diskVariant.theme);
+      const nextVariant = {
+        ...diskVariant,
+        schemaVersion: PROJECT_SCHEMA_VERSION,
+        packageVersion: PACKAGE_VERSION,
+        pipelineVersion: PIPELINE_VERSION,
+        themeId,
+        themeSchemaVersion: THEME_SCHEMA_VERSION,
+        reviewState: {
+          status: "awaiting-editor-review",
+          reason: "V4.2 executable design candidate required",
+          invalidatedAt: new Date().toISOString()
+        }
+      };
+      delete nextVariant.theme;
+      await writeJsonAtomic(variantPath, nextVariant);
+      migratedVariants.push(nextVariant);
+    }
+    await writeJsonAtomic(path.join(stagingPath, "project.json"), {
+      ...original,
+      schemaVersion: PROJECT_SCHEMA_VERSION,
+      packageVersion: PACKAGE_VERSION,
+      pipelineVersion: PIPELINE_VERSION,
+      variants: migratedVariants
+    });
+    await writeJsonAtomic(path.join(stagingPath, "migration-log.json"), {
+      schemaVersion: PROJECT_SCHEMA_VERSION,
+      migratedAt: new Date().toISOString(),
+      fromSchemaVersion: PROJECT_SCHEMA_VERSION,
+      toSchemaVersion: PROJECT_SCHEMA_VERSION,
+      fromPackageVersion: summary.fromPackageVersion,
+      toPackageVersion: PACKAGE_VERSION,
+      fromPipelineVersion: summary.fromPipelineVersion,
+      toPipelineVersion: PIPELINE_VERSION,
+      backupPath,
+      themeMappings,
+      historicalArtifactsModified: false,
+      weakDesignPackagesPreservedButDisabled: true
+    });
+    await installProjectEditorRuntime(stagingPath);
+    await validateV42Project(stagingPath, variants);
+    await rename(projectDir, rollbackPath);
+    originalMoved = true;
+    try {
+      await rename(stagingPath, projectDir);
+      stagingPromoted = true;
+    } catch (error) {
+      await rename(rollbackPath, projectDir);
+      originalMoved = false;
+      throw error;
+    }
+    await rm(rollbackPath, { recursive: true, force: true });
+    originalMoved = false;
+    return summary;
+  } finally {
+    if (!stagingPromoted) await rm(stagingPath, { recursive: true, force: true });
+    if (originalMoved && await exists(rollbackPath) && !await exists(projectDir)) {
+      await rename(rollbackPath, projectDir);
+    }
+  }
+}
+
+async function validateV42Project(projectDir, variants) {
+  const project = await readJson(path.join(projectDir, "project.json"));
+  if (
+    project.schemaVersion !== PROJECT_SCHEMA_VERSION ||
+    project.packageVersion !== PACKAGE_VERSION ||
+    project.pipelineVersion !== PIPELINE_VERSION
+  ) {
+    throw new Error("V4.2 migration staging validation failed: runtime version mismatch");
+  }
+  for (const stored of variants) {
+    const variant = await readJson(
+      path.join(projectDir, "variants", stored.variantId, "variant.json")
+    );
+    if (
+      variant.packageVersion !== PACKAGE_VERSION ||
+      variant.pipelineVersion !== PIPELINE_VERSION
+    ) {
+      throw new Error("V4.2 migration staging validation failed: variant version mismatch");
+    }
+  }
+}
+
 async function migrateProjectFiles(projectDir, original, variants, summary, backupPath) {
   const projectPath = path.join(projectDir, "project.json");
 
@@ -96,8 +240,15 @@ async function migrateProjectFiles(projectDir, original, variants, summary, back
     const variant = {
       ...stored,
       schemaVersion: PROJECT_SCHEMA_VERSION,
+      packageVersion: PACKAGE_VERSION,
+      pipelineVersion: PIPELINE_VERSION,
       themeId,
-      themeSchemaVersion: THEME_SCHEMA_VERSION
+      themeSchemaVersion: THEME_SCHEMA_VERSION,
+      reviewState: {
+        status: "awaiting-editor-review",
+        reason: "V4.2 executable design candidate required",
+        invalidatedAt: new Date().toISOString()
+      }
     };
     delete variant.theme;
     await writeJsonAtomic(path.join(variantDir, "variant.json"), variant);
@@ -164,6 +315,8 @@ async function migrateProjectFiles(projectDir, original, variants, summary, back
   await writeJsonAtomic(projectPath, {
     ...original,
     schemaVersion: PROJECT_SCHEMA_VERSION,
+    packageVersion: PACKAGE_VERSION,
+    pipelineVersion: PIPELINE_VERSION,
     variants: migratedVariants,
     publications: original.publications ?? []
   });

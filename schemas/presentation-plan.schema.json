@@ -3,7 +3,7 @@
   "$id": "https://edit-html-report.local/schemas/v4/presentation-plan.schema.json",
   "title": "Huashu Presentation Plan",
   "type": "object",
-  "required": ["schemaVersion", "variantId", "mode", "generatedBy", "huashuRunId", "designInputSha256", "designOutputSha256", "contentMutationAllowed", "bindings"],
+  "required": ["schemaVersion", "variantId", "mode", "generatedBy", "designInputSha256", "designOutputSha256", "contentMutationAllowed", "bindings"],
   "properties": {
     "schemaVersion": { "const": 4 },
     "variantId": { "type": "string" },
@@ -17,7 +17,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["nodeId", "component", "layout", "interaction"],
+        "required": ["nodeId", "componentId", "layoutId", "interactionIds", "packageClass", "primitive"],
         "not": { "anyOf": [{ "required": ["text"] }, { "required": ["value"] }, { "required": ["sourceRefs"] }] }
       }
     }

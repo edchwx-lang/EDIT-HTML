@@ -12,6 +12,7 @@ import {
 } from "./report-model.js";
 import { prepareHuashuInput } from "./design-package.js";
 import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
+import { markAwaitingEditorReview } from "./editor-review.js";
 
 export async function createVariant(projectDir, { mode, themeId, theme }) {
   const profile = getModeProfile(mode);
@@ -58,7 +59,7 @@ export async function listVariants(projectDir) {
   return project.variants.map(normalizeVariantRecord);
 }
 
-export async function updateVariantTheme(projectDir, variantId, themeId) {
+export async function updateVariantTheme(projectDir, variantId, themeId, { source = "api" } = {}) {
   const projectPath = path.join(projectDir, "project.json");
   const project = JSON.parse(await readFile(projectPath, "utf8"));
   const index = project.variants.findIndex((item) => item.variantId === variantId);
@@ -69,10 +70,25 @@ export async function updateVariantTheme(projectDir, variantId, themeId) {
     themeId: selectedTheme.themeId,
     themeSchemaVersion: THEME_SCHEMA_VERSION
   };
+  if (source === "editor" && variant.designSelection) {
+    variant.designSelection = {
+      ...variant.designSelection,
+      themeOverride: {
+        themeId: selectedTheme.themeId,
+        changedAt: new Date().toISOString(),
+        source: "editor"
+      }
+    };
+  }
   const variantDir = path.join(projectDir, "variants", variantId);
   project.variants[index] = variant;
   await writeJsonAtomic(path.join(variantDir, "variant.json"), variant);
   await writeJsonAtomic(projectPath, project);
+  try {
+    await markAwaitingEditorReview(projectDir, variantId, { reason: "theme-changed" });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   return variant;
 }
 

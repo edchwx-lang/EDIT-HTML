@@ -14,7 +14,7 @@ test("V4 publishes machine-readable schemas for every canonical project model", 
     "report-model.schema.json": 4,
     "presentation-plan.schema.json": 4,
     "huashu-input.schema.json": 1,
-    "design-package.schema.json": 1,
+    "design-package.schema.json": 2,
     "theme.schema.json": 2,
     "publication.schema.json": 4
   };

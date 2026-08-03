@@ -5,6 +5,7 @@ import path from "node:path";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { findReportNode, walkNodes } from "./report-model.js";
 import { renderVariant } from "./renderer.js";
+import { markAwaitingEditorReview } from "./editor-review.js";
 
 const MODEL_PATCH_TYPES = new Set([
   "setText", "setDataCell", "moveNode", "cloneNode", "deleteNode", "replaceAsset"
@@ -59,6 +60,7 @@ export async function applyDraftPatch(projectDir, variantId, patch) {
     inverse: result.inverse
   });
   await writeTextAtomic(paths.artifact, result.html);
+  await markAwaitingEditorReview(projectDir, variantId, { reason: "draft-modified" });
   await writeDraftState(paths, { patches, cursor: patches.length });
   return { ok: true };
 }
@@ -90,6 +92,7 @@ export async function undoDraft(projectDir, variantId) {
   const html = await readFile(paths.artifact, "utf8");
   const updated = applyHtmlOperation(html, patch.inverse).html;
   await writeTextAtomic(paths.artifact, updated);
+  await markAwaitingEditorReview(projectDir, variantId, { reason: "draft-undo" });
   await writeDraftCursor(paths, state.cursor - 1);
   return true;
 }
@@ -121,6 +124,7 @@ export async function redoDraft(projectDir, variantId) {
   const html = await readFile(paths.artifact, "utf8");
   const updated = applyHtmlOperation(html, patch.forward).html;
   await writeTextAtomic(paths.artifact, updated);
+  await markAwaitingEditorReview(projectDir, variantId, { reason: "draft-redo" });
   await writeDraftCursor(paths, state.cursor + 1);
   return true;
 }

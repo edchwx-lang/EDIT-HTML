@@ -143,7 +143,8 @@ test("creating a variant compiles presentation only from a confirmed design pack
   assert.deepEqual(report.nodes.filter((node) => node.type === "section").map((node) => node.title), ["市场", "技术"]);
   assert.equal(presentation.schemaVersion, 4);
   assert.equal(presentation.generatedBy, "huashu-design-package-compiler");
-  assert.match(presentation.huashuRunId, /^test-/);
+  assert.match(presentation.candidateId, /^test-/);
+  assert.ok(presentation.bindings.every((binding) => binding.componentId && binding.layoutId));
   assert.equal(presentation.bindings.every((binding) => !Object.hasOwn(binding, "text")), true);
   assert.equal(presentation.mode, "data-first");
   assert.doesNotThrow(() => validateCoverage(coverage, report));
@@ -174,11 +175,11 @@ test("content compiler records facts and transformations in the two canonical mo
     mode: "data-first"
   });
   assert.equal(report.facts.some((fact) => fact.type === "claim"), true);
-  assert.equal(report.facts.some((fact) => fact.type === "metric" && fact.value === 42), true);
+  assert.equal(report.facts.some((fact) => fact.type === "metric"), false);
   assert.equal(report.nodes.flatMap((node) => node.children ?? []).every((node) => node.factIds.length > 0), true);
   assert.equal(coverage.entries.every((entry) => Array.isArray(entry.factIds)), true);
   assert.equal(coverage.entries.every((entry) => entry.coverageStatus === "covered"), true);
-  assert.equal(coverage.entries.some((entry) => entry.transformation === "visualize"), true);
+  assert.equal(coverage.entries.every((entry) => entry.transformation === "preserve"), true);
 });
 
 test("data-first blocks structured-data screenshots while evidence-first preserves them", () => {

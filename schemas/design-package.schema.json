@@ -1,21 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://edit-html-report.local/schemas/v4.1.1/design-package.schema.json",
-  "title": "Confirmed Huashu Design Package Manifest",
+  "$id": "https://edit-html-report.local/schemas/v4.2/design-package.schema.json",
+  "title": "Executable Huashu Design Candidate Manifest",
   "type": "object",
-  "required": ["schemaVersion", "skill", "skillVersion", "runId", "invokedAt", "inputSha256", "outputSha256", "confirmation"],
+  "required": [
+    "schemaVersion",
+    "packageVersion",
+    "candidateId",
+    "designDirectionId",
+    "designDirectionLabel",
+    "previewThemeId",
+    "showcaseSha256",
+    "inputSha256",
+    "outputSha256",
+    "confirmation"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "skill": { "const": "huashu-design" },
-    "skillVersion": { "type": "string", "minLength": 1 },
-    "runId": { "type": "string", "minLength": 1 },
-    "invokedAt": { "type": "string", "format": "date-time" },
+    "schemaVersion": { "const": 2 },
+    "packageVersion": { "const": "4.2.0" },
+    "candidateId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "designDirectionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "designDirectionLabel": { "type": "string", "minLength": 1 },
+    "previewThemeId": { "type": "string", "minLength": 1 },
+    "showcaseSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "inputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "outputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "confirmation": {
       "type": "object",
       "required": ["status"],
-      "properties": { "status": { "enum": ["pending", "confirmed"] } }
+      "properties": {
+        "status": { "enum": ["pending", "confirmed"] },
+        "confirmedAt": { "type": ["string", "null"], "format": "date-time" },
+        "confirmedBy": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

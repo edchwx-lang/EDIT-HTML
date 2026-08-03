@@ -35,6 +35,16 @@ async function editorFixture(t) {
   return { projectDir, variant, artifactPath };
 }
 
+async function confirmReview(editor, headers) {
+  const response = await fetch(editor.url + "/api/review", {
+    method: "POST",
+    headers,
+    body: "{}"
+  });
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
 test("editor server binds to loopback and rejects requests without its token", async (t) => {
   const { projectDir, variant } = await editorFixture(t);
   const editor = await startEditorServer({
@@ -97,7 +107,7 @@ test("editor root renders mode-aware controls, contextual actions, and history d
   assert.equal(response.status, 200);
   assert.match(html, /data-action="undo">撤销<\/button>/);
   assert.match(html, /data-action="redo">重做<\/button>/);
-  assert.match(html, /data-action="save">保存版本<\/button>/);
+  assert.match(html, /data-action="save"[^>]*>保存版本<\/button>/);
   assert.match(html, /data-theme-id="warm-paper-terracotta"/);
   assert.match(html, /data-theme-id="signal-orange"/);
   assert.match(html, /浅色配色/);
@@ -121,6 +131,40 @@ test("editor root renders mode-aware controls, contextual actions, and history d
   assert.doesNotMatch(html, /sidebar/i);
 });
 
+test("editor exposes a visible design and color confirmation gate bound to its session", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  t.after(() => editor.close());
+  const headers = {
+    authorization: "Bearer " + editor.token,
+    "content-type": "application/json"
+  };
+  const root = await (await fetch(editor.url + "/?token=" + encodeURIComponent(editor.token))).text();
+  assert.match(root, /data-action="confirm-review"/);
+  assert.match(root, /确认设计与配色/);
+
+  const before = await (await fetch(editor.url + "/api/review", { headers })).json();
+  assert.equal(before.status, "awaiting-editor-review");
+  const confirmedResponse = await fetch(editor.url + "/api/review", {
+    method: "POST",
+    headers,
+    body: "{}"
+  });
+  assert.equal(confirmedResponse.status, 200);
+  const confirmed = await confirmedResponse.json();
+  assert.equal(confirmed.status, "confirmed");
+  assert.equal(confirmed.sessionId, editor.sessionId);
+
+  await fetch(editor.url + "/api/theme", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ themeId: "signal-orange" })
+  });
+  const invalidated = await (await fetch(editor.url + "/api/review", { headers })).json();
+  assert.equal(invalidated.status, "awaiting-editor-review");
+  assert.equal(invalidated.reason, "theme-changed");
+});
+
 test("editor API exposes health, canonical draft, revision conflict, preview, and restore", async (t) => {
   const { projectDir, variant } = await editorFixture(t);
   const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
@@ -140,6 +184,7 @@ test("editor API exposes health, canonical draft, revision conflict, preview, an
     body: JSON.stringify({ type: "setText", nodeId, value: "Stale", baseRevision: draft.revision })
   });
   assert.equal(stale.status, 409);
+  await confirmReview(editor, headers);
   const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "V4" }) });
   const version = await saved.json();
   const preview = await fetch(editor.url + "/api/versions/" + version.versionId + "/preview", { headers });
@@ -160,6 +205,7 @@ test("editor API records, reveals, and republishes canonical publications", asyn
   });
   t.after(() => editor.close());
   const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  await confirmReview(editor, headers);
   const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "Publish" }) });
   const version = await saved.json();
   const published = await fetch(editor.url + "/api/publish", {
@@ -229,6 +275,7 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
   });
   assert.match(await readFile(artifactPath, "utf8"), />New<\/h1>/);
 
+  await confirmReview(editor, headers);
   const saved = await fetch(editor.url + "/api/versions", {
     method: "POST",
     headers,
@@ -278,7 +325,7 @@ test("editor API lists six themes and compiles preview without changing draft HT
   assert.equal(themes.length, 6);
   assert.deepEqual(
     themes.map((theme) => theme.label),
-    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "深海数据蓝", "海军蓝金", "黑场信号橙"]
+    ["暖纸赤陶", "精密蓝图", "砂岩档案", "深海数据蓝", "海军蓝金", "黑场信号橙"]
   );
 
   const response = await fetch(editor.url + "/api/theme", {
@@ -317,6 +364,7 @@ test("saving a model-backed draft clears dirty state so the saved version can pu
   });
   assert.equal(patched.status, 200, await patched.text());
 
+  await confirmReview(editor, headers);
   const saved = await fetch(editor.url + "/api/versions", { method: "POST", headers, body: JSON.stringify({ message: "checkpoint" }) });
   assert.equal(saved.status, 201, await saved.text());
   const state = await (await fetch(editor.url + "/api/project", { headers })).json();

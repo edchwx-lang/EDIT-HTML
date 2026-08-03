@@ -77,28 +77,21 @@ test("new variants prepare real Huashu input and do not silently render", async 
   for (const name of names) assert.ok(JSON.parse(await readFile(path.join(inputDir, name), "utf8")));
   await assert.rejects(
     () => renderVariant(project, variant.variantId),
-    /confirmed Huashu design package is required/
+    /confirmed executable Huashu design candidate/
   );
 });
 
-test("a confirmed, hash-bound Huashu package enables deterministic rendering", async () => {
+test("V4.2 rejects the legacy weak-package import and confirmation path", async () => {
   const { root, project, variant } = await fixture();
   const packageDir = await writePackage(project, variant.variantId, root);
-  await importHuashuDesignPackage(project, variant.variantId, packageDir);
-  await assert.rejects(() => renderVariant(project, variant.variantId), /confirmation/);
-  await confirmHuashuDesign(project, variant.variantId, { confirmedBy: "user" });
-  const validation = await validateHuashuDesignPackage(project, variant.variantId);
-  assert.equal(validation.valid, true);
-  const artifactPath = await renderVariant(project, variant.variantId);
-  const html = await readFile(artifactPath, "utf8");
-  assert.match(html, /data-edit-id=/);
-  assert.match(html, /data-source-ref=/);
-  const plan = JSON.parse(await readFile(
-    path.join(project, "variants", variant.variantId, "presentation-plan.json"),
-    "utf8"
-  ));
-  assert.equal(plan.generatedBy, "huashu-design-package-compiler");
-  assert.equal(plan.huashuRunId, "huashu-run-test");
+  await assert.rejects(
+    () => importHuashuDesignPackage(project, variant.variantId, packageDir),
+    /read-only in V4\.2/
+  );
+  await assert.rejects(
+    () => confirmHuashuDesign(project, variant.variantId, { confirmedBy: "user" }),
+    /read-only in V4\.2/
+  );
 });
 
 test("tampered Huashu packages and hard-coded design content are rejected", async () => {
@@ -107,6 +100,6 @@ test("tampered Huashu packages and hard-coded design content are rejected", asyn
   await writeFile(path.join(packageDir, "runtime.js"), "fetch('https://example.com/runtime.js')", "utf8");
   await assert.rejects(
     () => importHuashuDesignPackage(project, variant.variantId, packageDir),
-    /output SHA-256|remote runtime dependency/
+    /read-only in V4\.2/
   );
 });

@@ -8,6 +8,7 @@ import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
+import { confirmEditorReview } from "../src/editor-review.js";
 
 async function authoredVariant(t, html) {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -29,6 +30,7 @@ async function authoredVariant(t, html) {
     authoredHtml,
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-authored-editor" });
   return { projectDir, variant };
 }
 

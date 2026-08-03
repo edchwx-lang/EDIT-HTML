@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://edit-html-report.local/schemas/v4.1.1/huashu-input.schema.json",
+  "$id": "https://edit-html-report.local/schemas/v4.2/huashu-input.schema.json",
   "title": "Huashu Design Input Manifest",
   "type": "object",
   "required": ["schemaVersion", "skill", "variantId", "mode", "requiredFiles", "inputSha256"],

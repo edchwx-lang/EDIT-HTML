@@ -8,6 +8,8 @@ import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
 import { publishProvider } from "../src/publish.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
+import { confirmEditorReview } from "../src/editor-review.js";
 
 async function savedProject(t) {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -20,11 +22,13 @@ async function savedProject(t) {
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
     '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="body">Saved</p></body>',
     "utf8"
   );
+  await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-provider-editor" });
   const version = await finalizeVariant(projectDir, variant.variantId);
   return { projectDir, version };
 }

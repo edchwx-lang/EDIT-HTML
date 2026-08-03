@@ -18,8 +18,8 @@ test("createProject copies and hashes a source file into a new workspace", async
   const project = await createProject(source, projectDir);
 
   assert.equal(project.schemaVersion, 4);
-  assert.equal(project.packageVersion, "4.1.1");
-  assert.equal(project.pipelineVersion, "4.1.1");
+  assert.equal(project.packageVersion, "4.2.0");
+  assert.equal(project.pipelineVersion, "4.2.0");
   assert.equal(project.sourceFiles.length, 1);
   assert.equal(
     project.sourceFiles[0].sha256,

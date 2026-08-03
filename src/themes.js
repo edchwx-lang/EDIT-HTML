@@ -18,6 +18,7 @@ const LEGACY_ALIASES = new Map([
 ]);
 
 const MIGRATION_MAP = new Map([
+  ["research-cobalt", "precision-blueprint"],
   ["swiss-monochrome", "sandstone-archive"],
   ["ink-teal", "institutional-navy-gold"],
   ["linear-indigo", "deep-data-blue"]
@@ -30,12 +31,14 @@ const THEMES = [
     accent: "#CC785C", focus: "#A34F37", positive: "#2F7D63",
     warning: "#A56A23", negative: "#A63E32"
   }, ["#CC785C", "#4F7C82", "#D39B45", "#75639A", "#69935B", "#B65D73", "#3F6FA6", "#8B6655"]),
-  theme("research-cobalt", "研究钴蓝", "Research Cobalt", "light", {
-    canvas: "#F8FAFC", surface: "#FFFFFF", surfaceAlt: "#E7EEF7",
-    text: "#0F172A", textMuted: "#64748B", border: "#D7E0EA",
-    accent: "#0066FF", focus: "#0066FF", positive: "#087F5B",
-    warning: "#9A6700", negative: "#B42318"
-  }, ["#0066FF", "#00A6A6", "#7C3AED", "#E87900", "#D63384", "#16A34A", "#64748B", "#B38A00"]),
+  theme("precision-blueprint", "精密蓝图", "Precision Blueprint", "light", {
+    canvas: "#F2F5F7", surface: "#FFFFFF", surfaceAlt: "#D9EAF4",
+    text: "#10283F", textMuted: "#526678", border: "#B8C6D1",
+    accent: "#075F9B", focus: "#D75B32", crosshair: "#D75B32",
+    positive: "#267A5E", warning: "#8A5A00", negative: "#B33A35",
+    tableHeader: "#073B61", tableStripe: "#F2F5F7",
+    evidenceHighlight: "#F7E4DB"
+  }, ["#075F9B", "#D75B32", "#1F7A74", "#7C5AA6", "#A46812", "#3E6F8E", "#8A4C6F", "#527A3B"]),
   theme("sandstone-archive", "砂岩档案", "Sandstone Archive", "light", {
     canvas: "#EDE8E0", surface: "#F7F3ED", surfaceAlt: "#E2DBD1",
     text: "#1A1A1A", textMuted: "#5A5A5A", border: "#B8B0A4",
@@ -63,6 +66,12 @@ const THEMES = [
 ];
 
 const LEGACY_THEMES = [
+  legacyTheme("research-cobalt", "研究钴蓝", "Research Cobalt", "light", {
+    canvas: "#F8FAFC", surface: "#FFFFFF", surfaceAlt: "#E7EEF7",
+    text: "#0F172A", textMuted: "#64748B", border: "#D7E0EA",
+    accent: "#0066FF", focus: "#0066FF", positive: "#087F5B",
+    warning: "#9A6700", negative: "#B42318"
+  }, ["#0066FF", "#00A6A6", "#7C3AED", "#E87900", "#D63384", "#16A34A", "#64748B", "#B38A00"]),
   legacyTheme("linear-indigo", "线性靛蓝", "Linear Indigo", "dark", {
     canvas: "#08090A", surface: "#13151A", surfaceAlt: "#1B1E26",
     text: "#F5F5F7", textMuted: "#9DA4B0", border: "#2A2D35",
@@ -164,10 +173,10 @@ function theme(themeId, zh, en, appearance, base, categorical) {
       ...base,
       hover: mix(base.accent, base.surface, 0.14),
       selection: mix(base.accent, base.surface, 0.24),
-      crosshair: base.accent,
-      tableHeader: base.surfaceAlt,
-      tableStripe: mix(base.surfaceAlt, base.surface, 0.52),
-      evidenceHighlight: mix(base.accent, base.surface, 0.12)
+      crosshair: base.crosshair ?? base.accent,
+      tableHeader: base.tableHeader ?? base.surfaceAlt,
+      tableStripe: base.tableStripe ?? mix(base.surfaceAlt, base.surface, 0.52),
+      evidenceHighlight: base.evidenceHighlight ?? mix(base.accent, base.surface, 0.12)
     },
     chart: {
       categorical,

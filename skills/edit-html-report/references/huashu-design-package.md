@@ -1,17 +1,16 @@
-# Huashu Design Package Protocol
+# Huashu Executable Candidate Protocol V2
 
-## Mandatory sequence
+## Sequence
 
-1. Create the variant; inspect `design/huashu-input/manifest.json` and all required input files.
-2. Invoke `$huashu-design` explicitly. Never claim invocation by writing `generatedBy` yourself.
-3. Use real content for showcases. With a reference, show overview, data/table, and master-detail/evidence scenes in one direction. Without a reference, show three differentiated directions using identical content.
-4. Wait for user confirmation before producing the formal package.
-5. Keep package grammar content-free and theme-semantic. Do not copy report prose, values, citations, source IDs, or literal colors into components/runtime.
-6. Run `edit-html-report design hash <package-dir>`. Put the returned SHA-256 plus `skill`, `skillVersion`, `runId`, `invokedAt`, `inputSha256`, references, and pending confirmation in `manifest.json`.
-7. Import with `edit-html-report design import <project> --variant <id> --from <package-dir>` and confirm with `edit-html-report design confirm <project> --variant <id>`.
-8. Check `edit-html-report design status <project> --variant <id>`. Only `confirmed` may render.
+1. Create the variant and inspect every `design/huashu-input/` file.
+2. Invoke `$huashu-design` explicitly with real content. Never fabricate invocation evidence.
+3. With a reference, make one candidate covering hero, data/table, and master-detail/evidence. Without a reference, make three candidates using identical slices and one shared `previewThemeId`.
+4. Compile each showcase from the same candidate grammar that will render the final report. Do not make an independent mockup.
+5. Import candidates, show them to the user, and wait for selection.
+6. Confirm the selected candidate. Confirmation promotes its exact payload to `design/package/`; it must not regenerate files.
+7. Render and validate only the confirmed package.
 
-## Required package
+## Required candidate
 
 ```text
 manifest.json
@@ -22,10 +21,24 @@ chart-grammar.json
 table-grammar.json
 interaction-grammar.json
 responsive-grammar.json
-components/      optional
-styles/          optional
-runtime/         optional, local only
-showcases/       optional, recommended
+components/registry.json
+styles/report.css
+showcases/manifest.json
+showcases/desktop.png
+showcases/mobile.png
 ```
 
-Validation rejects missing run evidence, input/output hash mismatch, report copy or numbers embedded in design files, literal colors, remote imports/fetches, and missing confirmation. Return failures to Huashu for repair; never fall back to a generic template.
+Manifest schema v2 records `packageVersion: 4.2.0`, candidate/direction identity, `previewThemeId`, input/output/showcase SHA-256, and confirmation. Every binding references a registered safe primitive, implemented layout, package class, and built-in local interaction ID.
+
+`styles/report.css` is content-free. It may use semantic `--report-*` variables and layout values, but no report prose/numbers/source IDs, literal colors, remote URLs/imports, arbitrary script, or data fetch.
+
+Commands:
+
+```text
+edit-html-report design candidate import <project> --variant <id> --from <dir>
+edit-html-report design candidate list <project> --variant <id>
+edit-html-report design candidate status <project> --variant <id>
+edit-html-report design candidate confirm <project> --variant <id> --candidate <candidate-id>
+```
+
+Legacy `design import/confirm/status` may inspect V4.1.1 projects only. A weak V4.1.1 package cannot rerender a V4.2 variant.

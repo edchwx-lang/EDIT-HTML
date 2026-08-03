@@ -9,6 +9,7 @@ import {
 import { visualizationForDataset } from "./chart-data.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
+import { markAwaitingEditorReview } from "./editor-review.js";
 
 export async function renderVariant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
@@ -23,15 +24,16 @@ export async function renderVariant(projectDir, variantId) {
   await writeJsonAtomic(path.join(variantDir, "presentation-plan.json"), presentation);
   const assets = await inlineAssets(projectDir, report);
   const html = compileThemeIntoArtifact(
-    renderReport({ report, presentation, assets }),
+    renderReport({ report, presentation, assets, designPackage }),
     variant.themeId
   );
   const artifactPath = path.join(variantDir, "artifact.html");
   await writeTextAtomic(artifactPath, html);
+  await markAwaitingEditorReview(projectDir, variantId, { reason: "rendered" });
   return artifactPath;
 }
 
-export function renderReport({ report, presentation, assets = new Map() }) {
+export function renderReport({ report, presentation, assets = new Map(), designPackage = null }) {
   if (presentation.contentMutationAllowed !== false) throw new Error("presentation plan must prohibit content mutation");
   if (presentation.mode !== report.mode) throw new Error("presentation mode must match report mode");
   const bindings = new Map((presentation.bindings ?? []).map((binding) => [binding.nodeId, binding]));
@@ -54,10 +56,17 @@ export function renderReport({ report, presentation, assets = new Map() }) {
   const editableTitle = titleIsHeaderOnly
     ? ' data-edit-id="' + escapeAttribute(titleNode.nodeId) + '"' + sourceAttribute(titleNode)
     : "";
-  return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">' +
+  const packageStyles = designPackage?.stylesheet ?? "";
+  const designAttributes = presentation.designDirectionId
+    ? ' data-design-direction="' + escapeAttribute(presentation.designDirectionId) + '"' +
+      ' data-design-package-sha="' + escapeAttribute(presentation.designOutputSha256) + '"' +
+      ' data-preview-theme="' + escapeAttribute(presentation.previewThemeId) + '"'
+    : "";
+  return '<!doctype html><html lang="zh-CN"' + designAttributes + '><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%20rx%3D%223%22%2F%3E%3C%2Fsvg%3E">' +
-    '<title>' + escapeHtml(title) + '</title><style>' + reportCss() + chartAxisCss() + '</style></head>' +
+    '<title>' + escapeHtml(title) + '</title><style data-edit-html-report-base>' + baseReportCss() + chartAxisCss() + '</style>' +
+    '<style data-design-package="' + escapeAttribute(presentation.designOutputSha256 ?? "legacy") + '">' + packageStyles + '</style></head>' +
     '<body data-report-mode="' + report.mode + '"><header class="report-header"><div class="report-header-inner">' +
     '<p class="eyebrow">EDIT HTML REPORT · V4</p><h1' + editableTitle + '>' + escapeHtml(title) + '</h1>' +
     '<div class="report-meta"><span>模式：' + modeLabel + '</span><span>' + modeNote + '</span></div></div></header>' +
@@ -68,11 +77,19 @@ export function renderReport({ report, presentation, assets = new Map() }) {
 
 function renderNode(node, context) {
   if (node.type === "legacyHtml") return '<section class="legacy-html" data-node-id="' + escapeAttribute(node.nodeId) + '">' + node.html + '</section>';
+  const primitive = context.binding?.primitive;
+  if (primitive === "masterDetail") return renderMasterDetail(node, context);
+  if (primitive === "section" || primitive === "hero") return renderSection(node, context);
+  if (primitive === "table") return renderTable(node, context);
+  if (primitive === "figure") return renderImage(node, context.assets, context);
+  if (primitive === "narrative" && node.type === "list") return renderList(node, context);
+  if (["narrative", "metric", "evidenceWarning"].includes(primitive)) return renderText(node, context);
+  if (context.binding) throw new Error(`unsupported design primitive ${primitive ?? "missing"}`);
   if (node.type === "entityGroup") return renderMasterDetail(node, context);
   if (node.type === "section") return renderSection(node, context);
   if (node.type === "table") return renderTable(node, context);
-  if (node.type === "image") return renderImage(node, context.assets);
-  if (node.type === "list") return renderList(node);
+  if (node.type === "image") return renderImage(node, context.assets, context);
+  if (node.type === "list") return renderList(node, context);
   return renderText(node, context);
 }
 
@@ -83,7 +100,7 @@ function renderSection(section, context) {
     binding: context.bindings.get(child.nodeId)
   })).join("");
   const structural = !section.children?.length;
-  return '<section id="' + escapeAttribute(section.nodeId) + '" class="report-section' + (structural ? ' structural-section' : '') + '" data-block-id="' + escapeAttribute(section.nodeId) + '" data-node-id="' + escapeAttribute(section.nodeId) + '">' +
+  return '<section id="' + escapeAttribute(section.nodeId) + '" class="report-section ' + bindingClass(context) + (structural ? ' structural-section' : '') + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(section.nodeId) + '" data-node-id="' + escapeAttribute(section.nodeId) + '">' +
     '<header class="section-heading"><span>' + index + '</span><h2 data-edit-id="' + escapeAttribute(section.nodeId) + '"' + sourceAttribute(section) + '>' + escapeHtml(section.title) + '</h2></header>' +
     '<div class="section-content">' + children + '</div></section>';
 }
@@ -91,26 +108,34 @@ function renderSection(section, context) {
 function renderText(node, context) {
   const mode = context.report.mode;
   const source = sourceAttribute(node);
-  if (mode === "evidence-first") {
-    return '<article class="evidence-chain" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
+  if (mode === "evidence-first" || node.displayIntent === "evidence" || node.displayIntent === "warning") {
+    return '<article class="evidence-chain ' + bindingClass(context) + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
       '<div class="evidence-label">原文证据</div><p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' +
       renderCitation(node.sourceRefs) + '</article>';
   }
-  const dataset = context.report.datasets.find((item) => item.nodeId === node.nodeId);
-  const values = dataset?.values?.map((item) => item.label) ?? numericTokens(node.text);
-  if (values.length) {
-    const metric = '<article class="metric-evidence" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
-      '<div class="metric-values">' + values.map((value) => '<strong>' + escapeHtml(value) + '</strong>').join('') + '</div>' +
+  const dataset = node.displayIntent === "chart-support"
+    ? context.report.datasets.find((item) => item.nodeId === node.nodeId)
+    : null;
+  if (node.displayIntent === "metric") {
+    assertCompleteMetric(node);
+    const displayValue = String(node.metric.value) + String(node.metric.unit);
+    const metric = '<article class="metric-evidence ' + bindingClass(context) + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' +
+      '<div class="metric-values"><strong>' + escapeHtml(displayValue) + '</strong><span>' + escapeHtml(node.metric.label) + '</span></div>' +
+      '<p class="metric-scope">' + escapeHtml(node.metric.time + " · " + node.metric.scope) + '</p>' +
       '<p data-edit-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>' + renderCitation(node.sourceRefs) + '</article>';
-    const chart = dataset ? renderChart(dataset, node.sourceRefs) : "";
-    return chart ? '<div class="metric-chart-pair">' + metric + chart + '</div>' : metric;
+    return metric;
   }
-  return '<p class="narrative-block" data-edit-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>';
+  const narrative = '<p class="narrative-block ' + bindingClass(context) + '"' + bindingData(context) + ' data-edit-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + source + '>' + escapeHtml(node.text ?? "") + '</p>';
+  if (node.displayIntent === "chart-support" && dataset) {
+    const chart = renderChart(dataset, node.sourceRefs, context.binding);
+    if (chart) return '<div class="narrative-chart-pair">' + narrative + chart + '</div>';
+  }
+  return narrative;
 }
 
-function renderList(node) {
+function renderList(node, context = {}) {
   const tag = node.ordered ? "ol" : "ul";
-  return '<' + tag + ' class="structured-list" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '" data-edit-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '>' +
+  return '<' + tag + ' class="structured-list ' + bindingClass(context) + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '" data-edit-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '>' +
     (node.items ?? []).map((item) => '<li>' + escapeHtml(item) + '</li>').join('') + '</' + tag + '>';
 }
 
@@ -118,17 +143,19 @@ function renderTable(node, context) {
   const rows = node.rows ?? [];
   const head = rows[0] ?? [];
   const body = rows.slice(1);
-  const table = '<div class="table-wrap" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"><table' + sourceAttribute(node) + '><thead><tr>' +
+  const table = '<div class="table-wrap ' + bindingClass(context) + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"><table' + sourceAttribute(node) + '><thead><tr>' +
     head.map((cell) => '<th>' + escapeHtml(cell) + '</th>').join('') + '</tr></thead><tbody>' +
     body.map((row, rowIndex) => '<tr class="' + (rowIndex === body.length - 1 ? 'summary-row' : '') + '">' + row.map((cell, columnIndex) => '<td data-cell-row="' + rowIndex + '" data-cell-column="' + columnIndex + '">' + escapeHtml(cell) + '</td>').join('') + '</tr>').join('') +
     '</tbody></table></div>';
   if (context.report.mode !== "data-first") return table + renderCitation(node.sourceRefs);
-  const dataset = context.report.datasets.find((item) => item.nodeId === node.nodeId);
-  const chart = dataset ? renderChart(dataset, node.sourceRefs) : "";
+  const dataset = node.displayIntent === "chart-support"
+    ? context.report.datasets.find((item) => item.nodeId === node.nodeId)
+    : null;
+  const chart = dataset ? renderChart(dataset, node.sourceRefs, context.binding) : "";
   return '<div class="data-pair">' + table + chart + '</div>';
 }
 
-function renderChart(dataset, sourceRefs) {
+function renderChart(dataset, sourceRefs, binding = null) {
   const visualization = visualizationForDataset(dataset);
   if (!visualization) return "";
   const rows = visualization.rows;
@@ -151,13 +178,19 @@ function renderChart(dataset, sourceRefs) {
     return '<button class="chart-row" type="button" data-chart-label="' + escapeAttribute(label) + '" data-chart-value="' + escapeAttribute(displayValue) + '"' + (reused ? ' data-series-reused="true" data-series-symbol="' + symbol + '"' : '') + '><span title="' + escapeAttribute(label) + '">' + (reused ? '<em class="series-symbol" aria-hidden="true">◆</em>' : '') + escapeHtml(label) + '</span><i class="chart-mark" data-chart-mark style="' + markStyle + '"></i><b>' + escapeHtml(displayValue) + '</b></button>';
   }).join('');
   const axis = '<div class="chart-axis" aria-label="数值坐标">' + [0, 0.25, 0.5, 0.75, 1].map((ratio) => '<span>' + escapeHtml(formatAxisValue(max * ratio)) + '</span>').join('') + '</div>';
-  return '<figure class="interactive-chart" data-chart-id="' + escapeAttribute(chartId) + '" data-node-id="' + escapeAttribute(dataset.nodeId) + '" data-chart-unit="' + escapeAttribute(visualization.unit) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>' + escapeHtml(visualization.caption) + '</figcaption><div class="chart-stage"><div class="chart-selection-band"></div>' + marks + '</div>' + axis +
+  const chartClass = binding?.chartPackageClass ? ' ' + escapeAttribute(binding.chartPackageClass) : '';
+  const chartBindingData = binding?.chartComponentId
+    ? ' data-chart-component-id="' + escapeAttribute(binding.chartComponentId) + '"' +
+      ' data-chart-layout-id="' + escapeAttribute(binding.chartLayoutId) + '"' +
+      ' data-chart-interaction-ids="' + escapeAttribute((binding.chartInteractionIds ?? []).join(" ")) + '"'
+    : '';
+  return '<figure class="interactive-chart' + chartClass + '"' + chartBindingData + ' data-chart-id="' + escapeAttribute(chartId) + '" data-node-id="' + escapeAttribute(dataset.nodeId) + '" data-chart-unit="' + escapeAttribute(visualization.unit) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>' + escapeHtml(visualization.caption) + '</figcaption><div class="chart-stage"><div class="chart-selection-band"></div>' + marks + '</div>' + axis +
     '<script type="application/json" data-chart-data-for="' + escapeAttribute(chartId) + '">' + escapeScriptJson(JSON.stringify(dataset)) + '</script></figure>';
 }
 
-function renderImage(node, assets) {
+function renderImage(node, assets, context = {}) {
   const source = node.assetData ?? assets.get(node.assetPath) ?? node.assetPath;
-  return '<figure class="source-figure" data-image-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '><img src="' + escapeAttribute(source) + '" alt="' + escapeAttribute(node.alt ?? '') + '"><figcaption>' + escapeHtml(node.caption || node.alt || '') + '</figcaption></figure>';
+  return '<figure class="source-figure ' + bindingClass(context) + '"' + bindingData(context) + ' data-image-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"' + sourceAttribute(node) + '><img src="' + escapeAttribute(source) + '" alt="' + escapeAttribute(node.alt ?? '') + '"><figcaption>' + escapeHtml(node.caption || node.alt || '') + '</figcaption></figure>';
 }
 
 function renderMasterDetail(node, context) {
@@ -176,7 +209,7 @@ function renderMasterDetail(node, context) {
     }).join('');
     return '<div class="entity-panel" data-entity-panel="' + escapeAttribute(entity.entityId) + '"' + (entityIndex ? ' hidden' : '') + '><header><h3>' + escapeHtml(entity.title) + '</h3><div class="dimension-tabs">' + tabs + '</div></header>' + dimensions + '</div>';
   }).join('');
-  return '<section class="report-section master-detail" data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"><header class="section-heading"><span>◎</span><h2>' + escapeHtml(node.title) + '</h2></header><div class="master-detail-grid"><aside class="entity-selector">' + buttons + '</aside><div class="entity-detail">' + panels + '</div></div></section>';
+  return '<section class="report-section master-detail ' + bindingClass(context) + '"' + bindingData(context) + ' data-block-id="' + escapeAttribute(node.nodeId) + '" data-node-id="' + escapeAttribute(node.nodeId) + '"><header class="section-heading"><span>◎</span><h2>' + escapeHtml(node.title) + '</h2></header><div class="master-detail-grid"><aside class="entity-selector">' + buttons + '</aside><div class="entity-detail">' + panels + '</div></div></section>';
 }
 
 function renderCitation(sourceRefs = []) {
@@ -199,12 +232,12 @@ async function inlineAssets(projectDir, report) {
   return assets;
 }
 
-function reportCss() {
-  return '*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--report-canvas);color:var(--report-text);font-family:"Noto Sans CJK SC","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.75}button{font:inherit;color:inherit}.report-header{border-bottom:1px solid var(--report-border);background:var(--report-surface)}.report-header-inner,.report-shell,.chapter-nav>div{width:calc(100% - 64px);max-width:1440px;margin:0 auto}.report-header-inner{padding:72px 0 48px}.eyebrow{margin:0;color:var(--report-accent);font-size:12px;font-weight:800;letter-spacing:.16em}.report-header h1{max-width:1100px;margin:14px 0 22px;font-family:"Noto Serif CJK SC","Songti SC",serif;font-size:clamp(42px,7vw,92px);line-height:1.05;letter-spacing:-.04em;text-wrap:balance}.report-meta{display:flex;gap:12px;flex-wrap:wrap}.report-meta span{padding:6px 12px;border:1px solid var(--report-border);font-size:13px}.chapter-nav{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--report-canvas) 92%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--report-border)}.chapter-nav>div{display:flex;overflow:auto}.chapter-nav a{flex:none;padding:13px 18px;color:var(--report-text-muted);text-decoration:none;border-right:1px solid var(--report-border);font-size:14px}.chapter-nav a:hover,.chapter-nav a:focus{background:var(--report-hover);color:var(--report-text)}.chapter-nav span{margin-right:8px;color:var(--report-accent);font-family:monospace}.report-shell{padding:24px 0 96px}.report-section{padding:64px 0;border-bottom:1px solid var(--report-border)}.structural-section{padding:28px 0}.structural-section .section-heading{margin-bottom:0}.structural-section .section-heading h2{font-size:clamp(28px,3vw,44px)}.section-heading{display:grid;grid-template-columns:56px minmax(0,1fr);gap:16px;align-items:start;margin-bottom:28px}.section-heading>span{padding-top:10px;color:var(--report-accent);font-family:monospace;font-weight:800}.section-heading h2{margin:0;font-family:"Noto Serif CJK SC","Songti SC",serif;font-size:clamp(32px,4vw,58px);line-height:1.15;text-wrap:balance}.section-content{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}.narrative-block,.evidence-chain,.metric-evidence,.metric-chart-pair,.structured-list,.source-figure,.data-pair{grid-column:span 12;margin:0}.narrative-block{max-width:78ch;font-size:18px}.metric-chart-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:24px;align-items:start}.metric-evidence{display:grid;grid-template-columns:minmax(180px,3fr) minmax(0,7fr);gap:24px;padding:24px 0;border-top:1px solid var(--report-border)}.metric-chart-pair>.metric-evidence{grid-column:auto;grid-template-columns:1fr}.metric-values{display:flex;gap:12px;flex-wrap:wrap}.metric-values strong{color:var(--report-accent);font-size:clamp(28px,4vw,48px);line-height:1}.metric-evidence p{margin:0}.evidence-chain{max-width:78ch;padding:22px 0;border-top:1px solid var(--report-border)}.evidence-chain p{margin:8px 0}.evidence-label{display:inline-block;padding:2px 8px;background:var(--report-evidence-highlight);color:var(--report-accent);font-size:12px;font-weight:800}.source-citation{margin:12px 0 0!important;color:var(--report-text-muted);font-size:12px}.data-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:24px;align-items:start}.table-wrap{overflow:auto;border:1px solid var(--report-border)}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--report-border)}th{background:var(--report-table-header);font-size:13px}tbody tr:nth-child(even){background:var(--report-table-stripe)}tbody tr:hover{background:var(--report-hover)}.summary-row{font-weight:800;color:var(--report-accent)}.interactive-chart{margin:0;padding:18px;border:1px solid var(--report-border);background:var(--report-surface)}.interactive-chart figcaption{margin-bottom:14px;font-weight:800}.chart-stage{position:relative;display:grid;gap:9px}.chart-selection-band{position:absolute;inset:0 auto 0 0;width:0;background:var(--report-selection);pointer-events:none;transition:.15s}.chart-row{position:relative;display:grid;grid-template-columns:minmax(110px,150px) minmax(0,1fr) minmax(64px,auto);gap:10px;align-items:center;min-height:34px;padding:0;border:0;background:transparent;text-align:left;cursor:crosshair}.chart-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chart-mark{display:block;height:14px;min-width:2px}.series-symbol{display:inline-block;margin-right:4px;color:var(--report-chart-axis);font-style:normal}.chart-row b{text-align:right;font-variant-numeric:tabular-nums}.chart-tooltip{position:fixed;z-index:30;display:none;pointer-events:none;padding:8px 10px;background:var(--report-chart-tooltip-background);color:var(--report-chart-tooltip-text);font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.2)}.source-figure img{display:block;max-width:100%;height:auto}.source-figure figcaption{color:var(--report-text-muted);font-size:13px}.master-detail-grid{display:grid;grid-template-columns:220px minmax(0,1fr);border:1px solid var(--report-border)}.entity-selector{display:flex;flex-direction:column;border-right:1px solid var(--report-border)}.entity-selector button,.dimension-tabs button{min-height:44px;border:0;border-bottom:1px solid var(--report-border);background:transparent;text-align:left;cursor:pointer}.entity-selector button{padding:10px 16px}.entity-selector button[aria-selected="true"],.dimension-tabs button[aria-selected="true"]{background:var(--report-selection);color:var(--report-accent);font-weight:800}.entity-detail{padding:24px}.entity-panel>header{display:flex;justify-content:space-between;gap:20px;align-items:start}.entity-panel h3{margin:0;font-size:30px}.dimension-tabs{display:flex;gap:4px;flex-wrap:wrap}.dimension-tabs button{padding:6px 10px;border:1px solid var(--report-border)}.entity-panel article{margin-top:24px;padding-top:20px;border-top:1px solid var(--report-border)}[hidden]{display:none!important}.legacy-html{max-width:100%;overflow:auto}@media(max-width:800px){.report-header-inner,.report-shell,.chapter-nav>div{width:calc(100% - 32px)}.report-header-inner{padding:46px 0 34px}.section-content{display:block}.metric-evidence,.metric-chart-pair,.data-pair,.master-detail-grid{grid-template-columns:1fr}.metric-evidence,.metric-chart-pair,.data-pair{display:grid}.entity-selector{display:grid;grid-template-columns:repeat(2,1fr);border-right:0;border-bottom:1px solid var(--report-border)}.entity-panel>header{display:block}.dimension-tabs{margin-top:16px}.report-section{padding:44px 0}.structural-section{padding:22px 0}}';
+function baseReportCss() {
+  return '*{box-sizing:border-box}html{scroll-behavior:smooth;max-width:100%;overflow-x:hidden}body{margin:0;max-width:100%;overflow-x:hidden;background:var(--report-canvas);color:var(--report-text);font-family:"Microsoft YaHei",sans-serif;line-height:1.65}button{font:inherit;color:inherit}.source-figure img{display:block;max-width:100%;height:auto}.table-wrap{max-width:100%;overflow:auto}[hidden]{display:none!important}.chart-stage{position:relative}.chart-selection-band{position:absolute;inset:0 auto 0 0;width:0;background:var(--report-selection);pointer-events:none}.chart-row{display:grid;grid-template-columns:minmax(90px,150px) minmax(0,1fr) minmax(60px,auto);gap:10px;align-items:center;width:100%;border:0;background:transparent;text-align:left}.chart-mark{display:block;min-width:2px}.chart-tooltip{position:fixed;z-index:30;display:none;pointer-events:none;padding:8px 10px;background:var(--report-chart-tooltip-background);color:var(--report-chart-tooltip-text)}';
 }
 
 function chartAxisCss() {
-  return '.chart-axis{display:flex;justify-content:space-between;margin:8px 54px 0 90px;padding-top:5px;border-top:1px solid var(--report-chart-grid);color:var(--report-chart-axis);font-size:10px;font-variant-numeric:tabular-nums}';
+  return '.narrative-chart-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:24px;align-items:start;grid-column:span 12}.chart-axis{display:flex;justify-content:space-between;margin:8px 54px 0 90px;padding-top:5px;border-top:1px solid var(--report-chart-grid);color:var(--report-chart-axis);font-size:10px;font-variant-numeric:tabular-nums}@media(max-width:800px){.narrative-chart-pair{grid-template-columns:1fr}}';
 }
 
 function reportScript() {
@@ -212,7 +245,22 @@ function reportScript() {
 }
 
 function formatAxisValue(value) { return Number.isInteger(value) ? String(value) : value.toFixed(1); }
-function numericTokens(text = '') { return text.match(/[-+]?\d+(?:[.,]\d+)*(?:%|‰|亿元|万元|美元|GB\/s|Gbps|kW)?/gu) ?? []; }
+function bindingClass(context = {}) { return escapeAttribute(context.binding?.packageClass ?? ""); }
+function bindingData(context = {}) {
+  const binding = context.binding;
+  if (!binding?.componentId) return "";
+  return ' data-component-id="' + escapeAttribute(binding.componentId) + '"' +
+    ' data-layout-id="' + escapeAttribute(binding.layoutId) + '"' +
+    ' data-interaction-ids="' + escapeAttribute((binding.interactionIds ?? []).join(" ")) + '"';
+}
+function assertCompleteMetric(node) {
+  const metric = node.metric;
+  const required = ["label", "value", "unit", "time", "scope", "source"];
+  const missing = required.filter((field) => metric?.[field] === undefined || metric?.[field] === null || metric?.[field] === "");
+  if (missing.length || !node.sourceRefs?.length) {
+    throw new Error(`metric node ${node.nodeId} requires label, value, unit, time, scope, and source`);
+  }
+}
 function sourceAttribute(node) { const ref = node.sourceRefs?.[0]; return ref ? ' data-source-ref="' + escapeAttribute(ref.documentName + '#' + ref.sourceId) + '"' : ''; }
 function escapeHtml(value) { return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
 function escapeAttribute(value) { return escapeHtml(value); }

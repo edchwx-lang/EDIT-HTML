@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 
+import { isVisualizationEligible } from "./chart-data.js";
+
 export const PROJECT_SCHEMA_VERSION = 4;
-export const PACKAGE_VERSION = "4.1.1";
-export const PIPELINE_VERSION = "4.1.1";
+export const PACKAGE_VERSION = "4.2.0";
+export const PIPELINE_VERSION = "4.2.0";
 
 export function buildSourceModel(name, extracted, sha256) {
   const rawUnits = extracted.units ?? plainTextUnits(extracted.text);
@@ -87,6 +89,7 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
   if (mode === "data-first") nodes = groupRepeatedEntities(nodes, variantId);
 
   const datasets = collectDatasets(nodes);
+  assignDisplayIntents(nodes, datasets);
   const facts = compileFacts(nodes, datasets, variantId);
   const report = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -374,21 +377,27 @@ function collectDatasets(nodes) {
       });
       return;
     }
-    if (node.type === "paragraph" || node.type === "text") {
-      const values = numericTokens(node.text);
-      if (values.length) datasets.push({
-        datasetId: "dataset-" + node.nodeId,
-        nodeId: node.nodeId,
-        kind: values.length === 1 ? "metric" : "numeric-text",
-        label: node.text,
-        columns: ["指标", "数值", "单位"],
-        rows: values.map((item) => [item.contextLabel, item.value, item.unit]),
-        values: values.map((item) => ({ label: item.raw, contextLabel: item.contextLabel, value: item.value, unit: item.unit })),
-        sourceRefs: node.sourceRefs
-      });
-    }
   });
   return datasets;
+}
+
+function assignDisplayIntents(nodes, datasets) {
+  const datasetsByNode = new Map(datasets.map((dataset) => [dataset.nodeId, dataset]));
+  walkNodes(nodes, (node) => {
+    if (node.displayIntent) return;
+    if (node.type === "evidenceWarning") {
+      node.displayIntent = "warning";
+      return;
+    }
+    if (node.type === "image") {
+      node.displayIntent = "evidence";
+      return;
+    }
+    const dataset = datasetsByNode.get(node.nodeId);
+    node.displayIntent = dataset && isVisualizationEligible(dataset)
+      ? "chart-support"
+      : "narrative";
+  });
 }
 
 function compileFacts(nodes, datasets, variantId) {
@@ -434,71 +443,13 @@ function compileFacts(nodes, datasets, variantId) {
   return facts;
 }
 
-function numericTokens(text = "") {
-  const number = "[-+]?\\d+(?:,\\d{3})*(?:\\.\\d+)?";
-  const rangeNumber = "\\d+(?:,\\d{3})*(?:\\.\\d+)?";
-  const unit = "(?:亿美元|亿元|万元|美元|GB\\/s|Gbps|Tbps|GB|kW|MW|W|nm|μm|mm|cm|平方米|万吨|吨\\/年|吨|%|‰|倍|层|颗|家|个月|年|月|日|天)";
-  const pattern = new RegExp(
-    `(?<![A-Za-z0-9./-])(${number})\\s*(${unit})?(?:\\s*[-–—~至到]\\s*(${rangeNumber})\\s*(${unit})?)?`,
-    "gu"
-  );
-  const values = [];
-  for (const match of text.matchAll(pattern)) {
-    const firstUnit = match[2] ?? match[4] ?? "";
-    const characterAfter = text[match.index + match[0].length] ?? "";
-    if (!firstUnit && !match[4] && /[A-Za-z0-9]/u.test(characterAfter)) continue;
-    const first = metricToken(text, match[1], firstUnit, match.index, match.index + match[0].length, values.length);
-    if (match[3]) {
-      const secondUnit = match[4] ?? match[2] ?? "";
-      const rangeLabel = firstUnit === secondUnit
-        ? `${match[1]}–${match[3]}${secondUnit}`
-        : `${match[1]}${firstUnit}–${match[3]}${secondUnit}`;
-      first.contextLabel = rangeLabel + " · 下限";
-      values.push(first);
-      const second = metricToken(text, match[3], secondUnit, match.index, match.index + match[0].length, values.length);
-      second.contextLabel = rangeLabel + " · 上限";
-      values.push(second);
-    } else {
-      values.push(first);
-    }
-  }
-  return values;
-}
-
-function metricToken(text, numeric, unit, start, end, index) {
-  return {
-    raw: numeric + unit,
-    value: Number(numeric.replaceAll(",", "")),
-    unit,
-    contextLabel: metricContextLabel(text, start, end, index),
-    start,
-    end
-  };
-}
-
-function metricContextLabel(text, start, end, index) {
-  const beforeBoundary = Math.max(
-    text.lastIndexOf("。", start - 1), text.lastIndexOf("；", start - 1),
-    text.lastIndexOf("！", start - 1), text.lastIndexOf("？", start - 1),
-    text.lastIndexOf("\n", start - 1)
-  );
-  const afterCandidates = ["。", "；", "！", "？", "\n"]
-    .map((separator) => text.indexOf(separator, end))
-    .filter((position) => position >= 0);
-  const afterBoundary = afterCandidates.length ? Math.min(...afterCandidates) : text.length;
-  const before = text.slice(beforeBoundary + 1, start).replace(/\s+/gu, " ").trim().slice(-14);
-  const after = text.slice(end, afterBoundary).replace(/\s+/gu, " ").trim().slice(0, 8);
-  const label = (before + text.slice(start, end).trim() + after).trim();
-  return label || `指标 ${index + 1}`;
-}
-
 function componentFor(node, mode) {
   if (node.type === "section") return "report-section";
   if (node.type === "entityGroup") return "master-detail";
   if (node.type === "table") return mode === "data-first" ? "layered-data-table" : "source-table";
   if (node.type === "image") return "source-figure";
   if (node.type === "list") return "structured-list";
-  if (mode === "data-first" && numericTokens(node.text).length) return "metric-evidence";
+  if (node.displayIntent === "metric") return "metric-evidence";
   return mode === "evidence-first" ? "claim-evidence" : "narrative-block";
 }
 
@@ -515,7 +466,7 @@ function interactionFor(node, mode) {
   if (node.type === "entityGroup") return "entity-and-dimension-tabs";
   if (node.type === "table") return "row-highlight";
   if (node.type === "image") return "lightbox";
-  if (mode === "data-first" && numericTokens(node.text).length) return "focus-tooltip";
+  if (node.displayIntent === "chart-support") return "focus-tooltip";
   return "none";
 }
 

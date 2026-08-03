@@ -25,9 +25,14 @@ test("data-first renderer compiles canonical models into an interactive offline 
   assert.match(html, /data-report-mode="data-first"/);
   assert.match(html, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.match(html, /data-theme="deep-data-blue"/);
-  assert.match(html, /max-width:1440px/);
+  assert.match(html, /data-design-package="[0-9a-f]{64}"/);
+  assert.match(html, /width:min\(1440px/);
   assert.match(html, /data-chart-id=/);
-  assert.match(html, /class="interactive-chart"[^>]*data-chart-id="[^"]+"[^>]*data-node-id="[^"]+"/);
+  assert.match(html, /class="interactive-chart[^"]*"[^>]*data-chart-id="[^"]+"[^>]*data-node-id="[^"]+"/);
+  assert.match(html, /data-chart-component-id="chart-component"/);
+  assert.match(html, /data-chart-layout-id="content-layout"/);
+  assert.match(html, /data-chart-interaction-ids="chart-tooltip"/);
+  assert.match(html, /test-chart/);
   assert.match(html, /class="chart-tooltip"/);
   assert.match(html, /class="chart-selection-band"/);
   assert.match(html, /class="chart-axis"/);
@@ -36,14 +41,14 @@ test("data-first renderer compiles canonical models into an interactive offline 
   assert.doesNotMatch(html, /(?:src|href)="https?:\/\//i);
 });
 
-test("data-first renders comparable paragraph metrics as an editable sourced chart", async (t) => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-metrics-"));
+test("data-first keeps numeric prose narrative and does not synthesize paragraph datasets", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-prose-numbers-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.md");
   const projectDir = path.join(sandbox, "report");
   await writeFile(
     source,
-    "# 市场趋势\n全球市场规模从 73.6 亿元增长至 101 亿元，复合增速为 5.5%。",
+    "# Market trend\nGlobal market grows from 73.6 billion to 101 billion, with CAGR at 5.5% and shipment cycle near 18 months.",
     "utf8"
   );
   await createProject(source, projectDir);
@@ -51,16 +56,14 @@ test("data-first renders comparable paragraph metrics as an editable sourced cha
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
-  const dataset = report.datasets.find((item) => item.kind === "numeric-text");
-  assert.deepEqual(dataset.columns, ["指标", "数值", "单位"]);
-  assert.equal(dataset.rows.filter((row) => row[2] === "亿元").length, 2);
+  const paragraph = report.nodes.flatMap((node) => node.children ?? []).find((node) => node.type === "paragraph");
+  assert.equal(paragraph.displayIntent, "narrative");
+  assert.equal(report.datasets.some((item) => item.nodeId === paragraph.nodeId), false);
 
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
-  assert.match(html, new RegExp(`data-chart-id="chart-${dataset.datasetId}"`));
-  assert.match(html, /同单位指标对比（亿元）/);
-  assert.match(html, /data-chart-value="73\.6亿元"/);
-  assert.match(html, /data-source-ref="brief\.md#/);
-  assert.match(html, /\.metric-chart-pair>\.metric-evidence\{grid-column:auto/);
+  assert.doesNotMatch(html, /data-chart-id="chart-dataset-/);
+  assert.doesNotMatch(html, /class="metric-values"/);
+  assert.doesNotMatch(html, /class="narrative-chart-pair/);
 });
 
 test("data-first does not chart unrelated single-unit paragraph values", async (t) => {
@@ -73,33 +76,40 @@ test("data-first does not chart unrelated single-unit paragraph values", async (
   const variant = await createVariant(projectDir, { mode: "data-first" });
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
+  const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
+  const paragraph = report.nodes.flatMap((node) => node.children ?? []).find((node) => node.type === "paragraph");
+  assert.equal(paragraph.displayIntent, "narrative");
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.doesNotMatch(html, /class="metric-chart-pair"/);
+  assert.doesNotMatch(html, /class="metric-values"/);
 });
 
-test("data-first preserves range direction and propagates its source unit", async (t) => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-ranges-"));
+test("data-first renders only a complete explicit metric contract as KPI", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-explicit-metric-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.md");
   const projectDir = path.join(sandbox, "report");
-  await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层FR-4，价值份额为75%-85%。", "utf8");
+  await writeFile(source, "# 市场规模\n2025年全球市场规模为101亿元。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
-
-  const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
-  const dataset = report.datasets.find((item) => item.kind === "numeric-text");
-  assert.deepEqual(dataset.rows.map((row) => [row[1], row[2]]), [[40, "层"], [78, "层"], [16, "层"], [24, "层"], [75, "%"], [85, "%"]]);
-  assert.deepEqual(dataset.rows.slice(0, 4).map((row) => row[0]), [
-    "40–78层 · 下限", "40–78层 · 上限", "16–24层 · 下限", "16–24层 · 上限"
-  ]);
-
+  const reportPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
+  const report = JSON.parse(await readFile(reportPath, "utf8"));
+  const paragraph = report.nodes.flatMap((node) => node.children ?? []).find((node) => node.type === "paragraph");
+  paragraph.displayIntent = "metric";
+  paragraph.metric = {
+    label: "全球市场规模",
+    value: 101,
+    unit: "亿元",
+    time: "2025",
+    scope: "全球",
+    source: paragraph.sourceRefs[0]
+  };
+  await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
-  assert.doesNotMatch(html, /<strong>-78<\/strong>/);
-  assert.doesNotMatch(html, /<strong>-85%<\/strong>/);
-  assert.doesNotMatch(html, /<strong>4<\/strong>/);
-  assert.match(html, /data-chart-value="40层"/);
-  assert.match(html, /data-chart-value="24层"/);
+  assert.match(html, /class="metric-values"/);
+  assert.match(html, />101亿元<\/strong>/);
+  assert.match(html, /全球市场规模/);
 });
 
 test("renderer supports material master-detail navigation without dropping dimensions", async (t) => {
@@ -163,7 +173,7 @@ test("document titles render once as the editable report header and empty chapte
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.match(html, /<h1 data-edit-id="[^"]+"[^>]*>AI服务器核心材料专题研究报告<\/h1>/);
   assert.doesNotMatch(html, /<h2[^>]*>AI服务器核心材料专题研究报告<\/h2>/);
-  assert.match(html, /class="report-section structural-section"/);
+  assert.match(html, /class="report-section [^"]*structural-section"/);
 });
 
 test("evidence-first renderer exposes claim, evidence, qualification, and source", async (t) => {
@@ -177,7 +187,7 @@ test("evidence-first renderer exposes claim, evidence, qualification, and source
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.match(html, /data-report-mode="evidence-first"/);
-  assert.match(html, /class="evidence-chain"/);
+  assert.match(html, /class="evidence-chain [^"]+"/);
   assert.match(html, /class="source-citation"/);
   assert.match(html, /阅读宽度/);
 });

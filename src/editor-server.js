@@ -18,6 +18,7 @@ import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { listThemes } from "./themes.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 import { restoreVersion } from "./versions.js";
+import { confirmEditorReview, getEditorReviewState } from "./editor-review.js";
 
 export async function startEditorServer({
   projectDir,
@@ -71,6 +72,14 @@ export async function startEditorServer({
       }
       if (request.method === "GET" && url.pathname === "/api/themes") {
         sendJson(response, 200, listThemes({ locale: "zh-CN" }));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/review") {
+        sendJson(response, 200, await getEditorReviewState(projectDir, variantId));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/review") {
+        sendJson(response, 200, await confirmEditorReview(projectDir, variantId, { sessionId }));
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/undo") {
@@ -134,7 +143,12 @@ export async function startEditorServer({
       }
       if (request.method === "POST" && url.pathname === "/api/theme") {
         const body = await readJsonBody(request);
-        sendJson(response, 200, await updateVariantTheme(projectDir, variantId, body.themeId ?? body.theme));
+        sendJson(response, 200, await updateVariantTheme(
+          projectDir,
+          variantId,
+          body.themeId ?? body.theme,
+          { source: "editor" }
+        ));
         return;
       }
       sendJson(response, 404, { error: "not found" });
@@ -179,6 +193,7 @@ async function projectState(projectDir, variantId) {
     revision: report.revision,
     overrideCount: report.overrides?.length ?? 0,
     latestVersionId: latest?.versionId ?? null,
+    reviewState: variant.reviewState ?? { status: "awaiting-editor-review" },
     dirty: !latest || latest.artifactSha256 !== artifactSha256
   };
 }

@@ -7,10 +7,14 @@ import { fileURLToPath } from "node:url";
 
 import { finalizeVariant } from "../src/finalize.js";
 import {
+  confirmHuashuDesignCandidate,
   confirmHuashuDesign,
+  getHuashuDesignCandidateStatus,
   getHuashuDesignStatus,
   hashDesignPackagePayload,
+  importHuashuDesignCandidate,
   importHuashuDesignPackage,
+  listHuashuDesignCandidates,
   prepareHuashuInput
 } from "../src/design-package.js";
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
@@ -81,6 +85,35 @@ async function main(argv) {
   if (command === "design" && args[0] === "hash") {
     const packageDir = requirePositional(args, 1, "design-package");
     printJson({ packageDir, outputSha256: await hashDesignPackagePayload(packageDir) });
+    return;
+  }
+  if (command === "design" && args[0] === "candidate" && args[1] === "import") {
+    const projectDir = requirePositional(args, 2, "project");
+    printJson(await importHuashuDesignCandidate(
+      projectDir,
+      requireOption(args, "--variant"),
+      requireOption(args, "--from")
+    ));
+    return;
+  }
+  if (command === "design" && args[0] === "candidate" && args[1] === "list") {
+    const projectDir = requirePositional(args, 2, "project");
+    printJson(await listHuashuDesignCandidates(projectDir, requireOption(args, "--variant")));
+    return;
+  }
+  if (command === "design" && args[0] === "candidate" && args[1] === "confirm") {
+    const projectDir = requirePositional(args, 2, "project");
+    printJson(await confirmHuashuDesignCandidate(
+      projectDir,
+      requireOption(args, "--variant"),
+      requireOption(args, "--candidate"),
+      { confirmedBy: optionalOption(args, "--by") ?? "user" }
+    ));
+    return;
+  }
+  if (command === "design" && args[0] === "candidate" && args[1] === "status") {
+    const projectDir = requirePositional(args, 2, "project");
+    printJson(await getHuashuDesignCandidateStatus(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "design" && args[0] === "import") {
@@ -209,7 +242,13 @@ async function main(argv) {
 
 async function migrateIfNeeded(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
-  if ((project.schemaVersion ?? 1) < 4) await migrateProject(projectDir);
+  if (
+    (project.schemaVersion ?? 1) < 4 ||
+    project.packageVersion !== "4.2.0" ||
+    project.pipelineVersion !== "4.2.0"
+  ) {
+    await migrateProject(projectDir);
+  }
 }
 
 async function exists(filePath) {
