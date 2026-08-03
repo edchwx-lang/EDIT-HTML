@@ -6,6 +6,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { finalizeVariant } from "../src/finalize.js";
+import {
+  confirmHuashuDesign,
+  getHuashuDesignStatus,
+  hashDesignPackagePayload,
+  importHuashuDesignPackage,
+  prepareHuashuInput
+} from "../src/design-package.js";
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
 import { migrateProject } from "../src/migrate.js";
 import { listModeProfiles } from "../src/modes/index.js";
@@ -64,6 +71,37 @@ async function main(argv) {
         message: optionalOption(args, "--message") ?? ""
       })
     );
+    return;
+  }
+  if (command === "design" && args[0] === "prepare") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await prepareHuashuInput(projectDir, requireOption(args, "--variant")));
+    return;
+  }
+  if (command === "design" && args[0] === "hash") {
+    const packageDir = requirePositional(args, 1, "design-package");
+    printJson({ packageDir, outputSha256: await hashDesignPackagePayload(packageDir) });
+    return;
+  }
+  if (command === "design" && args[0] === "import") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await importHuashuDesignPackage(
+      projectDir,
+      requireOption(args, "--variant"),
+      requireOption(args, "--from")
+    ));
+    return;
+  }
+  if (command === "design" && args[0] === "confirm") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await confirmHuashuDesign(projectDir, requireOption(args, "--variant"), {
+      confirmedBy: optionalOption(args, "--by") ?? "user"
+    }));
+    return;
+  }
+  if (command === "design" && args[0] === "status") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await getHuashuDesignStatus(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "migrate") {
@@ -165,7 +203,7 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 

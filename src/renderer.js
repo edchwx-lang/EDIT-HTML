@@ -2,19 +2,25 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { validateCoverage, walkNodes } from "./report-model.js";
+import {
+  compilePresentationPlan,
+  loadConfirmedHuashuDesignPackage
+} from "./design-package.js";
 import { visualizationForDataset } from "./chart-data.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
-import { writeTextAtomic } from "./io.js";
+import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 
 export async function renderVariant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
-  const [variant, report, presentation, coverage] = await Promise.all([
+  const [variant, report, coverage, designPackage] = await Promise.all([
     readJson(path.join(variantDir, "variant.json")),
     readJson(path.join(variantDir, "report-model.json")),
-    readJson(path.join(variantDir, "presentation-plan.json")),
-    readJson(path.join(projectDir, "coverage-map.json"))
+    readJson(path.join(projectDir, "coverage-map.json")),
+    loadConfirmedHuashuDesignPackage(projectDir, variantId)
   ]);
   validateCoverage(coverage, report);
+  const presentation = compilePresentationPlan(report, designPackage);
+  await writeJsonAtomic(path.join(variantDir, "presentation-plan.json"), presentation);
   const assets = await inlineAssets(projectDir, report);
   const html = compileThemeIntoArtifact(
     renderReport({ report, presentation, assets }),
@@ -50,6 +56,7 @@ export function renderReport({ report, presentation, assets = new Map() }) {
     : "";
   return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%20rx%3D%223%22%2F%3E%3C%2Fsvg%3E">' +
     '<title>' + escapeHtml(title) + '</title><style>' + reportCss() + chartAxisCss() + '</style></head>' +
     '<body data-report-mode="' + report.mode + '"><header class="report-header"><div class="report-header-inner">' +
     '<p class="eyebrow">EDIT HTML REPORT · V4</p><h1' + editableTitle + '>' + escapeHtml(title) + '</h1>' +

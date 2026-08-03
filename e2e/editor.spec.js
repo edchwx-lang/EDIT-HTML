@@ -6,12 +6,13 @@ import path from "node:path";
 import { startEditorServer } from "../src/editor-server.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "../test/helpers/huashu.js";
 
 const themes = [
   "warm-paper-terracotta",
   "research-cobalt",
   "sandstone-archive",
-  "linear-indigo",
+  "deep-data-blue",
   "institutional-navy-gold",
   "signal-orange"
 ];
@@ -89,6 +90,7 @@ async function editorFixture(mode) {
   await writeFile(source, "# 市场规模\n市场规模达到 42 亿元。\n\n| 地区 | 数值 |\n| --- | ---: |\n| 全球 | 10 |\n| 国内 | 20 |", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
   return { editor, projectDir, sandbox, variant };
 }

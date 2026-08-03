@@ -1,7 +1,4 @@
 interface:
-  display_name: "Edit HTML Report V4"
-  short_description: "Build source-faithful editable research reports"
-  brand_color: "#5E6AD2"
-  default_prompt: "Use $edit-html-report to convert my source into a traceable V4 report, open its persistent editor, save a reviewed version, and publish only that version."
-policy:
-  allow_implicit_invocation: true
+  display_name: "Edit HTML Report V4.1.1"
+  short_description: "Build traceable Huashu-designed HTML reports"
+  default_prompt: "Use $edit-html-report to convert my source into a traceable V4.1.1 report with a confirmed Huashu design package."

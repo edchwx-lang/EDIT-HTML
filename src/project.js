@@ -9,6 +9,8 @@ import { installProjectEditorRuntime } from "./project-runtime.js";
 import {
   buildSourceModel,
   createInitialCoverageMap,
+  PACKAGE_VERSION,
+  PIPELINE_VERSION,
   PROJECT_SCHEMA_VERSION
 } from "./report-model.js";
 
@@ -28,6 +30,8 @@ export async function createProject(sourcePath, projectDir) {
 
   const project = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
+    packageVersion: PACKAGE_VERSION,
+    pipelineVersion: PIPELINE_VERSION,
     projectId: randomUUID(),
     createdAt: new Date().toISOString(),
     activeVariantId: null,

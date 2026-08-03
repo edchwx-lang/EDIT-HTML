@@ -1,38 +1,37 @@
 ---
 name: edit-html-report
-description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT research reports and project proposals into source-faithful, editable, versioned HTML reports; choosing data-first versus evidence-first; changing report palettes; reopening the local editor; restoring versions; or publishing traceable local/public artifacts.
+description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT research reports and project proposals into source-faithful, editable, versioned HTML reports; choosing data-first versus evidence-first; invoking Huashu Design for real-content showcases and a confirmed design package; changing report palettes; reopening the local editor; restoring versions; or publishing traceable local/public artifacts.
 ---
 
-# Edit HTML Report V4
+# Edit HTML Report V4.1.1
 
-Build reports from structured content, never by directly rewriting generated HTML. `source-model.json` is immutable extraction, `coverage-map.json` is the completeness lock, `report-model.json` is the editable fact source, `presentation-plan.json` is Huashu Design's layout-only output, and `artifact.html` is deterministic output.
+Compile reports through structured content and a confirmed Huashu design package. Treat `source-model.json` as immutable extraction, `report-model.json` plus `coverage-map.json` as the only canonical compiler models, `presentation-plan.json` as a generated design-package index, and `artifact.html` as deterministic output.
 
-## Run the complete workflow
+## Run the workflow
 
-1. Run `edit-html-report doctor`. Create a V4 project with `edit-html-report create <source> --out <project>`, or inspect migration first with `edit-html-report migrate <project> --dry-run`.
-2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect extraction warnings, every substantive source unit, and coverage before choosing a mode.
-3. Present both structural choices in the user's system language, recommend one, explain why, and ask only for the mode unless the user already selected it:
-   - 数据优先：原文结构 + 高密度可视化 + 分层交互；突出 data。
-   - 证据优先：判断—证据—解释—边界—来源；突出 insight。
-4. After confirmation, create exactly one variant with `edit-html-report variant create <project> --mode <data-first|evidence-first>`. Do not ask for a palette before this step.
-5. Read the selected mode reference completely: [references/data-first.md](references/data-first.md) or [references/evidence-first.md](references/evidence-first.md). Read [references/presentation-plan.md](references/presentation-plan.md) and [references/artifact-contract.md](references/artifact-contract.md) completely.
-6. Run `edit-html-report render <project> --variant <id>` and `edit-html-report validate <project> --variant <id>`. Fix the models or presentation plan; never hand-edit `artifact.html` as the source of truth.
-7. Read [references/editor-publication.md](references/editor-publication.md) completely. Open the persistent local editor with `edit-html-report editor open <project> --variant <id>`. This step is mandatory before publication.
-8. Let the user edit, switch among the six palettes, and save an immutable version. Do not close the editor after saving. Publish only the latest explicitly saved version; never publish a dirty draft.
-9. Report the project path, variant ID, mode, palette, saved version ID, publication record/path or URL, coverage result, warnings, and verification results.
+1. Run `edit-html-report doctor`. Create a project with `edit-html-report create <source> --out <project>`, or inspect V3 migration with `edit-html-report migrate <project> --dry-run`.
+2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect extraction warnings, substantive source units, facts, transformations, and coverage.
+3. Present data-first and evidence-first in the user's language, recommend one with source evidence, and ask only for mode unless already selected. Create exactly one variant with `edit-html-report variant create <project> --mode <data-first|evidence-first>`.
+4. Read the selected mode reference completely: [references/data-first.md](references/data-first.md) or [references/evidence-first.md](references/evidence-first.md). Then read [references/huashu-design-package.md](references/huashu-design-package.md), [references/presentation-plan.md](references/presentation-plan.md), and [references/artifact-contract.md](references/artifact-contract.md) completely.
+5. Explicitly invoke `$huashu-design` with `design/huashu-input/`. Use the real content slices. With a supplied reference, show one coherent direction across overview, data/table, and master-detail/evidence scenes. Without a reference or design system, show three real-content directions.
+6. Obtain user confirmation. Produce a content-free, semantic-token design package; compute its hash with `edit-html-report design hash <package-dir>`, record the hash and real Huashu run details in `manifest.json`, import it with `edit-html-report design import <project> --variant <id> --from <package-dir>`, then record confirmation with `edit-html-report design confirm <project> --variant <id>`.
+7. Run `edit-html-report render <project> --variant <id>` and `edit-html-report validate <project> --variant <id>`. Missing, stale, tampered, hard-coded, remote-dependent, or unconfirmed packages must fail. Never substitute a built-in template.
+8. Read [references/editor-publication.md](references/editor-publication.md) completely. Open the persistent editor with `edit-html-report editor open <project> --variant <id>`. Let the user edit, switch among six visible palettes, and save an immutable version. Publish only an explicitly saved clean version.
+9. Report project path, variant ID, mode, palette, Huashu run ID and hashes, coverage result, warnings, saved version ID, publication record/path or URL, and verification results.
 
-## Enforce the fact boundary
+## Enforce boundaries
 
-- Do not invent, supplement, weaken, or reverse facts, numbers, qualifications, citations, or source relationships.
-- Preserve first-level section order. Allow only local claim-evidence grouping or like-object comparison.
-- A substantive unit may be omitted only as duplicate/format-only content with an explicit coverage reason.
-- Derived values require formula, inputs, and source IDs. User edits retain original value, source IDs, timestamp, and `user-override` provenance.
-- Huashu Design may choose components, grids, hierarchy, responsive behavior, and interaction only. It may not rewrite content or coverage.
+- Never invent, supplement, weaken, reverse, or silently omit facts, numbers, qualifications, citations, or source relationships.
+- Preserve first-level research logic and relative content weight. Allow only local claim-evidence grouping, like-object comparison, de-duplication, and explicit transformations recorded in `coverage-map.json`.
+- Visualize only semantically clear, unit-compatible data. Derived values require formula, inputs, and source IDs.
+- In data-first, rebuild statistical screenshots, table screenshots, process diagrams, and relationship diagrams from reliable structured data; otherwise emit a warning. In evidence-first, preserve original evidence selectively while preferring native redraws for quantitative charts.
+- Huashu controls layout, hierarchy, components, chart/table grammar, interaction, responsive behavior, and visual rhythm. It never controls facts, source binding, coverage, or editor IDs.
+- The deterministic compiler owns `data-node-id`, `data-edit-id`, `data-block-id`, `data-chart-id`, `data-image-id`, offline runtime, and chart data compatibility.
 
 ## Route supporting work
 
-- Theme changes or palette questions: read [references/themes.md](references/themes.md).
-- V3 projects, legacy HTML, or compatibility: read [references/migration.md](references/migration.md).
-- Editor recovery, history, local/public publication, or dirty-state questions: read [references/editor-publication.md](references/editor-publication.md).
+- Palette questions: read [references/themes.md](references/themes.md).
+- V3 or legacy compatibility: read [references/migration.md](references/migration.md).
+- Editor recovery, history, or publication: read [references/editor-publication.md](references/editor-publication.md).
 
-Do not skip the editor, saved-version checkpoint, coverage validation, or publication record.
+Do not skip Huashu invocation evidence, showcase confirmation, coverage validation, the editor, the saved-version checkpoint, or the publication record.

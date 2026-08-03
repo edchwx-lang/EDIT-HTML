@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4.1.1/design-package.schema.json",
+  "title": "Confirmed Huashu Design Package Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "skill", "skillVersion", "runId", "invokedAt", "inputSha256", "outputSha256", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "skill": { "const": "huashu-design" },
+    "skillVersion": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "invokedAt": { "type": "string", "format": "date-time" },
+    "inputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "outputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "confirmation": {
+      "type": "object",
+      "required": ["status"],
+      "properties": { "status": { "enum": ["pending", "confirmed"] } }
+    }
+  },
+  "additionalProperties": true
+}

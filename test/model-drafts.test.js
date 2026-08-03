@@ -7,6 +7,7 @@ import test from "node:test";
 import { applyDraftPatch, redoDraft, undoDraft } from "../src/drafts.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 test("model text patches are revisioned, rendered, auditable, and undoable", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-draft-v4-"));
@@ -16,6 +17,7 @@ test("model text patches are revisioned, rendered, auditable, and undoable", asy
   await writeFile(source, "# 判断\n原始数值 42。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   const before = JSON.parse(await readFile(modelPath, "utf8"));
   const nodeId = before.nodes[0].children[0].nodeId;
@@ -50,6 +52,7 @@ test("chart cells edit as values instead of JSON", async (t) => {
   await writeFile(source, "# 表格\n| 地区 | 规模 |\n| --- | --- |\n| 全球 | 42 |", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   const report = JSON.parse(await readFile(modelPath, "utf8"));
   const dataset = report.datasets.find((item) => item.kind === "table");
@@ -70,6 +73,7 @@ test("replacement images are copied into project-owned assets with override hist
   await writeFile(source, "# 图像\n原图说明", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   const report = JSON.parse(await readFile(modelPath, "utf8"));
   const image = {
@@ -104,6 +108,7 @@ test("deleting a source-backed node records an omission and remains undoable", a
   await writeFile(source, "# Section\nKeep this.\n\nDelete this.", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   const before = JSON.parse(await readFile(modelPath, "utf8"));
   const deleted = before.nodes[0].children.at(-1);
@@ -133,6 +138,7 @@ test("grid movement locates nodes nested inside master-detail dimensions", async
   await writeFile(source, "# Section\nFirst.\n\nSecond.", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   const report = JSON.parse(await readFile(modelPath, "utf8"));
   const sectionSourceRefs = report.nodes[0].sourceRefs;

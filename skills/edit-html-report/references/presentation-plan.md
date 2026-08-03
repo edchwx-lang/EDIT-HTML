@@ -1,21 +1,14 @@
-# Huashu Presentation Boundary
+# Presentation Plan Compiler Boundary
 
-Huashu Design runs after content analysis and before deterministic rendering.
+Huashu produces design grammar, not report content and not editor markup. After package validation, the deterministic compiler maps each stable report node to a package component/layout/interaction rule and writes `presentation-plan.json`.
 
-Input:
+The plan must record:
 
-- canonical `report-model`;
-- confirmed mode profile;
-- component capabilities;
-- semantic theme tokens.
+- `generatedBy: huashu-design-package-compiler`;
+- Huashu run ID;
+- design input and output SHA-256;
+- stable node bindings;
+- component, layout, and interaction choices;
+- `contentMutationAllowed: false`.
 
-Output:
-
-- component type and stable node binding;
-- grid, reading width, hierarchy, interaction, and responsive strategy.
-
-`contentMutationAllowed` must be `false`. The presentation plan must not contain replacement prose, values, citations, formulas, or source mappings. It must not change first-level section order or remove a report node.
-
-Use purposeful hierarchy and responsive gutters. Avoid repetitive generic cards, fake metrics, decorative charts, excessive gradients/glow, and free-canvas positioning. Editing controls belong to the local editor shell, never the published report.
-
-The deterministic renderer compiles the report model and presentation plan. If the design needs content not represented in `report-model`, return to content analysis; do not add it inside HTML.
+It must not contain replacement prose, values, citations, formulas, source mappings, literal theme colors, remote dependencies, or an alternative first-level order. If content is missing, return to content compilation. If design grammar is invalid, return to Huashu. Do not generate a plan with a built-in mapper.

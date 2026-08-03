@@ -19,7 +19,8 @@ const LEGACY_ALIASES = new Map([
 
 const MIGRATION_MAP = new Map([
   ["swiss-monochrome", "sandstone-archive"],
-  ["ink-teal", "institutional-navy-gold"]
+  ["ink-teal", "institutional-navy-gold"],
+  ["linear-indigo", "deep-data-blue"]
 ]);
 
 const THEMES = [
@@ -41,12 +42,12 @@ const THEMES = [
     accent: "#8A8178", focus: "#756B61", positive: "#52735F",
     warning: "#956D32", negative: "#9A4F4A"
   }, ["#8A8178", "#566D73", "#A66F4D", "#75677F", "#7C8056", "#4E6A82", "#91646B", "#5D5A55"]),
-  theme("linear-indigo", "线性靛蓝", "Linear Indigo", "dark", {
-    canvas: "#08090A", surface: "#13151A", surfaceAlt: "#1B1E26",
-    text: "#F5F5F7", textMuted: "#9DA4B0", border: "#2A2D35",
-    accent: "#5E6AD2", focus: "#7C85E8", positive: "#4CC9A7",
-    warning: "#D6A756", negative: "#EF6A73"
-  }, ["#5E6AD2", "#4EA7FC", "#B59AFF", "#34C3B3", "#F0A35B", "#E879A9", "#8BCF65", "#AAB2C0"]),
+  theme("deep-data-blue", "深海数据蓝", "Deep Data Blue", "dark", {
+    canvas: "#050E23", surface: "#0A1628", surfaceAlt: "#071935",
+    text: "#FFFFFF", textMuted: "#A6B1BB", border: "#1E3A5F",
+    accent: "#1890FF", focus: "#69C0FF", positive: "#52C41A",
+    warning: "#FAAD14", negative: "#FF4D4F"
+  }, ["#1890FF", "#36CFC9", "#52C41A", "#FAAD14", "#FF4D4F", "#9254DE", "#F759AB", "#69C0FF"]),
   theme("institutional-navy-gold", "海军蓝金", "Institutional Navy Gold", "dark", {
     canvas: "#1C2644", surface: "#232F55", surfaceAlt: "#2D3A60",
     text: "#E2DCD0", textMuted: "#9AA5B8", border: "#4E5A6E",
@@ -62,6 +63,12 @@ const THEMES = [
 ];
 
 const LEGACY_THEMES = [
+  legacyTheme("linear-indigo", "线性靛蓝", "Linear Indigo", "dark", {
+    canvas: "#08090A", surface: "#13151A", surfaceAlt: "#1B1E26",
+    text: "#F5F5F7", textMuted: "#9DA4B0", border: "#2A2D35",
+    accent: "#5E6AD2", focus: "#7C85E8", positive: "#4CC9A7",
+    warning: "#D6A756", negative: "#EF6A73"
+  }, ["#5E6AD2", "#4EA7FC", "#B59AFF", "#34C3B3", "#F0A35B", "#E879A9", "#8BCF65", "#AAB2C0"]),
   legacyTheme("swiss-monochrome", "瑞士黑白", "Swiss Monochrome", "light", {
     canvas: "#FFFFFF", surface: "#FFFFFF", surfaceAlt: "#F2F2F2", text: "#000000",
     textMuted: "#6B6B6B", border: "#D9D9D9", accent: "#000000", focus: "#000000",

@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 
 export const PROJECT_SCHEMA_VERSION = 4;
+export const PACKAGE_VERSION = "4.1.1";
+export const PIPELINE_VERSION = "4.1.1";
 
 export function buildSourceModel(name, extracted, sha256) {
   const rawUnits = extracted.units ?? plainTextUnits(extracted.text);
@@ -40,6 +42,9 @@ export function createInitialCoverageMap(sourceModel) {
       type: unit.type,
       substantive: unit.substantive,
       status: "pending",
+      coverageStatus: "pending",
+      transformation: "preserve",
+      factIds: [],
       reportNodeIds: []
     })))
   };
@@ -64,14 +69,17 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
 
   for (const document of sourceModel.documents) {
     activeSection = null;
-    for (const unit of document.units) {
+    for (const [unitIndex, unit] of document.units.entries()) {
       if (unit.type === "heading") {
         activeSection = null;
         ensureSection(document, unit);
         continue;
       }
       const section = ensureSection(document);
-      const node = sourceUnitToReportNode(document, unit, variantId);
+      const nextUnit = document.units[unitIndex + 1];
+      const node = sourceUnitToReportNode(document, unit, variantId, mode, {
+        followingText: nextUnit?.type === "paragraph" ? nextUnit.text : ""
+      });
       section.children.push(node);
     }
   }
@@ -79,6 +87,7 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
   if (mode === "data-first") nodes = groupRepeatedEntities(nodes, variantId);
 
   const datasets = collectDatasets(nodes);
+  const facts = compileFacts(nodes, datasets, variantId);
   const report = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     variantId,
@@ -87,23 +96,30 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     nodes,
+    facts,
     datasets,
     overrides: []
   };
   const nodeBySource = indexSourcesByNode(nodes);
+  const factsBySource = indexFactsBySource(nodes);
+  const datasetNodeIds = new Set(datasets.map((dataset) => dataset.nodeId));
   const coverage = createInitialCoverageMap(sourceModel);
   for (const entry of coverage.entries) {
     const reportNodeIds = [...(nodeBySource.get(entry.sourceId) ?? [])];
     if (reportNodeIds.length) {
       entry.status = "preserved";
+      entry.coverageStatus = "covered";
       entry.reportNodeIds = reportNodeIds;
+      entry.factIds = [...(factsBySource.get(entry.sourceId) ?? [])];
+      entry.transformation = reportNodeIds.some((nodeId) => datasetNodeIds.has(nodeId))
+        ? "visualize"
+        : "preserve";
     }
   }
-  const presentation = createPresentationPlan(report);
-  return { report, coverage, presentation };
+  return { report, coverage };
 }
 
-export function createPresentationPlan(report) {
+export function createLegacyPresentationPlan(report) {
   const bindings = [];
   walkNodes(report.nodes, (section) => {
     bindings.push({
@@ -117,7 +133,7 @@ export function createPresentationPlan(report) {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     variantId: report.variantId,
     mode: report.mode,
-    generatedBy: "huashu-presentation-mapper",
+    generatedBy: "legacy-v4-presentation-mapper",
     contentMutationAllowed: false,
     bindings
   };
@@ -295,7 +311,18 @@ function indexSourcesByNode(nodes) {
   return index;
 }
 
-function sourceUnitToReportNode(document, unit, variantId) {
+function indexFactsBySource(nodes) {
+  const index = new Map();
+  walkNodes(nodes, (node) => {
+    for (const ref of node.sourceRefs ?? []) {
+      if (!index.has(ref.sourceId)) index.set(ref.sourceId, new Set());
+      for (const factId of node.factIds ?? []) index.get(ref.sourceId).add(factId);
+    }
+  });
+  return index;
+}
+
+function sourceUnitToReportNode(document, unit, variantId, mode, context = {}) {
   const base = {
     nodeId: stableId("node", variantId + "\0" + unit.sourceId),
     type: unit.type,
@@ -303,7 +330,21 @@ function sourceUnitToReportNode(document, unit, variantId) {
   };
   if (unit.type === "table") return { ...base, rows: unit.rows, caption: unit.caption ?? "" };
   if (unit.type === "chart") return { ...base, type: "table", originalType: "chart", rows: unit.rows ?? [], caption: unit.caption ?? "原始图表缓存数据", sourceStatus: unit.sourceStatus ?? "unavailable" };
-  if (unit.type === "image") return { ...base, assetPath: unit.assetPath, alt: unit.alt ?? "", caption: unit.caption ?? "" };
+  if (unit.type === "image") {
+    const description = `${unit.alt ?? ""} ${unit.caption ?? ""} ${context.followingText ?? ""}`;
+    if (mode === "data-first" && /(?:统计图|图表|表格|流程图|产业链|关系图|市场规模|市占率|国产化率|市场分布|趋势|增速|测算|chart|table|flow|diagram)/iu.test(description)) {
+      return {
+        ...base,
+        type: "evidenceWarning",
+        originalType: "image",
+        assetPath: unit.assetPath,
+        text: unit.caption || context.followingText || unit.alt || "Structured-data image requires reconstruction",
+        sourceStatus: "requires-structured-rebuild",
+        warning: "Do not render this structured-data screenshot as the primary expression. Reconstruct it from reliable source data."
+      };
+    }
+    return { ...base, assetPath: unit.assetPath, alt: unit.alt ?? "", caption: unit.caption ?? "" };
+  }
   if (unit.type === "list") return { ...base, items: unit.items ?? [unit.text], ordered: unit.ordered ?? false };
   return { ...base, text: unit.text ?? "", page: unit.page ?? null, slide: unit.slide ?? null };
 }
@@ -348,6 +389,49 @@ function collectDatasets(nodes) {
     }
   });
   return datasets;
+}
+
+function compileFacts(nodes, datasets, variantId) {
+  const facts = [];
+  const datasetsByNode = new Map(datasets.map((dataset) => [dataset.nodeId, dataset]));
+  walkNodes(nodes, (node) => {
+    node.factIds = [];
+    const text = node.text ?? node.caption ?? node.title ?? "";
+    if (["paragraph", "text", "list"].includes(node.type) && text.trim()) {
+      const fact = {
+        factId: stableId("fact", variantId + "\0claim\0" + node.nodeId),
+        type: "claim",
+        text,
+        sourceRefs: node.sourceRefs ?? []
+      };
+      facts.push(fact);
+      node.factIds.push(fact.factId);
+    }
+    const dataset = datasetsByNode.get(node.nodeId);
+    for (const [index, item] of (dataset?.values ?? []).entries()) {
+      const fact = {
+        factId: stableId("fact", variantId + "\0metric\0" + node.nodeId + "\0" + index),
+        type: "metric",
+        value: item.value,
+        unit: item.unit,
+        label: item.contextLabel,
+        sourceRefs: node.sourceRefs ?? []
+      };
+      facts.push(fact);
+      node.factIds.push(fact.factId);
+    }
+    if (["table", "image", "evidenceWarning"].includes(node.type)) {
+      const fact = {
+        factId: stableId("fact", variantId + "\0evidence\0" + node.nodeId),
+        type: "evidence",
+        evidenceType: node.originalType ?? node.type,
+        sourceRefs: node.sourceRefs ?? []
+      };
+      facts.push(fact);
+      node.factIds.push(fact.factId);
+    }
+  });
+  return facts;
 }
 
 function numericTokens(text = "") {

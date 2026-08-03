@@ -3,24 +3,38 @@
   "$id": "https://edit-html-report.local/schemas/v4/report-model.schema.json",
   "title": "Canonical Editable Report Model",
   "type": "object",
-  "required": ["schemaVersion", "variantId", "mode", "revision", "nodes", "datasets", "overrides"],
+  "required": ["schemaVersion", "variantId", "mode", "revision", "nodes", "facts", "datasets", "overrides"],
   "properties": {
     "schemaVersion": { "const": 4 },
     "variantId": { "type": "string" },
     "mode": { "enum": ["data-first", "evidence-first"] },
     "revision": { "type": "integer", "minimum": 0 },
     "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["factId", "type", "sourceRefs"],
+        "properties": {
+          "factId": { "type": "string" },
+          "type": { "enum": ["claim", "metric", "condition", "definition", "relation", "entity", "evidence"] },
+          "sourceRefs": { "type": "array" }
+        },
+        "additionalProperties": true
+      }
+    },
     "datasets": { "type": "array" },
     "overrides": { "type": "array" }
   },
   "$defs": {
     "node": {
       "type": "object",
-      "required": ["nodeId", "type", "sourceRefs"],
+      "required": ["nodeId", "type", "sourceRefs", "factIds"],
       "properties": {
         "nodeId": { "type": "string" },
         "type": { "type": "string" },
         "sourceRefs": { "type": "array" },
+        "factIds": { "type": "array", "items": { "type": "string" } },
         "children": { "type": "array", "items": { "$ref": "#/$defs/node" } }
       },
       "additionalProperties": true

@@ -9,7 +9,7 @@ import { installProjectEditorRuntime } from "./project-runtime.js";
 import {
   buildSourceModel,
   createInitialCoverageMap,
-  createPresentationPlan,
+  createLegacyPresentationPlan,
   PROJECT_SCHEMA_VERSION
 } from "./report-model.js";
 import { migrateLegacyThemeId, THEME_SCHEMA_VERSION } from "./themes.js";
@@ -126,7 +126,7 @@ async function migrateProjectFiles(projectDir, original, variants, summary, back
       datasets: [],
       overrides: []
     };
-    const presentation = createPresentationPlan(report);
+    const presentation = createLegacyPresentationPlan(report);
     await writeJsonAtomic(path.join(variantDir, "report-model.json"), report);
     await writeJsonAtomic(path.join(variantDir, "presentation-plan.json"), presentation);
     migratedVariants.push(variant);

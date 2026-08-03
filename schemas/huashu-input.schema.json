@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v4.1.1/huashu-input.schema.json",
+  "title": "Huashu Design Input Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "skill", "variantId", "mode", "requiredFiles", "inputSha256"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "skill": { "const": "huashu-design" },
+    "variantId": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["data-first", "evidence-first"] },
+    "requiredFiles": { "type": "array", "minItems": 7, "items": { "type": "string" } },
+    "inputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": true
+}

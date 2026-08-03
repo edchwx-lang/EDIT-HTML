@@ -1,6 +1,6 @@
 {
   "name": "edit-html-report",
-  "version": "4.0.0",
+  "version": "4.1.1",
   "description": "Agent-neutral local CLI for editable, traceable HTML reports",
   "type": "module",
   "engines": {

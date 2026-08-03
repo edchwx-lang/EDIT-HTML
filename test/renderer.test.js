@@ -7,6 +7,7 @@ import test from "node:test";
 import { createProject } from "../src/project.js";
 import { renderVariant } from "../src/renderer.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 test("data-first renderer compiles canonical models into an interactive offline report", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-render-"));
@@ -16,12 +17,14 @@ test("data-first renderer compiles canonical models into an interactive offline 
   await writeFile(source, "# 市场规模\n2025 年规模为 42 亿元，同比增长 18%。\n\n| 地区 | 规模 |\n| --- | --- |\n| 全球 | 42 |\n| 中国 | 18 |\n\n# 技术约束\n功率达到 10kW。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const artifactPath = await renderVariant(projectDir, variant.variantId);
   const html = await readFile(artifactPath, "utf8");
 
   assert.match(html, /data-report-mode="data-first"/);
-  assert.match(html, /data-theme="linear-indigo"/);
+  assert.match(html, /<link rel="icon" href="data:image\/svg\+xml,/);
+  assert.match(html, /data-theme="deep-data-blue"/);
   assert.match(html, /max-width:1440px/);
   assert.match(html, /data-chart-id=/);
   assert.match(html, /class="interactive-chart"[^>]*data-chart-id="[^"]+"[^>]*data-node-id="[^"]+"/);
@@ -45,6 +48,7 @@ test("data-first renders comparable paragraph metrics as an editable sourced cha
   );
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
   const dataset = report.datasets.find((item) => item.kind === "numeric-text");
@@ -67,6 +71,7 @@ test("data-first does not chart unrelated single-unit paragraph values", async (
   await writeFile(source, "# 判断\n2025 年市场增长 18%，功率达到 10kW。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.doesNotMatch(html, /class="metric-chart-pair"/);
@@ -80,6 +85,7 @@ test("data-first preserves range direction and propagates its source unit", asyn
   await writeFile(source, "# 技术规格\nPCB 从 40-78层升级，传统产品为 16-24层FR-4，价值份额为75%-85%。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
 
   const report = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
   const dataset = report.datasets.find((item) => item.kind === "numeric-text");
@@ -105,6 +111,7 @@ test("renderer supports material master-detail navigation without dropping dimen
   await createProject(source, projectDir);
   await writeFile(path.join(projectDir, "source-assets", "nested.png"), Buffer.from("nested-image"));
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const variantDir = path.join(projectDir, "variants", variant.variantId);
   const sourceRef = { sourceId: "src-material", documentName: "brief.txt", order: 0 };
   const report = {
@@ -152,6 +159,7 @@ test("document titles render once as the editable report header and empty chapte
   await writeFile(source, "AI服务器核心材料专题研究报告\n一、发展情况\n（一）技术情况\n正文。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.match(html, /<h1 data-edit-id="[^"]+"[^>]*>AI服务器核心材料专题研究报告<\/h1>/);
   assert.doesNotMatch(html, /<h2[^>]*>AI服务器核心材料专题研究报告<\/h2>/);
@@ -166,6 +174,7 @@ test("evidence-first renderer exposes claim, evidence, qualification, and source
   await writeFile(source, "# 判断\n材料性能构成约束。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.match(html, /data-report-mode="evidence-first"/);
   assert.match(html, /class="evidence-chain"/);
@@ -182,6 +191,7 @@ test("data-first charts add non-color encodings after the eighth series", async 
   await writeFile(source, "# 对比\n| 系列 | 数值 |\n| --- | ---: |\n" + rows, "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const html = await readFile(await renderVariant(projectDir, variant.variantId), "utf8");
   assert.match(html, /data-series-reused="true"/);
   assert.match(html, /data-series-symbol="(?:diamond|square|circle|triangle)"/);

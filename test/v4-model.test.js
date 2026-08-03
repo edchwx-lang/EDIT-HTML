@@ -8,6 +8,7 @@ import { strToU8, zipSync } from "fflate";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
 import { buildSourceModel, scaffoldReportModel, validateCoverage } from "../src/report-model.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 test("source model infers unstyled Chinese report headings without changing order", () => {
   const source = buildSourceModel("report.docx", {
@@ -42,14 +43,13 @@ test("data-first scaffolding turns twelve material sections into a source-comple
     );
   }
   const source = buildSourceModel("materials.docx", { mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", text: "", units }, "sha");
-  const { report, coverage, presentation } = scaffoldReportModel(source, { variantId: "v", mode: "data-first" });
+  const { report, coverage } = scaffoldReportModel(source, { variantId: "v", mode: "data-first" });
   const group = report.nodes.find((node) => node.type === "entityGroup");
   assert.equal(group.entities.length, 12);
   assert.deepEqual(group.entities.map((entity) => entity.title), numerals.map((_, index) => "材料" + String(index + 1)));
   assert.deepEqual(group.entities[0].dimensions.map((dimension) => dimension.label), ["材料概览", "全球", "国内", "深圳", "技术现状", "技术难点", "价值链分析"]);
   assert.equal(coverage.entries.every((entry) => entry.status === "preserved"), true);
   assert.doesNotThrow(() => validateCoverage(coverage, report));
-  assert.equal(presentation.bindings.find((binding) => binding.nodeId === group.nodeId).component, "master-detail");
 });
 
 test("material overview paragraphs split an embedded global market sentence without losing either sentence", () => {
@@ -124,7 +124,7 @@ test("DOCX source model preserves heading, paragraph, table, image, and order", 
   assert.deepEqual(units.map((unit) => unit.order), [0, 1, 2, 3]);
 });
 
-test("creating a variant scaffolds canonical report and presentation models with complete coverage", async (t) => {
+test("creating a variant compiles presentation only from a confirmed design package", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-v4-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const source = path.join(sandbox, "brief.md");
@@ -132,6 +132,7 @@ test("creating a variant scaffolds canonical report and presentation models with
   await writeFile(source, "# 市场\n规模为 42 亿元。\n\n# 技术\n关键约束。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const variantDir = path.join(projectDir, "variants", variant.variantId);
   const report = JSON.parse(await readFile(path.join(variantDir, "report-model.json"), "utf8"));
   const presentation = JSON.parse(await readFile(path.join(variantDir, "presentation-plan.json"), "utf8"));
@@ -141,6 +142,8 @@ test("creating a variant scaffolds canonical report and presentation models with
   assert.equal(report.mode, "data-first");
   assert.deepEqual(report.nodes.filter((node) => node.type === "section").map((node) => node.title), ["市场", "技术"]);
   assert.equal(presentation.schemaVersion, 4);
+  assert.equal(presentation.generatedBy, "huashu-design-package-compiler");
+  assert.match(presentation.huashuRunId, /^test-/);
   assert.equal(presentation.bindings.every((binding) => !Object.hasOwn(binding, "text")), true);
   assert.equal(presentation.mode, "data-first");
   assert.doesNotThrow(() => validateCoverage(coverage, report));
@@ -155,4 +158,60 @@ test("coverage validation rejects an unmapped substantive source unit", () => {
     ),
     /unmapped substantive source unit "src-a"/
   );
+});
+
+test("content compiler records facts and transformations in the two canonical models", () => {
+  const source = buildSourceModel("market.txt", {
+    mediaType: "text/plain",
+    text: "市场规模扩大至42亿元。",
+    units: [
+      { type: "heading", level: 1, text: "Market" },
+      { type: "paragraph", text: "市场规模扩大至42亿元。" }
+    ]
+  }, "sha");
+  const { report, coverage } = scaffoldReportModel(source, {
+    variantId: "fact-variant",
+    mode: "data-first"
+  });
+  assert.equal(report.facts.some((fact) => fact.type === "claim"), true);
+  assert.equal(report.facts.some((fact) => fact.type === "metric" && fact.value === 42), true);
+  assert.equal(report.nodes.flatMap((node) => node.children ?? []).every((node) => node.factIds.length > 0), true);
+  assert.equal(coverage.entries.every((entry) => Array.isArray(entry.factIds)), true);
+  assert.equal(coverage.entries.every((entry) => entry.coverageStatus === "covered"), true);
+  assert.equal(coverage.entries.some((entry) => entry.transformation === "visualize"), true);
+});
+
+test("data-first blocks structured-data screenshots while evidence-first preserves them", () => {
+  const source = buildSourceModel("report.docx", {
+    mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    text: "",
+    units: [
+      { type: "heading", level: 1, text: "市场" },
+      { type: "image", assetPath: "source-assets/chart.png", alt: "市场规模统计图", caption: "图1 市场规模统计图" }
+    ]
+  }, "sha");
+  const data = scaffoldReportModel(source, { variantId: "data", mode: "data-first" });
+  const evidence = scaffoldReportModel(source, { variantId: "evidence", mode: "evidence-first" });
+  assert.equal(data.report.nodes[0].children[0].type, "evidenceWarning");
+  assert.equal(data.report.nodes[0].children[0].sourceStatus, "requires-structured-rebuild");
+  assert.equal(evidence.report.nodes[0].children[0].type, "image");
+});
+
+test("data-first classifies a DOCX screenshot from its following figure caption", () => {
+  const source = buildSourceModel("report.docx", {
+    mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    text: "",
+    units: [
+      { type: "heading", level: 1, text: "市场" },
+      { type: "image", assetPath: "source-assets/chart.png", alt: "图片 3" },
+      { type: "paragraph", text: "图13 全球掩膜版头部企业市占率" }
+    ]
+  }, "sha");
+
+  const data = scaffoldReportModel(source, { variantId: "data-caption", mode: "data-first" });
+  const evidence = scaffoldReportModel(source, { variantId: "evidence-caption", mode: "evidence-first" });
+
+  assert.equal(data.report.nodes[0].children[0].type, "evidenceWarning");
+  assert.equal(data.report.nodes[0].children[0].text, "图13 全球掩膜版头部企业市占率");
+  assert.equal(evidence.report.nodes[0].children[0].type, "image");
 });

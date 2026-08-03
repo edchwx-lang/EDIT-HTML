@@ -9,6 +9,7 @@ import { applyDraftPatch } from "../src/drafts.js";
 import { createProject } from "../src/project.js";
 import { restoreVersion } from "../src/versions.js";
 import { createVariant, updateVariantTheme } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 test("restoring an old version creates a new descendant and preserves history", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -21,6 +22,7 @@ test("restoring an old version creates a new descendant and preserves history", 
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const artifactPath = path.join(
     projectDir,
     "variants",
@@ -68,6 +70,7 @@ test("restoring a V4 version restores its model snapshot and creates a descendan
   await writeFile(source, "# 判断\n第一版。", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const modelPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
   let report = JSON.parse(await readFile(modelPath, "utf8"));
   const nodeId = report.nodes[0].children[0].nodeId;

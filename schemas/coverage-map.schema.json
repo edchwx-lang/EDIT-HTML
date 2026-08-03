@@ -10,9 +10,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["sourceId", "order", "substantive", "status", "reportNodeIds"],
+        "required": ["sourceId", "order", "substantive", "status", "coverageStatus", "transformation", "factIds", "reportNodeIds"],
         "properties": {
           "status": { "enum": ["pending", "preserved", "merged", "omitted"] },
+          "coverageStatus": { "enum": ["pending", "covered", "omitted"] },
+          "transformation": { "enum": ["preserve", "merge", "split", "summarize", "visualize", "fold", "appendix"] },
+          "factIds": { "type": "array", "items": { "type": "string" } },
           "reportNodeIds": { "type": "array", "items": { "type": "string" } },
           "reason": { "type": "string" }
         },

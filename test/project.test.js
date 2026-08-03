@@ -18,6 +18,8 @@ test("createProject copies and hashes a source file into a new workspace", async
   const project = await createProject(source, projectDir);
 
   assert.equal(project.schemaVersion, 4);
+  assert.equal(project.packageVersion, "4.1.1");
+  assert.equal(project.pipelineVersion, "4.1.1");
   assert.equal(project.sourceFiles.length, 1);
   assert.equal(
     project.sourceFiles[0].sha256,
@@ -41,6 +43,7 @@ test("createProject copies and hashes a source file into a new workspace", async
   await access(path.join(projectDir, "打开编辑器.cmd"));
   await access(path.join(projectDir, "open-editor.sh"));
   await access(path.join(projectDir, ".editor-runtime", "src", "chart-data.js"));
+  await access(path.join(projectDir, ".editor-runtime", "src", "design-package.js"));
   assert.match(await readFile(path.join(projectDir, "打开编辑器.cmd"), "utf8"), /%~dp0/);
   assert.match(await readFile(path.join(projectDir, "open-editor.sh"), "utf8"), /dirname/);
 });

@@ -7,6 +7,7 @@ import test from "node:test";
 import { startEditorServer } from "../src/editor-server.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 async function editorFixture(t) {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -19,6 +20,7 @@ async function editorFixture(t) {
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const artifactPath = path.join(
     projectDir,
     "variants",
@@ -276,7 +278,7 @@ test("editor API lists six themes and compiles preview without changing draft HT
   assert.equal(themes.length, 6);
   assert.deepEqual(
     themes.map((theme) => theme.label),
-    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "线性靛蓝", "海军蓝金", "黑场信号橙"]
+    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "深海数据蓝", "海军蓝金", "黑场信号橙"]
   );
 
   const response = await fetch(editor.url + "/api/theme", {
@@ -303,6 +305,7 @@ test("saving a model-backed draft clears dirty state so the saved version can pu
   await writeFile(source, "# 市场\n规模 42 亿元\n\n| 地区 | 数值 |\n| --- | ---: |\n| 全球 | 10 |", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "data-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
   t.after(() => editor.close());
   const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };

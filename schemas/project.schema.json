@@ -3,9 +3,11 @@
   "$id": "https://edit-html-report.local/schemas/v4/project.schema.json",
   "title": "Edit HTML Report V4 Project",
   "type": "object",
-  "required": ["schemaVersion", "projectId", "sourceFiles", "variants", "versions", "publications"],
+  "required": ["schemaVersion", "packageVersion", "pipelineVersion", "projectId", "sourceFiles", "variants", "versions", "publications"],
   "properties": {
     "schemaVersion": { "const": 4 },
+    "packageVersion": { "const": "4.1.1" },
+    "pipelineVersion": { "const": "4.1.1" },
     "projectId": { "type": "string", "minLength": 1 },
     "activeVariantId": { "type": ["string", "null"] },
     "sourceFiles": { "type": "array", "items": { "type": "object", "required": ["name", "sha256"] } },

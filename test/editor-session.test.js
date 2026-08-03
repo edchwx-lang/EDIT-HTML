@@ -7,6 +7,7 @@ import test from "node:test";
 import { ensureEditorSession, getEditorSessionStatus, stopEditorSession } from "../src/editor-session.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 test("editor session is backgrounded, reused, stopped, and restarted", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-"));
@@ -15,6 +16,7 @@ test("editor session is backgrounded, reused, stopped, and restarted", async (t)
   await writeFile(source, "Evidence 42.", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   t.after(async () => {
     await stopEditorSession(projectDir).catch(() => {});
     await rm(sandbox, { recursive: true, force: true });
@@ -58,6 +60,7 @@ test("editor session discards stale metadata before starting", async (t) => {
   await writeFile(source, "Evidence.", "utf8");
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   t.after(async () => {
     await stopEditorSession(projectDir).catch(() => {});
     await rm(sandbox, { recursive: true, force: true });

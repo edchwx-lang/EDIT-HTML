@@ -1,31 +1,35 @@
-# V4 Content Pipeline
+# V4.1.1 Content Pipeline
 
 ## Canonical order
 
-`source document → source-model → coverage-map → confirmed mode → report-model → presentation-plan → artifact.html → editor → saved version → publication`
+`source document -> source-model -> confirmed mode -> report-model + coverage-map -> Huashu input -> confirmed design package -> presentation-plan -> artifact.html -> frozen editor/version/publication chain`
 
-The models have distinct authority:
+Authority:
 
-- `source-model.json`: immutable source units, original order, stable source IDs, extracted assets, and warnings.
-- `coverage-map.json`: every source unit's report destination or explicit omission reason.
-- `report-model.json`: the only editable source for prose, tables, chart data, images, citations, and overrides.
-- `presentation-plan.json`: components, binding, layout, interaction, and responsive policy only.
-- `artifact.html`: regenerable offline delivery output. Never parse it back into V4 content.
+- `source-model.json`: immutable units, order, stable source IDs, assets, chart caches, page/slide locations, and warnings.
+- `report-model.json`: editable nodes, internal facts, datasets, source references, and user overrides.
+- `coverage-map.json`: each source unit's fact IDs, report nodes, transformation, coverage status, or omission reason.
+- `design/huashu-input/`: real-content design brief, slices, model snapshot, contracts, assets, and forbidden mutations.
+- `design/package/`: confirmed content-free Huashu grammar with invocation and hash evidence.
+- `presentation-plan.json`: deterministic compiler index derived from report nodes and the design package.
+- `artifact.html`: regenerable offline output. Never parse it back into canonical content.
 
-## Extraction and order
+Do not create `fact-model.json`, `transformation-ledger.json`, `editorial-model.json`, or `visualization-model.json` as project facts. Temporary read-only build indexes may live under `.build/`.
 
-Preserve DOCX paragraphs/headings/lists/tables/images/captions/links/footnotes, PPTX slide order and notes, PDF page text and image references, and Markdown/HTML/TXT block order. Infer an unstyled heading only from an explicit structural pattern; otherwise issue a warning instead of guessing.
+## Extraction and compilation
 
-Keep first-level sections in source order. Within a section, regroup only to connect a claim with its evidence or compare equivalent objects. Keep source wording, qualifications, units, and citation context. Controlled compression may remove repetition but may not reduce the document's dominant subject to a summary.
+Preserve DOCX headings, paragraphs, lists, tables, images, captions, links, footnotes, and chart caches; PPTX slide order, text, tables, charts, images, and notes; PDF pages, text blocks, table clues, and page images; and Markdown/HTML/TXT block order. Warn instead of guessing uncertain structure.
+
+Internally identify only important claims, metrics, conditions, definitions, relations, entities, and evidence. Keep facts inside `report-model.json`. Preserve first-level research logic and relative content weight; regroup locally for claim-evidence flow or like-object comparison.
 
 ## Coverage lock
 
-Before rendering and again before finalizing:
+Before design, rendering, and finalization:
 
-- map every non-duplicate claim, number, condition, table, figure, footnote, citation, and material to one or more report node IDs;
-- block validation when a substantive entry remains `pending` or a preserved entry has no report source reference;
-- record an explicit reason for `omitted` entries;
-- keep hidden tab/accordion content in coverage; hidden by default does not mean omitted;
-- store formula, inputs, and source IDs for every derived metric.
+- map each substantive source unit to fact IDs and report node IDs;
+- record `preserve`, `merge`, `split`, `summarize`, `visualize`, `fold`, or `appendix`;
+- block pending substantive units, source-free preserved entries, and reason-free omissions;
+- count tabbed/folded content as covered without deleting it;
+- retain formula, inputs, unit, scope, and source IDs for derived metrics.
 
-For reports with at least four like objects and at least three shared dimensions, group them into master-detail interaction without dropping object-specific content.
+For at least four like objects sharing at least three dimensions, use master-detail interaction without dropping object-specific content.

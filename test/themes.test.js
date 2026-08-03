@@ -19,7 +19,7 @@ test("theme registry exposes the six approved palettes in stable order", () => {
       "warm-paper-terracotta",
       "research-cobalt",
       "sandstone-archive",
-      "linear-indigo",
+      "deep-data-blue",
       "institutional-navy-gold",
       "signal-orange"
     ]
@@ -30,7 +30,7 @@ test("theme registry exposes the six approved palettes in stable order", () => {
   );
   assert.deepEqual(
     themes.map((theme) => theme.label),
-    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "线性靛蓝", "海军蓝金", "黑场信号橙"]
+    ["暖纸赤陶", "研究钴蓝", "砂岩档案", "深海数据蓝", "海军蓝金", "黑场信号橙"]
   );
   assert.equal(themes.every((theme) => theme.schemaVersion === 2), true);
   assert.equal(themes.every((theme) => theme.chart.categorical.length === 8), true);
@@ -45,8 +45,11 @@ test("legacy theme ids remain readable but migrate explicitly", () => {
   assert.equal(normalizeThemeId("signal-orange"), "signal-orange");
   assert.equal(migrateLegacyThemeId("swiss-monochrome"), "sandstone-archive");
   assert.equal(migrateLegacyThemeId("ink-teal"), "institutional-navy-gold");
+  assert.equal(migrateLegacyThemeId("linear-indigo"), "deep-data-blue");
   assert.equal(getLegacyTheme("ink-teal").themeId, "ink-teal");
   assert.equal(listThemes().some((theme) => theme.themeId === "ink-teal"), false);
+  assert.equal(listThemes().some((theme) => theme.themeId === "linear-indigo"), false);
+  assert.equal(getLegacyTheme("linear-indigo").themeId, "linear-indigo");
 });
 
 test("theme validation rejects incomplete semantic and chart colors", () => {

@@ -7,6 +7,7 @@ import test from "node:test";
 import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
+import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
 async function authoredVariant(t, html) {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
@@ -19,6 +20,7 @@ async function authoredVariant(t, html) {
     mode: "evidence-first",
     theme: "editorial-light"
   });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
   const authoredHtml = /\bdata-report-mode\s*=/.test(html)
     ? html
     : html.replace(/<body\b/i, '<body data-report-mode="evidence-first"');

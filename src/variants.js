@@ -5,10 +5,12 @@ import path from "node:path";
 import { getModeProfile } from "./modes/index.js";
 import { writeJsonAtomic } from "./io.js";
 import {
+  PACKAGE_VERSION,
+  PIPELINE_VERSION,
   PROJECT_SCHEMA_VERSION,
   scaffoldReportModel
 } from "./report-model.js";
-import { renderVariant } from "./renderer.js";
+import { prepareHuashuInput } from "./design-package.js";
 import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
 
 export async function createVariant(projectDir, { mode, themeId, theme }) {
@@ -19,6 +21,8 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
   const project = JSON.parse(await readFile(projectPath, "utf8"));
   const variant = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
+    packageVersion: PACKAGE_VERSION,
+    pipelineVersion: PIPELINE_VERSION,
     variantId: randomUUID(),
     mode,
     themeId: selectedTheme.themeId,
@@ -36,10 +40,6 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
     mode
   });
   await writeJsonAtomic(path.join(variantDir, "report-model.json"), scaffold.report);
-  await writeJsonAtomic(
-    path.join(variantDir, "presentation-plan.json"),
-    scaffold.presentation
-  );
   await writeJsonAtomic(path.join(projectDir, "coverage-map.json"), {
     ...scaffold.coverage,
     variantId: variant.variantId
@@ -47,7 +47,7 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
   project.variants.push(variant);
   project.activeVariantId = variant.variantId;
   await writeJsonAtomic(projectPath, project);
-  await renderVariant(projectDir, variant.variantId);
+  await prepareHuashuInput(projectDir, variant.variantId);
   return variant;
 }
 
