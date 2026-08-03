@@ -1,19 +1,18 @@
-# Huashu Executable Candidate Protocol V2
+# Huashu Complete Strategy Protocol V3
 
-## Sequence
+1. Confirm the source-closed editorial model and inspect every `design/huashu-input/` file.
+2. Invoke `$huashu-design` explicitly. Record the real run ID and invocation time.
+3. With clear references, make one strategy with three scenes. Without them, make three independent material-driven strategies using the three light preview themes.
+4. Compile each showcase from the exact composition and design payload that can render the full report.
+5. Import, display, and wait for selection. Confirmation promotes the selected payload without regeneration.
 
-1. Create the variant and inspect every `design/huashu-input/` file.
-2. Invoke `$huashu-design` explicitly with real content. Never fabricate invocation evidence.
-3. With a reference, make one candidate covering hero, data/table, and master-detail/evidence. Without a reference, make three candidates using identical slices and one shared `previewThemeId`.
-4. Compile each showcase from the same candidate grammar that will render the final report. Do not make an independent mockup.
-5. Import candidates, show them to the user, and wait for selection.
-6. Confirm the selected candidate. Confirmation promotes its exact payload to `design/package/`; it must not regenerate files.
-7. Render and validate only the confirmed package.
-
-## Required candidate
+Required candidate:
 
 ```text
 manifest.json
+composition-plan.json
+component-tree.json
+chart-specs.json
 tokens.json
 layout-grammar.json
 component-grammar.json
@@ -28,17 +27,6 @@ showcases/desktop.png
 showcases/mobile.png
 ```
 
-Manifest schema v2 records `packageVersion: 4.2.0`, candidate/direction identity, `previewThemeId`, input/output/showcase SHA-256, and confirmation. Every binding references a registered safe primitive, implemented layout, package class, and built-in local interaction ID.
+Manifest schema v3 uses `packageVersion: 4.3.0` and binds the input, composition, component tree, showcases, complete output, and Huashu invocation provenance with SHA-256. It records a strategy thesis and real Huashu provenance. For vague requirements, candidates must have distinct light themes and must differ in effective compiled structure.
 
-`styles/report.css` is content-free. It may use semantic `--report-*` variables and layout values, but no report prose/numbers/source IDs, literal colors, remote URLs/imports, arbitrary script, or data fetch.
-
-Commands:
-
-```text
-edit-html-report design candidate import <project> --variant <id> --from <dir>
-edit-html-report design candidate list <project> --variant <id>
-edit-html-report design candidate status <project> --variant <id>
-edit-html-report design candidate confirm <project> --variant <id> --candidate <candidate-id>
-```
-
-Legacy `design import/confirm/status` may inspect V4.1.1 projects only. A weak V4.1.1 package cannot rerender a V4.2 variant.
+Package CSS uses semantic `--report-*` variables. It contains no report copy, literal colors, remote dependency, fetch, or arbitrary script. Interaction grammar selects only local safe runtimes.

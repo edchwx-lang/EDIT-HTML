@@ -1,38 +1,26 @@
-# V4.2 Content Pipeline
+# V4.3 Content Pipeline
 
 ## Canonical order
 
-`source -> source-model -> confirmed mode -> report-model + coverage-map -> Huashu input -> executable candidates -> selected package -> presentation-plan -> artifact -> visible review -> version/publication`
+`source -> immutable source-model -> source-closed editorial model + coverage -> Huashu strategy input -> selected complete strategy -> protocol compiler -> artifact -> unchanged visible review/version/publication`
 
-Authority:
+`source-model.json` is immutable extraction. `report-model.json` is editorial expression plus internal facts/datasets. `coverage-map.json` proves where every substantive source unit went. `artifact.html` is regenerable and is never parsed back into canonical content.
 
-- `source-model.json`: immutable units, order, stable source IDs, assets, chart caches, page/slide locations, and warnings.
-- `report-model.json`: editable nodes, internal facts, datasets, source references, and user overrides.
-- `coverage-map.json`: each source unit's fact IDs, report nodes, transformation, coverage status, or omission reason.
-- `design/huashu-input/`: real-content design brief, slices, model snapshot, contracts, assets, and forbidden mutations.
-- `design/candidates/<candidate-id>/`: executable content-free candidate plus desktop/mobile showcases.
-- `design/package/`: exact promoted payload of the user-selected candidate.
-- `presentation-plan.json`: deterministic compiler index derived from report nodes and the design package.
-- `artifact.html`: regenerable offline output. Never parse it back into canonical content.
+## Source closed, expression free
 
-Do not create `fact-model.json`, `transformation-ledger.json`, `editorial-model.json`, or `visualization-model.json` as project facts. Temporary read-only build indexes may live under `.build/`.
+All report facts, numbers, units, conditions, qualifications, relations, and citations must come from the supplied source. External material may guide visual design only.
 
-## Extraction and compilation
+Editorial production may:
 
-Preserve DOCX headings, paragraphs, lists, tables, images, captions, links, footnotes, and chart caches; PPTX slide order, text, tables, charts, images, and notes; PDF pages, text blocks, table clues, and page images; and Markdown/HTML/TXT block order. Warn instead of guessing uncertain structure.
+- replace source headings with useful display/navigation titles;
+- summarize without changing factual meaning or scope;
+- split a long paragraph into finding, explanation, evidence, and qualification;
+- merge related source units and regroup locally;
+- convert compatible source material into lists, tables, metrics, or charts;
+- fold repeated entities into master-detail interaction.
 
-Internally identify only important claims, metrics, conditions, definitions, relations, entities, and evidence. Keep facts inside `report-model.json`. Preserve first-level research logic and relative content weight; regroup locally for claim-evidence flow or like-object comparison.
+It may not add external claims, change numbers or qualifications, reverse relations, erase provenance, change first-level research logic, or distort relative content weight.
 
-Every report node has `displayIntent`: `narrative`, `metric`, `chart-support`, `evidence`, or `warning`. Numbers do not imply KPI. A KPI requires label, value, unit, time, scope, and source. Charts read only compatible datasets; they never scrape numbers from rendered prose.
+Every substantive editorial node requires source references and an allowed transformation. Every substantive source unit requires a covered mapping or a reasoned omission. Numeric fidelity is checked before design. User changes made later in the visible editor remain auditable overrides under the existing editor contract.
 
-## Coverage lock
-
-Before design, rendering, and finalization:
-
-- map each substantive source unit to fact IDs and report node IDs;
-- record `preserve`, `merge`, `split`, `summarize`, `visualize`, `fold`, or `appendix`;
-- block pending substantive units, source-free preserved entries, and reason-free omissions;
-- count tabbed/folded content as covered without deleting it;
-- retain formula, inputs, unit, scope, and source IDs for derived metrics.
-
-For at least four like objects sharing at least three dimensions, use master-detail interaction without dropping object-specific content.
+A number does not imply KPI. A KPI needs label, value, unit, time, scope, and source. A chart needs an explicit semantic dataset and relation; it never scrapes rendered prose.

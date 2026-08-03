@@ -1,9 +1,48 @@
 const NON_COMPARABLE_UNITS = new Set(["年", "月", "日", "天"]);
 
 export function visualizationForDataset(dataset) {
+  if (dataset?.kind === "semantic") return semanticVisualization(dataset);
   if (dataset?.kind === "table") return tableVisualization(dataset);
   if (dataset?.kind === "numeric-text") return numericTextVisualization(dataset);
   return null;
+}
+
+function semanticVisualization(dataset) {
+  const chartType = dataset.chartType ?? relationChartType(dataset.relation);
+  if (!new Set(["line", "area", "bar", "scatter"]).has(chartType)) return null;
+  if (chartType === "line" || chartType === "area") {
+    if (!Array.isArray(dataset.x) || dataset.x.length < 2 || !dataset.series?.length) return null;
+    const groups = dataset.x.map((label, index) => ({
+      label: String(label),
+      values: dataset.series.flatMap((series) => {
+        const value = Number(series.values?.[index]);
+        return Number.isFinite(value) ? [{ series: String(series.name), value, unit: String(series.unit ?? "") }] : [];
+      })
+    }));
+    if (groups.some((group) => !group.values.length)) return null;
+    return {
+      chartType,
+      relation: dataset.relation,
+      groups,
+      series: dataset.series,
+      interaction: "nearest-x-group",
+      caption: dataset.caption ?? "趋势"
+    };
+  }
+  if (chartType === "bar") {
+    const rows = dataset.rows ?? [];
+    if (rows.length < 2) return null;
+    return { chartType, relation: dataset.relation, rows, interaction: "hovered-bar", caption: dataset.caption ?? "对比" };
+  }
+  const points = dataset.points ?? [];
+  if (points.length < 2) return null;
+  return { chartType, relation: dataset.relation, points, interaction: "nearest-point", caption: dataset.caption ?? "分布" };
+}
+
+function relationChartType(relation) {
+  if (relation === "trend") return "line";
+  if (relation === "distribution") return "scatter";
+  return "bar";
 }
 
 export function isVisualizationEligible(dataset) {

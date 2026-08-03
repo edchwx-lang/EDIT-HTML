@@ -1,6 +1,6 @@
 # Theme System V2
 
-Choose mode, then design direction, then optionally switch palette. A palette changes semantic colors only.
+Choose a complete design strategy, then optionally switch palette. A palette changes semantic colors only.
 
 | Appearance | ID | Name |
 |---|---|---|
@@ -11,7 +11,7 @@ Choose mode, then design direction, then optionally switch palette. A palette ch
 | dark | `institutional-navy-gold` | 海军蓝金 |
 | dark | `signal-orange` | 黑场信号橙 |
 
-Data-first defaults to `deep-data-blue`; evidence-first defaults to `warm-paper-terracotta`.
+Three-strategy previews use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` by position. After strategy selection, all six palettes remain available.
 
 `precision-blueprint` fixed tokens: canvas `#F2F5F7`, surface `#FFFFFF`, surfaceAlt `#D9EAF4`, text `#10283F`, textMuted `#526678`, border `#B8C6D1`, accent `#075F9B`, focus/crosshair `#D75B32`, positive `#267A5E`, warning `#8A5A00`, negative `#B33A35`, tableHeader `#073B61`, tableStripe `#F2F5F7`, evidenceHighlight `#F7E4DB`.
 

@@ -149,7 +149,7 @@ async function migrateV411Project(projectDir, original, { dryRun }) {
         themeSchemaVersion: THEME_SCHEMA_VERSION,
         reviewState: {
           status: "awaiting-editor-review",
-          reason: "V4.2 executable design candidate required",
+          reason: "V4.3 complete strategy candidate required",
           invalidatedAt: new Date().toISOString()
         }
       };
@@ -179,7 +179,7 @@ async function migrateV411Project(projectDir, original, { dryRun }) {
       weakDesignPackagesPreservedButDisabled: true
     });
     await installProjectEditorRuntime(stagingPath);
-    await validateV42Project(stagingPath, variants);
+    await validateV43Project(stagingPath, variants);
     await rename(projectDir, rollbackPath);
     originalMoved = true;
     try {
@@ -201,14 +201,14 @@ async function migrateV411Project(projectDir, original, { dryRun }) {
   }
 }
 
-async function validateV42Project(projectDir, variants) {
+async function validateV43Project(projectDir, variants) {
   const project = await readJson(path.join(projectDir, "project.json"));
   if (
     project.schemaVersion !== PROJECT_SCHEMA_VERSION ||
     project.packageVersion !== PACKAGE_VERSION ||
     project.pipelineVersion !== PIPELINE_VERSION
   ) {
-    throw new Error("V4.2 migration staging validation failed: runtime version mismatch");
+    throw new Error("V4.3 migration staging validation failed: runtime version mismatch");
   }
   for (const stored of variants) {
     const variant = await readJson(
@@ -218,7 +218,7 @@ async function validateV42Project(projectDir, variants) {
       variant.packageVersion !== PACKAGE_VERSION ||
       variant.pipelineVersion !== PIPELINE_VERSION
     ) {
-      throw new Error("V4.2 migration staging validation failed: variant version mismatch");
+      throw new Error("V4.3 migration staging validation failed: variant version mismatch");
     }
   }
 }
@@ -246,7 +246,7 @@ async function migrateProjectFiles(projectDir, original, variants, summary, back
       themeSchemaVersion: THEME_SCHEMA_VERSION,
       reviewState: {
         status: "awaiting-editor-review",
-        reason: "V4.2 executable design candidate required",
+        reason: "V4.3 complete strategy candidate required",
         invalidatedAt: new Date().toISOString()
       }
     };

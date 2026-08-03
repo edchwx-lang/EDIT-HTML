@@ -9,8 +9,10 @@ import {
   confirmHuashuDesignCandidate,
   getHuashuDesignCandidateStatus,
   hashDesignPackagePayload,
+  hashHuashuProvenance,
   importHuashuDesignCandidate,
   listHuashuDesignCandidates
+  , prepareHuashuInput
 } from "../src/design-package.js";
 import { createProject } from "../src/project.js";
 import { renderVariant } from "../src/renderer.js";
@@ -23,13 +25,18 @@ const TINY_PNG = Buffer.from(
   "base64"
 );
 
-async function fixture() {
+async function fixture({ threeStrategies = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "edit-html-v42-candidate-"));
   const source = path.join(root, "source.txt");
   const project = path.join(root, "project");
   await writeFile(source, "Market report\nRevenue reached 12 billion yuan in 2025.", "utf8");
   await createProject(source, project);
   const variant = await createVariant(project, { mode: "data-first" });
+  const reportPath = path.join(project, "variants", variant.variantId, "report-model.json");
+  const report = JSON.parse(await readFile(reportPath, "utf8"));
+  report.editorialStatus = "confirmed";
+  await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+  await prepareHuashuInput(project, variant.variantId, threeStrategies ? {} : { references: ["test://reference"] });
   return { root, project, variant };
 }
 
@@ -46,6 +53,7 @@ async function hashFiles(root) {
 }
 
 async function writeCandidate(project, variantId, root, options = {}) {
+  const candidateId = options.candidateId ?? "candidate-blueprint";
   const input = JSON.parse(await readFile(
     path.join(project, "variants", variantId, "design", "huashu-input", "manifest.json"),
     "utf8"
@@ -55,6 +63,9 @@ async function writeCandidate(project, variantId, root, options = {}) {
   await mkdir(path.join(candidateDir, "styles"), { recursive: true });
   await mkdir(path.join(candidateDir, "showcases"), { recursive: true });
   const files = {
+    "composition-plan.json": { schemaVersion: 1, strategyId: candidateId, rootOrder: [], groups: [], informationPriority: ["finding", "evidence"] },
+    "component-tree.json": { schemaVersion: 1, nodes: {} },
+    "chart-specs.json": { schemaVersion: 1, charts: {} },
     "tokens.json": { tokenPolicy: "semantic-only" },
     "layout-grammar.json": {
       nodeLayouts: { section: "stack", content: "flow" },
@@ -127,17 +138,28 @@ async function writeCandidate(project, variantId, root, options = {}) {
   }, null, 2), "utf8");
   const showcaseSha256 = await hashFiles(path.join(candidateDir, "showcases"));
   const outputSha256 = await hashDesignPackagePayload(candidateDir);
+  const compositionSha256 = createHash("sha256").update(await readFile(path.join(candidateDir, "composition-plan.json"))).digest("hex");
+  const componentTreeSha256 = createHash("sha256").update(await readFile(path.join(candidateDir, "component-tree.json"))).digest("hex");
+  const huashuRunId = "test-huashu-run";
+  const huashuInvokedAt = new Date().toISOString();
   const manifest = {
-    schemaVersion: 2,
-    packageVersion: "4.2.0",
+    schemaVersion: 3,
+    packageVersion: "4.3.0",
     skill: "huashu-design",
-    candidateId: options.candidateId ?? "candidate-blueprint",
+    candidateId,
     designDirectionId: options.designDirectionId ?? "technical-blueprint",
     designDirectionLabel: options.designDirectionLabel ?? "技术蓝图",
-    previewThemeId: "deep-data-blue",
+    strategyThesis: "Material-driven test strategy",
+    selectionContext: "vague",
+    previewThemeId: "precision-blueprint",
     showcaseSha256,
     inputSha256: input.inputSha256,
     outputSha256,
+    compositionSha256,
+    componentTreeSha256,
+    huashuRunId,
+    huashuInvokedAt,
+    provenanceSha256: hashHuashuProvenance({ huashuRunId, huashuInvokedAt }),
     confirmation: { status: "pending", confirmedAt: null, confirmedBy: null },
     ...options.manifest
   };
@@ -149,7 +171,7 @@ test("candidate import, list, status, and confirmation promote the exact executa
   const { root, project, variant } = await fixture();
   const candidateDir = await writeCandidate(project, variant.variantId, root);
   const imported = await importHuashuDesignCandidate(project, variant.variantId, candidateDir);
-  assert.equal(imported.manifest.schemaVersion, 2);
+  assert.equal(imported.manifest.schemaVersion, 3);
   assert.equal(imported.manifest.candidateId, "candidate-blueprint");
   const listed = await listHuashuDesignCandidates(project, variant.variantId);
   assert.deepEqual(listed.map((item) => item.candidateId), ["candidate-blueprint"]);
@@ -163,7 +185,7 @@ test("candidate import, list, status, and confirmation promote the exact executa
     { confirmedBy: "user" }
   );
   assert.equal(confirmed.designSelection.candidateId, "candidate-blueprint");
-  assert.equal(confirmed.designSelection.previewThemeId, "deep-data-blue");
+  assert.equal(confirmed.designSelection.previewThemeId, "precision-blueprint");
   assert.equal(confirmed.designSelection.showcaseSha256, imported.manifest.showcaseSha256);
   const promotedDir = path.join(project, "variants", variant.variantId, "design", "package");
   assert.equal(await hashDesignPackagePayload(promotedDir), imported.outputSha256);
@@ -220,6 +242,16 @@ test("candidate validation rejects literal colors, remote CSS, and showcase hash
     /remote runtime dependency/
   );
 
+  const injected = await writeCandidate(project, variant.variantId, root, { directory: "injected" });
+  await writeFile(path.join(injected, "styles", "report.css"), ".cmp-section{display:block}</style><script>globalThis.injected=true</script><style>", "utf8");
+  manifest = JSON.parse(await readFile(path.join(injected, "manifest.json"), "utf8"));
+  manifest.outputSha256 = await hashDesignPackagePayload(injected);
+  await writeFile(path.join(injected, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
+  await assert.rejects(
+    () => importHuashuDesignCandidate(project, variant.variantId, injected),
+    /unsafe stylesheet syntax/
+  );
+
   const drifted = await writeCandidate(project, variant.variantId, root, { directory: "drifted" });
   await writeFile(path.join(drifted, "showcases", "desktop.png"), Buffer.from("changed"));
   manifest = JSON.parse(await readFile(path.join(drifted, "manifest.json"), "utf8"));
@@ -231,8 +263,8 @@ test("candidate validation rejects literal colors, remote CSS, and showcase hash
   );
 });
 
-test("candidates for one variant must share the same preview theme", async () => {
-  const { root, project, variant } = await fixture();
+test("vague three-strategy candidates use distinct light preview themes", async () => {
+  const { root, project, variant } = await fixture({ threeStrategies: true });
   const first = await writeCandidate(project, variant.variantId, root, {
     directory: "candidate-one",
     candidateId: "candidate-one"
@@ -245,13 +277,43 @@ test("candidates for one variant must share the same preview theme", async () =>
   });
   await assert.rejects(
     () => importHuashuDesignCandidate(project, variant.variantId, second),
-    /same previewThemeId/
+    /distinct light themes/
+  );
+  const third = await writeCandidate(project, variant.variantId, root, {
+    directory: "candidate-three",
+    candidateId: "candidate-three",
+    manifest: { previewThemeId: "warm-paper-terracotta" }
+  });
+  const thirdCompositionPath = path.join(third, "composition-plan.json");
+  const thirdComposition = JSON.parse(await readFile(thirdCompositionPath, "utf8"));
+  thirdComposition.groups = [{ groupId: "alternate-flow", nodeIds: [] }];
+  await writeFile(thirdCompositionPath, JSON.stringify(thirdComposition, null, 2), "utf8");
+  const thirdManifestPath = path.join(third, "manifest.json");
+  const thirdManifest = JSON.parse(await readFile(thirdManifestPath, "utf8"));
+  thirdManifest.compositionSha256 = createHash("sha256").update(await readFile(thirdCompositionPath)).digest("hex");
+  thirdManifest.outputSha256 = await hashDesignPackagePayload(third);
+  await writeFile(thirdManifestPath, JSON.stringify(thirdManifest, null, 2), "utf8");
+  await assert.doesNotReject(() => importHuashuDesignCandidate(project, variant.variantId, third));
+});
+
+test("a three-strategy input cannot confirm until all three light-theme candidates exist", async () => {
+  const { root, project, variant } = await fixture({ threeStrategies: true });
+  const first = await writeCandidate(project, variant.variantId, root, { candidateId: "only-one" });
+  await importHuashuDesignCandidate(project, variant.variantId, first);
+  await assert.rejects(
+    () => confirmHuashuDesignCandidate(project, variant.variantId, "only-one"),
+    /requires all three light-theme candidates/
   );
 });
 
 test("two confirmed executable candidates produce different package-driven DOM and CSS", async () => {
   const { root, project, variant: first } = await fixture();
   const second = await createVariant(project, { mode: "data-first" });
+  const secondReportPath = path.join(project, "variants", second.variantId, "report-model.json");
+  const secondReport = JSON.parse(await readFile(secondReportPath, "utf8"));
+  secondReport.editorialStatus = "confirmed";
+  await writeFile(secondReportPath, JSON.stringify(secondReport, null, 2), "utf8");
+  await prepareHuashuInput(project, second.variantId, { references: ["test://reference"] });
   for (const [variant, suffix] of [[first, "atlas"], [second, "ledger"]]) {
     const candidateDir = path.join(root, `candidate-${suffix}`);
     await writeTestHuashuCandidate(project, variant.variantId, candidateDir, {

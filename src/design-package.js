@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -35,6 +35,17 @@ const EXECUTABLE_PACKAGE_FILES = [
   "showcases/mobile.png"
 ];
 
+const STRATEGY_FILES = [
+  ...EXECUTABLE_PACKAGE_FILES,
+  "composition-plan.json",
+  "component-tree.json",
+  "chart-specs.json"
+];
+
+const LIGHT_PREVIEW_THEMES = new Set([
+  "precision-blueprint", "warm-paper-terracotta", "sandstone-archive"
+]);
+
 const SAFE_PRIMITIVES = new Set([
   "hero", "section", "metric", "narrative", "table", "chart", "figure",
   "masterDetail", "evidenceWarning"
@@ -59,17 +70,18 @@ export async function prepareHuashuInput(projectDir, variantId, options = {}) {
     "design-brief.json": {
       schemaVersion: 1,
       variantId,
-      mode: variant.mode,
+      strategySelection: options.references?.length ? "single-strategy-three-scenes" : "three-material-driven-strategies",
       audience: options.audience ?? "research-report reader",
       readingContext: ["desktop", "mobile"],
-      density: variant.mode === "data-first" ? "high" : "reading-led",
+      editorialPolicy: { source: "closed", expression: "free" },
       references: options.references ?? [],
       designConstraints: [
-        "preserve source facts and hierarchy",
+        "preserve source facts, numbers, qualifications, and provenance",
+        "choose information priority and composition as part of the complete strategy",
         "use semantic theme tokens only",
         "avoid generic card-grid UI and decorative metrics",
         "compile showcases and final report from the same executable candidate",
-        "hold previewThemeId constant across candidates"
+        "use precision-blueprint, warm-paper-terracotta, and sandstone-archive for three-strategy previews"
       ]
     },
     "content-slices.json": buildContentSlices(report),
@@ -80,7 +92,6 @@ export async function prepareHuashuInput(projectDir, variantId, options = {}) {
     "forbidden-mutations.json": {
       schemaVersion: 1,
       forbidden: [
-        "rewrite-copy",
         "change-number",
         "invent-fact",
         "delete-source-id",
@@ -104,11 +115,11 @@ export async function prepareHuashuInput(projectDir, variantId, options = {}) {
     schemaVersion: 1,
     skill: "huashu-design",
     variantId,
-    mode: variant.mode,
+    strategySelection: files["design-brief.json"].strategySelection,
     requiredFiles: INPUT_FILES,
     inputSha256,
     preparedAt: new Date().toISOString(),
-    instructions: "Invoke $huashu-design with these real content slices. With references produce one executable candidate and three representative scenes; without references produce three executable candidates using identical content and previewThemeId. Import candidates, obtain user selection, then promote the exact selected payload."
+    instructions: "Invoke $huashu-design with this source-closed editorial model. With references produce one complete strategy and three representative scenes; without references produce three materially different complete strategies using the three light preview themes. Each strategy owns composition and design. Import, select, and promote the exact payload."
   };
   await writeJsonAtomic(path.join(inputDir, "manifest.json"), manifest);
   return { inputDir, inputSha256, manifest };
@@ -128,8 +139,22 @@ export async function importHuashuDesignCandidate(projectDir, variantId, sourceD
   });
   const existing = (await listHuashuDesignCandidates(projectDir, variantId))
     .filter((item) => !item.invalid && item.candidateId !== validation.manifest.candidateId);
-  if (existing.some((item) => item.previewThemeId !== validation.manifest.previewThemeId)) {
+  if (validation.manifest.schemaVersion === 2 && existing.some((item) => item.previewThemeId !== validation.manifest.previewThemeId)) {
     throw new Error("all design candidates for one variant must use the same previewThemeId");
+  }
+  const inputManifest = await readJson(path.join(
+    projectDir, "variants", variantId, "design", "huashu-input", "manifest.json"
+  ));
+  if (validation.manifest.schemaVersion === 3 && inputManifest.strategySelection === "three-material-driven-strategies") {
+    if (!LIGHT_PREVIEW_THEMES.has(validation.manifest.previewThemeId)) {
+      throw new Error("V4.3 strategy previews must use one of the three light themes");
+    }
+    if (existing.some((item) => item.previewThemeId === validation.manifest.previewThemeId)) {
+      throw new Error("V4.3 three-strategy previews must use distinct light themes");
+    }
+    if (existing.some((item) => item.structuralSha256 === validation.structuralSha256)) {
+      throw new Error("V4.3 strategy candidates must differ in effective compiled structure");
+    }
   }
   const candidateId = validation.manifest.candidateId;
   assertSafeId(candidateId, "candidateId");
@@ -165,8 +190,12 @@ export async function listHuashuDesignCandidates(projectDir, variantId) {
         candidateId: validation.manifest.candidateId,
         designDirectionId: validation.manifest.designDirectionId,
         designDirectionLabel: validation.manifest.designDirectionLabel,
+        strategyThesis: validation.manifest.strategyThesis,
         previewThemeId: validation.manifest.previewThemeId,
         showcaseSha256: validation.manifest.showcaseSha256,
+        compositionSha256: validation.manifest.compositionSha256,
+        componentTreeSha256: validation.manifest.componentTreeSha256,
+        structuralSha256: validation.structuralSha256,
         outputSha256: validation.outputSha256,
         confirmation: validation.manifest.confirmation
       });
@@ -192,9 +221,18 @@ export async function confirmHuashuDesignCandidate(
   if (validation.manifest.candidateId !== candidateId) {
     throw new Error("candidate directory and manifest candidateId do not match");
   }
+  const inputManifest = await readJson(path.join(variantDir, "design", "huashu-input", "manifest.json"));
+  if (validation.manifest.schemaVersion === 3 && inputManifest.strategySelection === "three-material-driven-strategies") {
+    const candidates = (await listHuashuDesignCandidates(projectDir, variantId)).filter((item) => !item.invalid);
+    const themes = new Set(candidates.map((item) => item.previewThemeId));
+    if (candidates.length < 3 || [...LIGHT_PREVIEW_THEMES].some((theme) => !themes.has(theme))) {
+      throw new Error("three-strategy selection requires all three light-theme candidates before confirmation");
+    }
+  }
   const variantPath = path.join(variantDir, "variant.json");
   const variant = await readJson(variantPath);
-  if (variant.themeId !== validation.manifest.previewThemeId) {
+  const previousVariant = structuredClone(variant);
+  if (validation.manifest.schemaVersion === 2 && variant.themeId !== validation.manifest.previewThemeId) {
     throw new Error("variant theme must match the candidate previewThemeId before confirmation");
   }
   const confirmedAt = new Date().toISOString();
@@ -206,8 +244,13 @@ export async function confirmHuashuDesignCandidate(
     showcaseSha256: validation.manifest.showcaseSha256,
     confirmedAt
   };
-  const staging = path.join(variantDir, "design", `.package-${candidateId}-${process.pid}`);
+  if (validation.manifest.schemaVersion === 3) {
+    designSelection.compositionSha256 = validation.manifest.compositionSha256;
+    designSelection.componentTreeSha256 = validation.manifest.componentTreeSha256;
+  }
+  const staging = path.join(variantDir, "design", `.package-${candidateId}-${randomUUID()}`);
   const destination = path.join(variantDir, "design", "package");
+  const backup = path.join(variantDir, "design", `.package-backup-${randomUUID()}`);
   await rm(staging, { recursive: true, force: true });
   await cp(candidateDir, staging, { recursive: true, force: true });
   const manifestPath = path.join(staging, "manifest.json");
@@ -220,15 +263,36 @@ export async function confirmHuashuDesignCandidate(
   if (promoted.outputSha256 !== validation.outputSha256) {
     throw new Error("confirmed package payload differs from the selected candidate");
   }
-  await rm(destination, { recursive: true, force: true });
-  await rename(staging, destination);
   variant.designSelection = designSelection;
-  await writeJsonAtomic(variantPath, variant);
+  if (validation.manifest.schemaVersion === 3) variant.themeId = validation.manifest.previewThemeId;
   const projectPath = path.join(projectDir, "project.json");
   const project = await readJson(projectPath);
+  const previousProject = structuredClone(project);
   const projectVariant = project.variants.find((item) => item.variantId === variantId);
-  if (projectVariant) projectVariant.designSelection = designSelection;
-  await writeJsonAtomic(projectPath, project);
+  if (projectVariant) {
+    projectVariant.designSelection = designSelection;
+    if (validation.manifest.schemaVersion === 3) projectVariant.themeId = validation.manifest.previewThemeId;
+  }
+  let backedUp = false;
+  try {
+    try {
+      await rename(destination, backup);
+      backedUp = true;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    await rename(staging, destination);
+    await writeJsonAtomic(variantPath, variant);
+    await writeJsonAtomic(projectPath, project);
+    if (backedUp) await rm(backup, { recursive: true, force: true });
+  } catch (error) {
+    await rm(destination, { recursive: true, force: true });
+    if (backedUp) await rename(backup, destination);
+    await rm(staging, { recursive: true, force: true });
+    await writeJsonAtomic(variantPath, previousVariant);
+    await writeJsonAtomic(projectPath, previousProject);
+    throw error;
+  }
   return { confirmation, designSelection, outputSha256: promoted.outputSha256 };
 }
 
@@ -286,7 +350,7 @@ export async function validateHuashuDesignPackage(projectDir, variantId) {
     }
     // Preserve the legacy validator's stable missing-package error below.
   }
-  if (manifest?.schemaVersion === 2) {
+  if (manifest?.schemaVersion === 2 || manifest?.schemaVersion === 3) {
     return validateExecutablePackageAt(projectDir, variantId, packageDir, {
       requireConfirmation: true
     });
@@ -349,34 +413,40 @@ export async function loadConfirmedHuashuDesignPackage(projectDir, variantId) {
   } catch {
     throw new Error("a confirmed executable Huashu design candidate is required before render");
   }
-  if (variant.packageVersion === "4.2.0" && manifest.schemaVersion !== 2) {
-    throw new Error("V4.1.1 weak design packages cannot render in V4.2; confirm an executable candidate");
+  if (variant.packageVersion === "4.3.0" && manifest.schemaVersion !== 3) {
+    throw new Error("V4.2 design candidates cannot render in V4.3; confirm a complete strategy candidate");
   }
-  const validation = manifest.schemaVersion === 2
+  const validation = manifest.schemaVersion === 2 || manifest.schemaVersion === 3
     ? await validateExecutablePackageAt(projectDir, variantId, packageDir, { requireConfirmation: true })
     : await validateHuashuDesignPackage(projectDir, variantId);
   const entries = await Promise.all(PACKAGE_FILES.map(async (name) => [
     name.replace(".json", ""),
     await readJson(path.join(packageDir, name))
   ]));
-  if (manifest.schemaVersion !== 2) {
+  if (manifest.schemaVersion !== 2 && manifest.schemaVersion !== 3) {
     return { ...validation, grammars: Object.fromEntries(entries), executable: false };
   }
-  const [registry, stylesheet] = await Promise.all([
+  const [registry, stylesheet, composition, componentTree, chartSpecs] = await Promise.all([
     readJson(path.join(packageDir, "components", "registry.json")),
-    readFile(path.join(packageDir, "styles", "report.css"), "utf8")
+    readFile(path.join(packageDir, "styles", "report.css"), "utf8"),
+    manifest.schemaVersion === 3 ? readJson(path.join(packageDir, "composition-plan.json")) : null,
+    manifest.schemaVersion === 3 ? readJson(path.join(packageDir, "component-tree.json")) : null,
+    manifest.schemaVersion === 3 ? readJson(path.join(packageDir, "chart-specs.json")) : null
   ]);
   return {
     ...validation,
     grammars: Object.fromEntries(entries),
     registry,
     stylesheet,
+    composition,
+    componentTree,
+    chartSpecs,
     executable: true
   };
 }
 
 export function compilePresentationPlan(report, designPackage) {
-  if (designPackage.manifest.schemaVersion === 2) {
+  if (designPackage.manifest.schemaVersion === 2 || designPackage.manifest.schemaVersion === 3) {
     return compileExecutablePresentationPlan(report, designPackage);
   }
   const components = designPackage.grammars["component-grammar"];
@@ -412,20 +482,45 @@ function compileExecutablePresentationPlan(report, designPackage) {
   const registry = designPackage.registry.components ?? {};
   const datasetNodeIds = new Set((report.datasets ?? []).map((dataset) => dataset.nodeId));
   const bindings = [];
+  const explicitNodes = designPackage.componentTree?.nodes ?? {};
+  const groupByNode = new Map();
+  for (const group of designPackage.composition?.groups ?? []) {
+    for (const nodeId of group.nodeIds ?? group.rootNodeIds ?? []) groupByNode.set(nodeId, group.groupId);
+  }
+  const rootIds = (report.nodes ?? []).map((node) => node.nodeId);
+  const requestedRootOrder = designPackage.composition?.rootOrder ?? [];
+  if (requestedRootOrder.length) {
+    if (new Set(requestedRootOrder).size !== requestedRootOrder.length ||
+        requestedRootOrder.length !== rootIds.length ||
+        requestedRootOrder.some((id) => !rootIds.includes(id))) {
+      throw new Error("strategy composition rootOrder must contain every report root exactly once");
+    }
+    const structural = (report.nodes ?? []).filter((node) => (node.level ?? 99) <= 1).map((node) => node.nodeId);
+    const requestedStructural = requestedRootOrder.filter((id) => structural.includes(id));
+    if (requestedStructural.some((id, index) => id !== structural[index])) {
+      throw new Error("strategy composition must preserve first-level research logic");
+    }
+  }
+  const knownNodeIds = new Set();
+  walkNodes(report.nodes ?? [], (node) => knownNodeIds.add(node.nodeId));
+  for (const nodeId of Object.keys(explicitNodes)) {
+    if (!knownNodeIds.has(nodeId)) throw new Error(`strategy component tree references unknown node ${nodeId}`);
+  }
   walkNodes(report.nodes ?? [], (node) => {
     const kind = node.type === "paragraph" && node.displayIntent === "metric"
       ? "metric"
       : node.type;
-    const componentId = componentBindings[kind] ?? componentBindings[node.type];
+    const explicit = explicitNodes[node.nodeId] ?? {};
+    const componentId = explicit.componentId ?? componentBindings[kind] ?? componentBindings[node.type];
     if (!componentId || !registry[componentId]) {
       throw new Error(`design candidate has no implemented componentId for ${kind}`);
     }
-    const layoutId = node.type === "section"
+    const layoutId = explicit.layoutId ?? (node.type === "section"
       ? layoutGrammar.nodeLayouts?.section
-      : layoutGrammar.nodeLayouts?.content;
+      : layoutGrammar.nodeLayouts?.content);
     const layout = layoutGrammar.layouts?.[layoutId];
     if (!layoutId || !layout) throw new Error(`design candidate has no implemented layoutId for ${kind}`);
-    const interactionIds = [
+    const interactionIds = explicit.interactionIds ?? [
       ...(interactionGrammar.bindings?.[node.type] ?? []),
       ...(node.displayIntent === "chart-support" && datasetNodeIds.has(node.nodeId)
         ? interactionGrammar.bindings?.chart ?? []
@@ -437,6 +532,7 @@ function compileExecutablePresentationPlan(report, designPackage) {
     );
     const chartComponentId = dataset ? (chartBindings.chart ?? componentBindings.chart) : null;
     const chartComponent = chartComponentId ? registry[chartComponentId] : null;
+    const chartSpec = designPackage.chartSpecs?.charts?.[node.nodeId];
     if (dataset && (!chartComponentId || !chartComponent)) {
       throw new Error("design candidate has no implemented chart componentId");
     }
@@ -447,12 +543,14 @@ function compileExecutablePresentationPlan(report, designPackage) {
       interactionIds: [...new Set(interactionIds)],
       packageClass: [component.className, layout.className].filter(Boolean).join(" "),
       primitive: component.primitive,
+      ...(groupByNode.has(node.nodeId) ? { compositionGroupId: groupByNode.get(node.nodeId) } : {}),
       ...(chartComponent ? {
         chartComponentId,
         chartPackageClass: [chartComponent.className, layout.className].filter(Boolean).join(" "),
         chartLayoutId: layoutId,
         chartInteractionIds: [...new Set(interactionGrammar.bindings?.chart ?? [])],
-        chartPrimitive: chartComponent.primitive
+        chartPrimitive: chartComponent.primitive,
+        ...(chartSpec ? { chartSpec: safeChartSpec(chartSpec) } : {})
       } : {})
     });
   });
@@ -463,13 +561,27 @@ function compileExecutablePresentationPlan(report, designPackage) {
     generatedBy: "huashu-design-package-compiler",
     candidateId: designPackage.manifest.candidateId,
     designDirectionId: designPackage.manifest.designDirectionId,
+    designDirectionLabel: designPackage.manifest.designDirectionLabel,
+    strategyThesis: designPackage.manifest.strategyThesis,
     previewThemeId: designPackage.manifest.previewThemeId,
     showcaseSha256: designPackage.manifest.showcaseSha256,
     designInputSha256: designPackage.manifest.inputSha256,
     designOutputSha256: designPackage.manifest.outputSha256,
     contentMutationAllowed: false,
+    rootOrder: designPackage.composition?.rootOrder ?? (report.nodes ?? []).map((node) => node.nodeId),
+    compositionGroups: designPackage.composition?.groups ?? [],
+    chartSpecs: designPackage.chartSpecs?.charts ?? {},
     bindings
   };
+}
+
+function safeChartSpec(spec) {
+  const allowed = {};
+  for (const field of ["chartType", "interaction", "xField", "relation"]) {
+    if (typeof spec[field] === "string") allowed[field] = spec[field];
+  }
+  if (Array.isArray(spec.yFields)) allowed.yFields = spec.yFields.filter((value) => typeof value === "string");
+  return allowed;
 }
 
 async function validatePackageAt(projectDir, variantId, packageDir, { requireConfirmation }) {
@@ -513,8 +625,10 @@ async function validateExecutablePackageAt(projectDir, variantId, packageDir, { 
   } catch {
     throw new Error("an executable Huashu design candidate is required");
   }
-  if (manifest.schemaVersion !== 2 || manifest.packageVersion !== "4.2.0") {
-    throw new Error("V4.2 design candidates require manifest schemaVersion 2 and packageVersion 4.2.0");
+  const isV42 = manifest.schemaVersion === 2 && manifest.packageVersion === "4.2.0";
+  const isV43 = manifest.schemaVersion === 3 && manifest.packageVersion === "4.3.0";
+  if (!isV42 && !isV43) {
+    throw new Error("design candidates require schemaVersion 2/packageVersion 4.2.0 or schemaVersion 3/packageVersion 4.3.0");
   }
   for (const field of [
     "candidateId", "designDirectionId", "designDirectionLabel", "previewThemeId",
@@ -526,13 +640,27 @@ async function validateExecutablePackageAt(projectDir, variantId, packageDir, { 
   }
   assertSafeId(manifest.candidateId, "candidateId");
   assertSafeId(manifest.designDirectionId, "designDirectionId");
+  if (isV43) {
+    for (const field of ["strategyThesis", "compositionSha256", "componentTreeSha256", "huashuRunId", "huashuInvokedAt", "provenanceSha256"]) {
+      if (typeof manifest[field] !== "string" || !manifest[field]) throw new Error(`V4.3 strategy manifest requires ${field}`);
+    }
+    const expectedProvenance = hashProvenance(manifest);
+    if (manifest.provenanceSha256 !== expectedProvenance) throw new Error("V4.3 Huashu provenance SHA-256 is invalid");
+  }
+  const structuralSha256 = isV43 ? await hashEffectiveStructure(packageDir) : null;
   const inputManifest = await readJson(path.join(
     projectDir, "variants", variantId, "design", "huashu-input", "manifest.json"
   ));
+  if (isV43) {
+    const report = await readJson(path.join(projectDir, "variants", variantId, "report-model.json"));
+    if (report.editorialStatus !== "confirmed") {
+      throw new Error("V4.3 requires a confirmed source-closed editorial model before strategy import");
+    }
+  }
   if (manifest.inputSha256 !== inputManifest.inputSha256) {
     throw new Error("Huashu candidate input SHA-256 does not match the current report input");
   }
-  for (const name of EXECUTABLE_PACKAGE_FILES) {
+  for (const name of (isV43 ? STRATEGY_FILES : EXECUTABLE_PACKAGE_FILES)) {
     try {
       await readFile(path.join(packageDir, name));
     } catch {
@@ -549,6 +677,12 @@ async function validateExecutablePackageAt(projectDir, variantId, packageDir, { 
   }
   await validatePackagePurity(projectDir, variantId, packageDir);
   await validateExecutableBindings(packageDir);
+  if (isV43) {
+    const compositionSha256 = await hashFile(path.join(packageDir, "composition-plan.json"));
+    const componentTreeSha256 = await hashFile(path.join(packageDir, "component-tree.json"));
+    if (manifest.compositionSha256 !== compositionSha256) throw new Error("V4.3 composition SHA-256 is invalid");
+    if (manifest.componentTreeSha256 !== componentTreeSha256) throw new Error("V4.3 component tree SHA-256 is invalid");
+  }
   if (requireConfirmation && manifest.confirmation?.status !== "confirmed") {
     throw new Error("Huashu candidate confirmation is required before render");
   }
@@ -558,8 +692,34 @@ async function validateExecutablePackageAt(projectDir, variantId, packageDir, { 
     manifest,
     inputSha256: manifest.inputSha256,
     outputSha256,
-    showcaseSha256
+    showcaseSha256,
+    structuralSha256
   };
+}
+
+async function hashEffectiveStructure(packageDir) {
+  const names = [
+    "composition-plan.json", "component-tree.json", "chart-specs.json",
+    "component-grammar.json", "layout-grammar.json", "interaction-grammar.json",
+    "responsive-grammar.json", "components/registry.json"
+  ];
+  const values = await Promise.all(names.map((name) => readJson(path.join(packageDir, name))));
+  const composition = values[0];
+  const effective = {
+    rootOrder: composition.rootOrder ?? [],
+    groups: (composition.groups ?? []).map((group) => ({
+      groupId: group.groupId,
+      nodeIds: group.nodeIds ?? group.rootNodeIds ?? []
+    })),
+    componentTree: values[1]?.nodes ?? {},
+    chartSpecs: values[2]?.charts ?? {},
+    componentBindings: values[3]?.bindings ?? {},
+    layouts: values[4],
+    interactions: values[5],
+    responsive: values[6],
+    registry: values[7]?.components ?? {}
+  };
+  return createHash("sha256").update(JSON.stringify(effective), "utf8").digest("hex");
 }
 
 async function validateExecutableBindings(packageDir) {
@@ -618,8 +778,8 @@ function assertSafeId(value, label) {
 
 async function assertLegacyDesignCommandAllowed(projectDir, variantId) {
   const variant = await readJson(path.join(projectDir, "variants", variantId, "variant.json"));
-  if (variant.packageVersion === "4.2.0") {
-    throw new Error("legacy design import/confirm is read-only in V4.2; use design candidate import/confirm");
+  if (variant.packageVersion === "4.2.0" || variant.packageVersion === "4.3.0") {
+    throw new Error("legacy design import/confirm is read-only in V4.3; use design candidate import/confirm");
   }
 }
 
@@ -632,6 +792,10 @@ async function validatePackagePurity(projectDir, variantId, packageDir) {
     )
   );
   const payload = (await Promise.all(textualFiles.map((file) => readFile(file, "utf8")))).join("\n");
+  const stylesheet = await readFile(path.join(packageDir, "styles", "report.css"), "utf8").catch(() => "");
+  if (/<|<\/style|<script/i.test(stylesheet)) {
+    throw new Error("Huashu package contains unsafe stylesheet syntax");
+  }
   if (/https?:\/\/|\bfetch\s*\(|\bimport\s*\(\s*["']https?:/i.test(payload)) {
     throw new Error("Huashu package contains a remote runtime dependency");
   }
@@ -722,6 +886,18 @@ async function hashDirectory(root, { exclude = new Set() } = {}) {
     hash.update("\0");
   }
   return hash.digest("hex");
+}
+
+async function hashFile(filePath) {
+  return createHash("sha256").update(await readFile(filePath)).digest("hex");
+}
+
+export function hashHuashuProvenance({ skill = "huashu-design", huashuRunId, huashuInvokedAt }) {
+  return createHash("sha256").update(JSON.stringify({ skill, huashuRunId, huashuInvokedAt }), "utf8").digest("hex");
+}
+
+function hashProvenance(manifest) {
+  return hashHuashuProvenance(manifest);
 }
 
 async function listFiles(root) {

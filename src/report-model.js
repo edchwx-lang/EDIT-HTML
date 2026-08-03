@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { isVisualizationEligible } from "./chart-data.js";
 
 export const PROJECT_SCHEMA_VERSION = 4;
-export const PACKAGE_VERSION = "4.2.0";
-export const PIPELINE_VERSION = "4.2.0";
+export const PACKAGE_VERSION = "4.3.0";
+export const PIPELINE_VERSION = "4.3.0";
 
 export function buildSourceModel(name, extracted, sha256) {
   const rawUnits = extracted.units ?? plainTextUnits(extracted.text);
@@ -62,7 +62,10 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
       type: "section",
       title: unit?.text || document.name,
       level: unit?.level ?? 1,
-      sourceRefs: unit ? [sourceRef(document, unit)] : [],
+      transformation: "preserve",
+      sourceRefs: unit
+        ? [sourceRef(document, unit)]
+        : (document.units?.[0] ? [sourceRef(document, document.units[0])] : []),
       children: []
     };
     nodes.push(activeSection);
@@ -80,7 +83,8 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
       const section = ensureSection(document);
       const nextUnit = document.units[unitIndex + 1];
       const node = sourceUnitToReportNode(document, unit, variantId, mode, {
-        followingText: nextUnit?.type === "paragraph" ? nextUnit.text : ""
+        followingText: nextUnit?.type === "paragraph" ? nextUnit.text : "",
+        followingUnit: nextUnit?.type === "paragraph" ? nextUnit : null
       });
       section.children.push(node);
     }
@@ -95,6 +99,9 @@ export function scaffoldReportModel(sourceModel, { variantId, mode }) {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     variantId,
     mode,
+    sourcePolicy: "closed",
+    expressionPolicy: "free",
+    editorialStatus: "source-preserving-draft",
     revision: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -210,6 +217,7 @@ function groupRepeatedEntities(nodes, variantId) {
   const group = {
     nodeId: stableId("node", variantId + "\0entity-group\0" + candidates.map((node) => node.nodeId).join("\0")),
     type: "entityGroup",
+    transformation: "merge",
     title: "核心材料分层分析",
     sourceRefs: candidates.flatMap((section) => section.sourceRefs ?? []),
     entities
@@ -329,7 +337,8 @@ function sourceUnitToReportNode(document, unit, variantId, mode, context = {}) {
   const base = {
     nodeId: stableId("node", variantId + "\0" + unit.sourceId),
     type: unit.type,
-    sourceRefs: [sourceRef(document, unit)]
+    sourceRefs: [sourceRef(document, unit)],
+    transformation: "preserve"
   };
   if (unit.type === "table") return { ...base, rows: unit.rows, caption: unit.caption ?? "" };
   if (unit.type === "chart") return { ...base, type: "table", originalType: "chart", rows: unit.rows ?? [], caption: unit.caption ?? "原始图表缓存数据", sourceStatus: unit.sourceStatus ?? "unavailable" };
@@ -338,6 +347,9 @@ function sourceUnitToReportNode(document, unit, variantId, mode, context = {}) {
     if (mode === "data-first" && /(?:统计图|图表|表格|流程图|产业链|关系图|市场规模|市占率|国产化率|市场分布|趋势|增速|测算|chart|table|flow|diagram)/iu.test(description)) {
       return {
         ...base,
+        sourceRefs: context.followingUnit
+          ? [sourceRef(document, unit), sourceRef(document, context.followingUnit)]
+          : base.sourceRefs,
         type: "evidenceWarning",
         originalType: "image",
         assetPath: unit.assetPath,

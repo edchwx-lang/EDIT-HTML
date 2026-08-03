@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { completeTestHuashuDesign, writeTestHuashuCandidate } from "./helpers/huashu.js";
 import { confirmEditorReview } from "../src/editor-review.js";
+import { prepareHuashuInput } from "../src/design-package.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "edit-html-report.js");
@@ -39,23 +40,14 @@ test("CLI create emits JSON and creates an inspectable project", async (t) => {
   );
 });
 
-test("CLI lists localized mode choices and applies each mode default theme", async (t) => {
+test("CLI removes public mode selection and creates strategy-derived variants", async (t) => {
   const listed = spawnSync(
     process.execPath,
     [cli, "mode", "list", "--locale", "zh-CN"],
     { cwd: root, encoding: "utf8" }
   );
-  assert.equal(listed.status, 0, listed.stderr);
-  const modes = JSON.parse(listed.stdout);
-  assert.deepEqual(
-    modes.map(({ mode, label }) => ({ mode, label })),
-    [
-      { mode: "data-first", label: "数据优先" },
-      { mode: "evidence-first", label: "证据优先" }
-    ]
-  );
-  assert.match(modes[0].description, /高密度/);
-  assert.match(modes[1].description, /原文图表/);
+  assert.notEqual(listed.status, 0);
+  assert.match(listed.stderr, /legacy read-only/);
 
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-cli-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
@@ -68,11 +60,12 @@ test("CLI lists localized mode choices and applies each mode default theme", asy
   });
   const created = spawnSync(
     process.execPath,
-    [cli, "variant", "create", projectDir, "--mode", "data-first"],
+    [cli, "variant", "create", projectDir],
     { cwd: root, encoding: "utf8" }
   );
   assert.equal(created.status, 0, created.stderr);
-  assert.equal(JSON.parse(created.stdout).themeId, "deep-data-blue");
+  assert.equal(JSON.parse(created.stdout).themeId, "precision-blueprint");
+  assert.equal(JSON.parse(created.stdout).modeSelection, "strategy-derived");
 });
 
 test("CLI exposes variant create, variant list, and finalize as one workflow", async (t) => {
@@ -96,8 +89,6 @@ test("CLI exposes variant create, variant list, and finalize as one workflow", a
       "variant",
       "create",
       projectDir,
-      "--mode",
-      "evidence-first",
       "--theme",
       "editorial-light"
     ],
@@ -117,7 +108,7 @@ test("CLI exposes variant create, variant list, and finalize as one workflow", a
 
   await writeFile(
     path.join(projectDir, "variants", variant.variantId, "artifact.html"),
-    '<!doctype html><body data-report-mode="evidence-first"><p data-edit-id="revenue" data-source-ref="brief.txt">42 million</p></body>',
+    '<!doctype html><body data-report-mode="data-first"><p data-edit-id="revenue" data-source-ref="brief.txt">42 million</p></body>',
     "utf8"
   );
   await confirmEditorReview(projectDir, variant.variantId, { sessionId: "test-cli-editor" });
@@ -213,10 +204,15 @@ test("CLI imports, lists, confirms, and reports executable design candidates", a
   await writeFile(source, "Revenue reached 42 million.", "utf8");
   spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], { cwd: root, encoding: "utf8" });
   const created = spawnSync(process.execPath, [
-    cli, "variant", "create", projectDir, "--mode", "data-first"
+    cli, "variant", "create", projectDir
   ], { cwd: root, encoding: "utf8" });
   assert.equal(created.status, 0, created.stderr);
   const variant = JSON.parse(created.stdout);
+  const reportPath = path.join(projectDir, "variants", variant.variantId, "report-model.json");
+  const report = JSON.parse(await readFile(reportPath, "utf8"));
+  report.editorialStatus = "confirmed";
+  await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+  await prepareHuashuInput(projectDir, variant.variantId, { references: ["test://reference"] });
   await writeTestHuashuCandidate(projectDir, variant.variantId, candidateDir);
 
   const imported = spawnSync(process.execPath, [
@@ -261,8 +257,6 @@ test("CLI open is a background alias for editor open and the session remains reu
       "variant",
       "create",
       projectDir,
-      "--mode",
-      "evidence-first",
       "--theme",
       "editorial-light"
     ],
@@ -312,7 +306,7 @@ test("CLI render and validate compile a V4 variant", async (t) => {
   const projectDir = path.join(sandbox, "report");
   await writeFile(source, "Evidence 42.", "utf8");
   spawnSync(process.execPath, [cli, "create", source, "--out", projectDir], { cwd: root, encoding: "utf8" });
-  const variant = JSON.parse(spawnSync(process.execPath, [cli, "variant", "create", projectDir, "--mode", "evidence-first"], { cwd: root, encoding: "utf8" }).stdout);
+  const variant = JSON.parse(spawnSync(process.execPath, [cli, "variant", "create", projectDir], { cwd: root, encoding: "utf8" }).stdout);
 
   const pendingStatus = spawnSync(process.execPath, [cli, "design", "candidate", "status", projectDir, "--variant", variant.variantId], { cwd: root, encoding: "utf8" });
   assert.equal(pendingStatus.status, 0, pendingStatus.stderr);

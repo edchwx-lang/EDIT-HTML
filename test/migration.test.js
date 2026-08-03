@@ -115,11 +115,11 @@ test("V4.1.1 migration upgrades runtime contracts without rewriting saved or pub
   const migrated = await migrateProject(projectDir);
   const nextProject = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   const nextVariant = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "variant.json"), "utf8"));
-  assert.equal(migrated.toPackageVersion, "4.2.0");
-  assert.equal(nextProject.packageVersion, "4.2.0");
-  assert.equal(nextProject.pipelineVersion, "4.2.0");
-  assert.equal(nextVariant.packageVersion, "4.2.0");
-  assert.equal(nextVariant.pipelineVersion, "4.2.0");
+  assert.equal(migrated.toPackageVersion, "4.3.0");
+  assert.equal(nextProject.packageVersion, "4.3.0");
+  assert.equal(nextProject.pipelineVersion, "4.3.0");
+  assert.equal(nextVariant.packageVersion, "4.3.0");
+  assert.equal(nextVariant.pipelineVersion, "4.3.0");
   assert.equal(nextVariant.themeId, "precision-blueprint");
   assert.equal(nextVariant.reviewState.status, "awaiting-editor-review");
   assert.equal(nextProject.versions[0].themeId, "research-cobalt");

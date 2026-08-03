@@ -19,13 +19,13 @@ import {
 } from "../src/design-package.js";
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
 import { migrateProject } from "../src/migrate.js";
-import { listModeProfiles } from "../src/modes/index.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
 import { publishLocal, publishProvider } from "../src/publish.js";
 import { renderVariant } from "../src/renderer.js";
 import { validateVariant } from "../src/validate.js";
 import { createVariant, listVariants } from "../src/variants.js";
+import { importEditorialModel } from "../src/editorial-model.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -48,19 +48,26 @@ async function main(argv) {
     return;
   }
   if (command === "mode" && args[0] === "list") {
-    printJson(
-      listModeProfiles({ locale: optionalOption(args, "--locale") ?? "en" })
-    );
-    return;
+    throw new Error("mode selection is legacy read-only in V4.3; choose a complete design strategy instead");
   }
   if (command === "variant" && args[0] === "create") {
     const projectDir = requirePositional(args, 1, "project");
+    if (optionalOption(args, "--mode") !== null) {
+      throw new Error("--mode is legacy read-only in V4.3; choose a complete design strategy instead");
+    }
     printJson(
       await createVariant(projectDir, {
-        mode: requireOption(args, "--mode"),
         themeId: optionalOption(args, "--theme") ?? undefined
       })
     );
+    return;
+  }
+  if (command === "content" && args[0] === "import") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await importEditorialModel(projectDir, requireOption(args, "--variant"), {
+      reportPath: requireOption(args, "--report"),
+      coveragePath: requireOption(args, "--coverage")
+    }));
     return;
   }
   if (command === "variant" && args[0] === "list") {
@@ -236,7 +243,7 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|mode|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|content|mode|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 
@@ -244,8 +251,8 @@ async function migrateIfNeeded(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   if (
     (project.schemaVersion ?? 1) < 4 ||
-    project.packageVersion !== "4.2.0" ||
-    project.pipelineVersion !== "4.2.0"
+    project.packageVersion !== "4.3.0" ||
+    project.pipelineVersion !== "4.3.0"
   ) {
     await migrateProject(projectDir);
   }

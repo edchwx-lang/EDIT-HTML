@@ -10,16 +10,21 @@ import { visualizationForDataset } from "./chart-data.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { markAwaitingEditorReview } from "./editor-review.js";
+import { validateEditorialModel } from "./editorial-model.js";
 
 export async function renderVariant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
-  const [variant, report, coverage, designPackage] = await Promise.all([
+  const [variant, report, coverage, sourceModel, designPackage] = await Promise.all([
     readJson(path.join(variantDir, "variant.json")),
     readJson(path.join(variantDir, "report-model.json")),
     readJson(path.join(projectDir, "coverage-map.json")),
+    readJson(path.join(projectDir, "source-model.json")),
     loadConfirmedHuashuDesignPackage(projectDir, variantId)
   ]);
   validateCoverage(coverage, report);
+  if (report.editorialStatus === "confirmed") {
+    validateEditorialModel(sourceModel, report, coverage, { allowUserOverrides: true });
+  }
   const presentation = compilePresentationPlan(report, designPackage);
   await writeJsonAtomic(path.join(variantDir, "presentation-plan.json"), presentation);
   const assets = await inlineAssets(projectDir, report);
@@ -37,10 +42,13 @@ export function renderReport({ report, presentation, assets = new Map(), designP
   if (presentation.contentMutationAllowed !== false) throw new Error("presentation plan must prohibit content mutation");
   if (presentation.mode !== report.mode) throw new Error("presentation mode must match report mode");
   const bindings = new Map((presentation.bindings ?? []).map((binding) => [binding.nodeId, binding]));
-  const titleNode = report.nodes.find((node) => node.type === "section");
+  const rootById = new Map(report.nodes.map((node) => [node.nodeId, node]));
+  const orderedRoots = (presentation.rootOrder ?? []).map((id) => rootById.get(id)).filter(Boolean);
+  for (const node of report.nodes) if (!orderedRoots.includes(node)) orderedRoots.push(node);
+  const titleNode = orderedRoots.find((node) => node.type === "section");
   const title = titleNode?.title ?? "研究报告";
   const titleIsHeaderOnly = titleNode?.level === 0 && !(titleNode.children?.length);
-  const renderedNodes = titleIsHeaderOnly ? report.nodes.filter((node) => node !== titleNode) : report.nodes;
+  const renderedNodes = titleIsHeaderOnly ? orderedRoots.filter((node) => node !== titleNode) : orderedRoots;
   const navigation = renderedNodes.filter((node) => node.type === "section").map((node, index) =>
     '<a href="#' + escapeAttribute(node.nodeId) + '"><span>' + String(index + 1).padStart(2, "0") + '</span>' + escapeHtml(node.title) + '</a>'
   ).join("");
@@ -51,8 +59,8 @@ export function renderReport({ report, presentation, assets = new Map(), designP
     assets,
     sectionIndex: index
   })).join("");
-  const modeLabel = report.mode === "data-first" ? "数据优先" : "证据优先";
-  const modeNote = report.mode === "data-first" ? "高密度数据 · 分层交互" : "阅读宽度 · 观点与证据链";
+  const strategyLabel = presentation.designDirectionLabel ?? presentation.designDirectionId ?? "report-strategy";
+  const strategyNote = presentation.strategyThesis ?? "材料驱动的信息组织与交互";
   const editableTitle = titleIsHeaderOnly
     ? ' data-edit-id="' + escapeAttribute(titleNode.nodeId) + '"' + sourceAttribute(titleNode)
     : "";
@@ -67,12 +75,12 @@ export function renderReport({ report, presentation, assets = new Map(), designP
     '<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%20rx%3D%223%22%2F%3E%3C%2Fsvg%3E">' +
     '<title>' + escapeHtml(title) + '</title><style data-edit-html-report-base>' + baseReportCss() + chartAxisCss() + '</style>' +
     '<style data-design-package="' + escapeAttribute(presentation.designOutputSha256 ?? "legacy") + '">' + packageStyles + '</style></head>' +
-    '<body data-report-mode="' + report.mode + '"><header class="report-header"><div class="report-header-inner">' +
+    '<body data-report-mode="' + escapeAttribute(report.mode) + '"><header class="report-header"><div class="report-header-inner">' +
     '<p class="eyebrow">EDIT HTML REPORT · V4</p><h1' + editableTitle + '>' + escapeHtml(title) + '</h1>' +
-    '<div class="report-meta"><span>模式：' + modeLabel + '</span><span>' + modeNote + '</span></div></div></header>' +
+    '<div class="report-meta"><span>设计策略：' + escapeHtml(strategyLabel) + '</span><span>' + escapeHtml(strategyNote) + '</span></div></div></header>' +
     (navigation ? '<nav class="chapter-nav" aria-label="章节导航"><div>' + navigation + '</div></nav>' : '') +
     '<main class="report-shell">' + body + '</main><div class="chart-tooltip" role="status"></div>' +
-    '<script>' + reportScript() + '</script></body></html>';
+    '<script>' + strategyReportScriptV43() + '</script></body></html>';
 }
 
 function renderNode(node, context) {
@@ -156,8 +164,14 @@ function renderTable(node, context) {
 }
 
 function renderChart(dataset, sourceRefs, binding = null) {
-  const visualization = visualizationForDataset(dataset);
+  const visualization = visualizationForDataset({ ...dataset, ...(binding?.chartSpec ?? {}) });
   if (!visualization) return "";
+  if (visualization.chartType === "line" || visualization.chartType === "area") {
+    return renderTrendChart(dataset, visualization, sourceRefs, binding);
+  }
+  if (visualization.chartType === "scatter") {
+    return renderScatterChart(dataset, visualization, sourceRefs, binding);
+  }
   const rows = visualization.rows;
   const values = rows.map((row) => row.value);
   const max = Math.max(...values, 1);
@@ -186,6 +200,55 @@ function renderChart(dataset, sourceRefs, binding = null) {
     : '';
   return '<figure class="interactive-chart' + chartClass + '"' + chartBindingData + ' data-chart-id="' + escapeAttribute(chartId) + '" data-node-id="' + escapeAttribute(dataset.nodeId) + '" data-chart-unit="' + escapeAttribute(visualization.unit) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>' + escapeHtml(visualization.caption) + '</figcaption><div class="chart-stage"><div class="chart-selection-band"></div>' + marks + '</div>' + axis +
     '<script type="application/json" data-chart-data-for="' + escapeAttribute(chartId) + '">' + escapeScriptJson(JSON.stringify(dataset)) + '</script></figure>';
+}
+
+function renderTrendChart(dataset, visualization, sourceRefs, binding) {
+  const chartId = "chart-" + dataset.datasetId;
+  const source = sourceRefs?.[0] ? sourceRefs[0].documentName + "#" + sourceRefs[0].sourceId : "unknown";
+  const allValues = visualization.groups.flatMap((group) => group.values.map((item) => item.value));
+  const max = Math.max(...allValues, 1);
+  const width = 720;
+  const height = 260;
+  const seriesNames = [...new Set(visualization.groups.flatMap((group) => group.values.map((item) => item.series)))];
+  const polylines = seriesNames.map((name, seriesIndex) => {
+    const points = visualization.groups.map((group, index) => {
+      const value = group.values.find((item) => item.series === name)?.value;
+      if (value === undefined || value === null || !Number.isFinite(Number(value))) return null;
+      const x = visualization.groups.length === 1 ? width / 2 : index / (visualization.groups.length - 1) * width;
+      const y = height - value / max * (height - 24);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).filter(Boolean).join(" ");
+    return '<polyline fill="none" stroke="var(--report-chart-' + ((seriesIndex % 8) + 1) + ')" stroke-width="3" points="' + points + '"></polyline>';
+  }).join("");
+  const groups = visualization.groups.map((group, index) => {
+    const left = visualization.groups.length === 1 ? 50 : index / (visualization.groups.length - 1) * 100;
+    const tooltip = group.values.map((item) => `${item.series}: ${item.value}${item.unit}`).join(" · ");
+    return '<button type="button" class="chart-x-group" style="left:' + left.toFixed(2) + '%" data-group-index="' + index + '" data-chart-label="' + escapeAttribute(group.label) + '" data-chart-value="' + escapeAttribute(tooltip) + '"><span>' + escapeHtml(group.label) + '</span></button>';
+  }).join("");
+  return chartFigureOpen(dataset, visualization, source, binding, chartId, "trend-chart") +
+    '<div class="chart-stage trend-stage"><div class="chart-selection-band"></div><svg viewBox="0 0 ' + width + ' ' + height + '" aria-hidden="true" preserveAspectRatio="none">' + polylines + '</svg>' + groups + '</div>' +
+    embeddedChartData(chartId, dataset) + '</figure>';
+}
+
+function renderScatterChart(dataset, visualization, sourceRefs, binding) {
+  const chartId = "chart-" + dataset.datasetId;
+  const source = sourceRefs?.[0] ? sourceRefs[0].documentName + "#" + sourceRefs[0].sourceId : "unknown";
+  const maxX = Math.max(...visualization.points.map((point) => Number(point.x)), 1);
+  const maxY = Math.max(...visualization.points.map((point) => Number(point.y)), 1);
+  const points = visualization.points.map((point) => '<button type="button" class="chart-point" style="left:' + (Number(point.x) / maxX * 100).toFixed(2) + '%;bottom:' + (Number(point.y) / maxY * 100).toFixed(2) + '%" data-chart-label="' + escapeAttribute(point.label ?? `${point.x}, ${point.y}`) + '" data-chart-value="' + escapeAttribute(`${point.x}, ${point.y}`) + '"></button>').join("");
+  return chartFigureOpen(dataset, visualization, source, binding, chartId, "scatter-chart") + '<div class="chart-stage scatter-stage">' + points + '</div>' + embeddedChartData(chartId, dataset) + '</figure>';
+}
+
+function chartFigureOpen(dataset, visualization, source, binding, chartId, extraClass) {
+  const chartClass = binding?.chartPackageClass ? ' ' + escapeAttribute(binding.chartPackageClass) : '';
+  const chartBindingData = binding?.chartComponentId
+    ? ' data-chart-component-id="' + escapeAttribute(binding.chartComponentId) + '" data-chart-layout-id="' + escapeAttribute(binding.chartLayoutId) + '" data-chart-interaction-ids="' + escapeAttribute((binding.chartInteractionIds ?? []).join(" ")) + '"'
+    : '';
+  return '<figure class="interactive-chart ' + extraClass + chartClass + '"' + chartBindingData + ' data-chart-id="' + escapeAttribute(chartId) + '" data-node-id="' + escapeAttribute(dataset.nodeId) + '" data-source-ref="' + escapeAttribute(source) + '"><figcaption>' + escapeHtml(visualization.caption) + '</figcaption>';
+}
+
+function embeddedChartData(chartId, dataset) {
+  return '<script type="application/json" data-chart-data-for="' + escapeAttribute(chartId) + '">' + escapeScriptJson(JSON.stringify(dataset)) + '</script>';
 }
 
 function renderImage(node, assets, context = {}) {
@@ -237,11 +300,19 @@ function baseReportCss() {
 }
 
 function chartAxisCss() {
-  return '.narrative-chart-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:24px;align-items:start;grid-column:span 12}.chart-axis{display:flex;justify-content:space-between;margin:8px 54px 0 90px;padding-top:5px;border-top:1px solid var(--report-chart-grid);color:var(--report-chart-axis);font-size:10px;font-variant-numeric:tabular-nums}@media(max-width:800px){.narrative-chart-pair{grid-template-columns:1fr}}';
+  return '.narrative-chart-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:24px;align-items:start;grid-column:span 12}.chart-axis{display:flex;justify-content:space-between;margin:8px 54px 0 90px;padding-top:5px;border-top:1px solid var(--report-chart-grid);color:var(--report-chart-axis);font-size:10px;font-variant-numeric:tabular-nums}.chart-selection-band{width:2px!important;opacity:0}.chart-row[data-active=true] .chart-mark{outline:2px solid var(--report-focus);outline-offset:2px}.trend-stage{height:300px;margin:16px 24px 28px}.trend-stage svg{display:block;width:100%;height:260px;overflow:visible}.chart-x-group{position:absolute;bottom:-28px;transform:translateX(-50%);border:0;background:transparent}.scatter-stage{height:280px;margin:20px}.chart-point{position:absolute;width:14px;height:14px;border:2px solid var(--report-surface);border-radius:50%;background:var(--report-accent);transform:translate(-50%,50%)}@media(max-width:800px){.narrative-chart-pair{grid-template-columns:1fr}}';
 }
 
 function reportScript() {
   return `(()=>{const tooltip=document.querySelector('.chart-tooltip');document.querySelectorAll('.chart-row').forEach(row=>{const show=e=>{tooltip.textContent=row.dataset.chartLabel+'：'+row.dataset.chartValue;tooltip.style.display='block';tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY+14)+'px';const stage=row.closest('.chart-stage');const band=stage.querySelector('.chart-selection-band');band.style.width=Math.max(0,e.clientX-stage.getBoundingClientRect().left)+'px'};row.addEventListener('pointermove',show);row.addEventListener('focus',()=>show({clientX:row.getBoundingClientRect().right,clientY:row.getBoundingClientRect().top}));row.addEventListener('pointerleave',()=>{tooltip.style.display='none';row.closest('.chart-stage').querySelector('.chart-selection-band').style.width='0'});row.addEventListener('blur',()=>{tooltip.style.display='none'})});document.querySelectorAll('.master-detail').forEach(root=>{root.querySelectorAll('[data-entity-id]').forEach(button=>button.addEventListener('click',()=>{root.querySelectorAll('[data-entity-id]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));root.querySelectorAll('[data-entity-panel]').forEach(panel=>panel.hidden=panel.dataset.entityPanel!==button.dataset.entityId)}));root.querySelectorAll('.entity-panel').forEach(panel=>panel.querySelectorAll('[data-dimension]').forEach(button=>button.addEventListener('click',()=>{panel.querySelectorAll('[data-dimension]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));panel.querySelectorAll('[data-dimension-panel]').forEach(item=>item.hidden=item.dataset.dimensionPanel!==button.dataset.dimension)})))})})();`;
+}
+
+function strategyReportScript() {
+  return `(()=>{const tooltip=document.querySelector('.chart-tooltip');const show=(target,e)=>{tooltip.textContent=target.dataset.chartLabel+'：'+target.dataset.chartValue;tooltip.style.display='block';tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY+14)+'px'};document.querySelectorAll('.chart-row').forEach(row=>{const activate=e=>{row.closest('.chart-stage').querySelectorAll('.chart-row').forEach(item=>item.dataset.active=String(item===row));show(row,e)};row.addEventListener('pointermove',activate);row.addEventListener('focus',()=>activate({clientX:row.getBoundingClientRect().right,clientY:row.getBoundingClientRect().top}));row.addEventListener('pointerleave',()=>{tooltip.style.display='none';row.dataset.active='false'});row.addEventListener('blur',()=>{tooltip.style.display='none';row.dataset.active='false'})});document.querySelectorAll('.chart-x-group').forEach(group=>{const activate=e=>{const stage=group.closest('.chart-stage');const band=stage.querySelector('.chart-selection-band');band.style.left=group.style.left;band.style.opacity='1';show(group,e)};group.addEventListener('pointermove',activate);group.addEventListener('focus',()=>activate({clientX:group.getBoundingClientRect().left,clientY:group.getBoundingClientRect().top}));group.addEventListener('pointerleave',()=>{tooltip.style.display='none';group.closest('.chart-stage').querySelector('.chart-selection-band').style.opacity='0'});group.addEventListener('blur',()=>{tooltip.style.display='none'})});document.querySelectorAll('.chart-point').forEach(point=>{point.addEventListener('pointermove',e=>show(point,e));point.addEventListener('pointerleave',()=>tooltip.style.display='none')});document.querySelectorAll('.master-detail').forEach(root=>{root.querySelectorAll('[data-entity-id]').forEach(button=>button.addEventListener('click',()=>{root.querySelectorAll('[data-entity-id]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));root.querySelectorAll('[data-entity-panel]').forEach(panel=>panel.hidden=panel.dataset.entityPanel!==button.dataset.entityId)}));root.querySelectorAll('.entity-panel').forEach(panel=>panel.querySelectorAll('[data-dimension]').forEach(button=>button.addEventListener('click',()=>{panel.querySelectorAll('[data-dimension]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));panel.querySelectorAll('[data-dimension-panel]').forEach(item=>item.hidden=item.dataset.dimensionPanel!==button.dataset.dimension)})))})})();`;
+}
+
+function strategyReportScriptV43() {
+  return `(()=>{const tooltip=document.querySelector('.chart-tooltip');const show=(target,e)=>{tooltip.textContent=target.dataset.chartLabel+'：'+target.dataset.chartValue;tooltip.style.display='block';tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY+14)+'px'};const nearest=(items,e)=>items.reduce((best,item)=>{const r=item.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),d=dx*dx+dy*dy;return !best||d<best.d?{item,d}:best},null)?.item;document.querySelectorAll('.chart-row').forEach(row=>{const activate=e=>{row.closest('.chart-stage').querySelectorAll('.chart-row').forEach(item=>item.dataset.active=String(item===row));show(row,e)};row.addEventListener('pointermove',activate);row.addEventListener('focus',()=>activate({clientX:row.getBoundingClientRect().right,clientY:row.getBoundingClientRect().top}));row.addEventListener('pointerleave',()=>{tooltip.style.display='none';row.dataset.active='false'});row.addEventListener('blur',()=>{tooltip.style.display='none';row.dataset.active='false'})});document.querySelectorAll('.trend-stage').forEach(stage=>{const groups=[...stage.querySelectorAll('.chart-x-group')],band=stage.querySelector('.chart-selection-band');const activate=e=>{const rect=stage.getBoundingClientRect(),ratio=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),index=Math.round(ratio*Math.max(0,groups.length-1)),group=groups[index];if(!group)return;band.style.left=group.style.left;band.style.opacity='1';show(group,e)};stage.addEventListener('pointermove',activate);stage.addEventListener('pointerleave',()=>{tooltip.style.display='none';band.style.opacity='0'});groups.forEach(group=>group.addEventListener('focus',()=>activate({clientX:group.getBoundingClientRect().left,clientY:group.getBoundingClientRect().top}))) });document.querySelectorAll('.scatter-stage').forEach(stage=>{const points=[...stage.querySelectorAll('.chart-point')];stage.addEventListener('pointermove',e=>{const point=nearest(points,e);if(point)show(point,e)});stage.addEventListener('pointerleave',()=>tooltip.style.display='none')});document.querySelectorAll('.master-detail').forEach(root=>{root.querySelectorAll('[data-entity-id]').forEach(button=>button.addEventListener('click',()=>{root.querySelectorAll('[data-entity-id]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));root.querySelectorAll('[data-entity-panel]').forEach(panel=>panel.hidden=panel.dataset.entityPanel!==button.dataset.entityId)}));root.querySelectorAll('.entity-panel').forEach(panel=>panel.querySelectorAll('[data-dimension]').forEach(button=>button.addEventListener('click',()=>{panel.querySelectorAll('[data-dimension]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));panel.querySelectorAll('[data-dimension-panel]').forEach(item=>item.hidden=item.dataset.dimensionPanel!==button.dataset.dimension)})))})})();`;
 }
 
 function formatAxisValue(value) { return Number.isInteger(value) ? String(value) : value.toFixed(1); }
@@ -251,7 +322,8 @@ function bindingData(context = {}) {
   if (!binding?.componentId) return "";
   return ' data-component-id="' + escapeAttribute(binding.componentId) + '"' +
     ' data-layout-id="' + escapeAttribute(binding.layoutId) + '"' +
-    ' data-interaction-ids="' + escapeAttribute((binding.interactionIds ?? []).join(" ")) + '"';
+    ' data-interaction-ids="' + escapeAttribute((binding.interactionIds ?? []).join(" ")) + '"' +
+    (binding.compositionGroupId ? ' data-composition-group="' + escapeAttribute(binding.compositionGroupId) + '"' : '');
 }
 function assertCompleteMetric(node) {
   const metric = node.metric;

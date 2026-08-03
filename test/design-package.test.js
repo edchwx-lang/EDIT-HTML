@@ -81,16 +81,16 @@ test("new variants prepare real Huashu input and do not silently render", async 
   );
 });
 
-test("V4.2 rejects the legacy weak-package import and confirmation path", async () => {
+test("V4.3 rejects the legacy weak-package import and confirmation path", async () => {
   const { root, project, variant } = await fixture();
   const packageDir = await writePackage(project, variant.variantId, root);
   await assert.rejects(
     () => importHuashuDesignPackage(project, variant.variantId, packageDir),
-    /read-only in V4\.2/
+    /read-only in V4\.3/
   );
   await assert.rejects(
     () => confirmHuashuDesign(project, variant.variantId, { confirmedBy: "user" }),
-    /read-only in V4\.2/
+    /read-only in V4\.3/
   );
 });
 
@@ -100,6 +100,6 @@ test("tampered Huashu packages and hard-coded design content are rejected", asyn
   await writeFile(path.join(packageDir, "runtime.js"), "fetch('https://example.com/runtime.js')", "utf8");
   await assert.rejects(
     () => importHuashuDesignPackage(project, variant.variantId, packageDir),
-    /read-only in V4\.2/
+    /read-only in V4\.3/
   );
 });

@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { createProject } from "../src/project.js";
 import { renderVariant } from "../src/renderer.js";
+import { renderReport } from "../src/renderer.js";
 import { createVariant } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
 
@@ -123,11 +124,13 @@ test("renderer supports material master-detail navigation without dropping dimen
   const variant = await createVariant(projectDir, { mode: "data-first" });
   await completeTestHuashuDesign(projectDir, variant.variantId, { render: false });
   const variantDir = path.join(projectDir, "variants", variant.variantId);
-  const sourceRef = { sourceId: "src-material", documentName: "brief.txt", order: 0 };
+  const sourceModel = JSON.parse(await readFile(path.join(projectDir, "source-model.json"), "utf8"));
+  const sourceRef = { sourceId: sourceModel.documents[0].units[0].sourceId, documentName: "brief.txt", order: 0 };
   const report = {
     schemaVersion: 4, variantId: variant.variantId, mode: "data-first", revision: 0,
+    sourcePolicy: "closed", expressionPolicy: "free", editorialStatus: "confirmed",
     nodes: [{
-      nodeId: "materials", type: "entityGroup", title: "核心材料", sourceRefs: [sourceRef],
+      nodeId: "materials", type: "entityGroup", title: "核心材料", transformation: "merge", sourceRefs: [sourceRef],
       entities: ["PCB", "HBM", "MLCC", "液冷"].map((title, index) => ({
         entityId: "material-" + index, title,
         dimensions: ["全球市场", "国内情况", "深圳情况", "技术难点"].map((label, dimensionIndex) => ({
@@ -136,13 +139,15 @@ test("renderer supports material master-detail navigation without dropping dimen
           sourceRefs: [sourceRef],
           ...(index === 0 && dimensionIndex === 0 ? {
             nodes: [
-              { nodeId: "nested-text", type: "paragraph", text: title + label, sourceRefs: [sourceRef] },
-              { nodeId: "nested-image", type: "image", assetPath: "source-assets/nested.png", sourceRefs: [sourceRef] }
+              { nodeId: "nested-text", type: "paragraph", text: title + label, transformation: "preserve", sourceRefs: [sourceRef] },
+              { nodeId: "nested-image", type: "image", assetPath: "source-assets/nested.png", transformation: "preserve", sourceRefs: [sourceRef] }
             ]
           } : {})
         }))
       }))
-    }], datasets: [], overrides: []
+    }], datasets: [], overrides: [{
+      nodeId: "nested-text", field: "text", changedAt: new Date().toISOString(), provenance: "user-override"
+    }]
   };
   await writeFile(path.join(variantDir, "report-model.json"), JSON.stringify(report), "utf8");
   await writeFile(path.join(variantDir, "presentation-plan.json"), JSON.stringify({
@@ -189,7 +194,7 @@ test("evidence-first renderer exposes claim, evidence, qualification, and source
   assert.match(html, /data-report-mode="evidence-first"/);
   assert.match(html, /class="evidence-chain [^"]+"/);
   assert.match(html, /class="source-citation"/);
-  assert.match(html, /阅读宽度/);
+  assert.match(html, /设计策略/);
 });
 
 test("data-first charts add non-color encodings after the eighth series", async (t) => {
@@ -207,4 +212,30 @@ test("data-first charts add non-color encodings after the eighth series", async 
   assert.match(html, /data-series-symbol="(?:diamond|square|circle|triangle)"/);
   assert.match(html, /repeating-linear-gradient/);
   assert.match(html, /border-style:dashed/);
+});
+
+test("semantic line charts expose nearest-x groups and a narrow crosshair instead of cumulative fill", () => {
+  const sourceRef = { sourceId: "src-trend", documentName: "brief.md" };
+  const report = {
+    schemaVersion: 4, variantId: "v", mode: "data-first", revision: 0,
+    nodes: [{ nodeId: "trend", type: "paragraph", text: "出货量趋势", displayIntent: "chart-support", sourceRefs: [sourceRef] }],
+    datasets: [{ datasetId: "trend", nodeId: "trend", kind: "semantic", relation: "trend", chartType: "line", x: ["2023", "2024"], series: [{ name: "出货量", unit: "万台", values: [118, 155] }] }],
+    facts: [], overrides: []
+  };
+  const presentation = {
+    schemaVersion: 4, variantId: "v", mode: "data-first", contentMutationAllowed: false,
+    designDirectionId: "trend-strategy", designDirectionLabel: "趋势坐标", strategyThesis: "按时间定位数据组",
+    designOutputSha256: "a".repeat(64), previewThemeId: "precision-blueprint",
+    bindings: [{ nodeId: "trend", componentId: "narrative", layoutId: "flow", interactionIds: ["chart-tooltip"], packageClass: "narrative flow", primitive: "narrative", chartComponentId: "chart", chartLayoutId: "flow", chartInteractionIds: ["nearest-x-group"], chartPrimitive: "chart" }]
+  };
+  const html = renderReport({ report, presentation, designPackage: { stylesheet: ".flow{display:block}" } });
+  assert.match(html, /class="chart-x-group"/);
+  assert.match(html, /data-chart-label="2024"/);
+  assert.match(html, /出货量: 155万台/);
+  assert.match(html, /chart-selection-band\{width:2px!important;opacity:0\}/);
+  assert.match(html, /querySelectorAll\('\.trend-stage'\)/);
+  assert.match(html, /ratio=Math\.max\(0,Math\.min\(1,/);
+  assert.match(html, /data-group-index="1"/);
+  assert.doesNotMatch(html, /band\.style\.width=Math\.max/);
+  assert.doesNotMatch(html, /\?\? 0/);
 });

@@ -146,6 +146,7 @@ test("grid movement locates nodes nested inside master-detail dimensions", async
   report.nodes = [{
     nodeId: "entity-group",
     type: "entityGroup",
+    transformation: "merge",
     title: "Entities",
     sourceRefs: sectionSourceRefs,
     entities: [{

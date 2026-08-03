@@ -33,7 +33,7 @@ export async function validateVariant(projectDir, variantId) {
 }
 
 function validateDesignApplication({ html, design, presentation }) {
-  if (design.manifest.schemaVersion !== 2) return;
+  if (![2, 3].includes(design.manifest.schemaVersion)) return;
   if (attributeValue(html, "data-design-direction") !== design.manifest.designDirectionId) {
     throw new Error("artifact design direction does not match the confirmed package");
   }

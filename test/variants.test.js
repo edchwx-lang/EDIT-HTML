@@ -33,8 +33,8 @@ test("createVariant preserves each mode as a separate immutable identity", async
     themeId: "ink-teal"
   });
 
-  assert.equal(first.packageVersion, "4.2.0");
-  assert.equal(first.pipelineVersion, "4.2.0");
+  assert.equal(first.packageVersion, "4.3.0");
+  assert.equal(first.pipelineVersion, "4.3.0");
   assert.notEqual(first.variantId, second.variantId);
   assert.deepEqual(
     (await listVariants(projectDir)).map(({ mode, themeId }) => ({ mode, themeId })),

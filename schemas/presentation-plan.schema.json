@@ -13,6 +13,9 @@
     "designInputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "designOutputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "contentMutationAllowed": { "const": false },
+    "rootOrder": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "compositionGroups": { "type": "array" },
+    "chartSpecs": { "type": "object" },
     "bindings": {
       "type": "array",
       "items": {

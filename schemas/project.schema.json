@@ -6,8 +6,8 @@
   "required": ["schemaVersion", "packageVersion", "pipelineVersion", "projectId", "sourceFiles", "variants", "versions", "publications"],
   "properties": {
     "schemaVersion": { "const": 4 },
-    "packageVersion": { "const": "4.2.0" },
-    "pipelineVersion": { "const": "4.2.0" },
+    "packageVersion": { "const": "4.3.0" },
+    "pipelineVersion": { "const": "4.3.0" },
     "projectId": { "type": "string", "minLength": 1 },
     "activeVariantId": { "type": ["string", "null"] },
     "sourceFiles": { "type": "array", "items": { "type": "object", "required": ["name", "sha256"] } },
@@ -21,12 +21,14 @@
       "properties": {
         "designSelection": {
           "type": "object",
-          "required": ["candidateId", "designDirectionId", "previewThemeId", "showcaseSha256", "confirmedAt"],
+          "required": ["candidateId", "designDirectionId", "previewThemeId", "showcaseSha256", "compositionSha256", "componentTreeSha256", "confirmedAt"],
           "properties": {
             "candidateId": { "type": "string", "minLength": 1 },
             "designDirectionId": { "type": "string", "minLength": 1 },
             "previewThemeId": { "type": "string", "minLength": 1 },
             "showcaseSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "compositionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "componentTreeSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             "confirmedAt": { "type": "string", "format": "date-time" }
           },
           "additionalProperties": true

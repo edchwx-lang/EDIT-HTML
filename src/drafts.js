@@ -45,6 +45,11 @@ export async function applyDraftPatch(projectDir, variantId, patch) {
       await renderVariant(projectDir, variantId);
       await writeDraftState(paths, { patches, cursor: patches.length });
     } catch (error) {
+      if (requiresV43Strategy(error)) {
+        await markAwaitingEditorReview(projectDir, variantId, { reason: "strategy-regeneration-required" });
+        await writeDraftState(paths, { patches, cursor: patches.length });
+        return { revision: updated.revision, renderDeferred: true, reason: "strategy-regeneration-required" };
+      }
       await writeJsonAtomic(paths.model, report);
       await writeJsonAtomic(paths.coverage, coverage);
       await renderVariant(projectDir, variantId);
@@ -63,6 +68,10 @@ export async function applyDraftPatch(projectDir, variantId, patch) {
   await markAwaitingEditorReview(projectDir, variantId, { reason: "draft-modified" });
   await writeDraftState(paths, { patches, cursor: patches.length });
   return { ok: true };
+}
+
+function requiresV43Strategy(error) {
+  return /V4\.2 design candidates cannot render in V4\.3|confirmed executable Huashu design candidate is required/.test(error?.message ?? "");
 }
 
 export async function undoDraft(projectDir, variantId) {

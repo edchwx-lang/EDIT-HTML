@@ -3,11 +3,14 @@
   "$id": "https://edit-html-report.local/schemas/v4/report-model.schema.json",
   "title": "Canonical Editable Report Model",
   "type": "object",
-  "required": ["schemaVersion", "variantId", "mode", "revision", "nodes", "facts", "datasets", "overrides"],
+  "required": ["schemaVersion", "variantId", "mode", "sourcePolicy", "expressionPolicy", "editorialStatus", "revision", "nodes", "facts", "datasets", "overrides"],
   "properties": {
     "schemaVersion": { "const": 4 },
     "variantId": { "type": "string" },
     "mode": { "enum": ["data-first", "evidence-first"] },
+    "sourcePolicy": { "const": "closed" },
+    "expressionPolicy": { "const": "free" },
+    "editorialStatus": { "enum": ["source-preserving-draft", "confirmed"] },
     "revision": { "type": "integer", "minimum": 0 },
     "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
     "facts": {
@@ -29,11 +32,13 @@
   "$defs": {
     "node": {
       "type": "object",
-      "required": ["nodeId", "type", "sourceRefs", "factIds", "displayIntent"],
+      "required": ["nodeId", "type", "sourceRefs", "factIds", "displayIntent", "transformation"],
       "properties": {
         "nodeId": { "type": "string" },
         "type": { "type": "string" },
         "displayIntent": { "enum": ["narrative", "metric", "chart-support", "evidence", "warning"] },
+        "role": { "enum": ["finding", "explanation", "evidence", "qualification", "definition", "action"] },
+        "transformation": { "enum": ["preserve", "merge", "split", "summarize", "visualize", "fold", "appendix"] },
         "metric": {
           "type": "object",
           "required": ["label", "value", "unit", "time", "scope", "source"],

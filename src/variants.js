@@ -15,8 +15,9 @@ import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
 import { markAwaitingEditorReview } from "./editor-review.js";
 
 export async function createVariant(projectDir, { mode, themeId, theme }) {
-  const profile = getModeProfile(mode);
-  const selectedTheme = getTheme(themeId ?? theme ?? profile.defaultThemeId);
+  const compatibilityMode = mode ?? "data-first";
+  const profile = getModeProfile(compatibilityMode);
+  const selectedTheme = getTheme(themeId ?? theme ?? (mode ? profile.defaultThemeId : "precision-blueprint"));
 
   const projectPath = path.join(projectDir, "project.json");
   const project = JSON.parse(await readFile(projectPath, "utf8"));
@@ -25,7 +26,8 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
     packageVersion: PACKAGE_VERSION,
     pipelineVersion: PIPELINE_VERSION,
     variantId: randomUUID(),
-    mode,
+    mode: compatibilityMode,
+    modeSelection: "strategy-derived",
     themeId: selectedTheme.themeId,
     themeSchemaVersion: THEME_SCHEMA_VERSION,
     createdAt: new Date().toISOString()
@@ -38,7 +40,7 @@ export async function createVariant(projectDir, { mode, themeId, theme }) {
   );
   const scaffold = scaffoldReportModel(sourceModel, {
     variantId: variant.variantId,
-    mode
+    mode: compatibilityMode
   });
   await writeJsonAtomic(path.join(variantDir, "report-model.json"), scaffold.report);
   await writeJsonAtomic(path.join(projectDir, "coverage-map.json"), {

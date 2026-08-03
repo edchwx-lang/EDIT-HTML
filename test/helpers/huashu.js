@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -5,7 +6,9 @@ import {
   confirmHuashuDesignCandidate,
   hashDesignPackagePayload,
   hashShowcasePayload,
+  hashHuashuProvenance,
   importHuashuDesignCandidate
+  , prepareHuashuInput
 } from "../../src/design-package.js";
 import { renderVariant } from "../../src/renderer.js";
 import { confirmEditorReview } from "../../src/editor-review.js";
@@ -13,6 +16,13 @@ import { confirmEditorReview } from "../../src/editor-review.js";
 export async function completeTestHuashuDesign(projectDir, variantId, { render = true, review = true } = {}) {
   const variantDir = path.join(projectDir, "variants", variantId);
   const variant = JSON.parse(await readFile(path.join(variantDir, "variant.json"), "utf8"));
+  const reportPath = path.join(variantDir, "report-model.json");
+  const report = JSON.parse(await readFile(reportPath, "utf8"));
+  if (report.editorialStatus !== "confirmed") {
+    report.editorialStatus = "confirmed";
+    await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+  }
+  await prepareHuashuInput(projectDir, variantId, { references: ["test://reference"] });
   const candidateId = "test-" + variantId;
   const candidateDir = path.join(variantDir, "design", ".test-candidate-source");
   await writeTestHuashuCandidate(projectDir, variantId, candidateDir, {
@@ -53,6 +63,14 @@ export async function writeTestHuashuCandidate(
   await mkdir(path.join(candidateDir, "styles"), { recursive: true });
   await mkdir(path.join(candidateDir, "showcases"), { recursive: true });
   const files = {
+    "composition-plan.json": {
+      schemaVersion: 1,
+      rootOrder: [],
+      groups: [],
+      informationPriority: ["finding", "evidence", "qualification"]
+    },
+    "component-tree.json": { schemaVersion: 1, nodes: {} },
+    "chart-specs.json": { schemaVersion: 1, charts: {} },
     "tokens.json": { tokenPolicy: "semantic-only" },
     "layout-grammar.json": {
       nodeLayouts: { section: "section-layout", content: "content-layout" },
@@ -143,17 +161,28 @@ export async function writeTestHuashuCandidate(
   }, null, 2), "utf8");
   const showcaseSha256 = await hashShowcasePayload(candidateDir);
   const outputSha256 = await hashDesignPackagePayload(candidateDir);
+  const compositionSha256 = createHash("sha256").update(await readFile(path.join(candidateDir, "composition-plan.json"))).digest("hex");
+  const componentTreeSha256 = createHash("sha256").update(await readFile(path.join(candidateDir, "component-tree.json"))).digest("hex");
+  const huashuInvokedAt = new Date().toISOString();
+  const huashuRunId = "test-huashu-run";
   await writeFile(path.join(candidateDir, "manifest.json"), JSON.stringify({
-    schemaVersion: 2,
-    packageVersion: "4.2.0",
+    schemaVersion: 3,
+    packageVersion: "4.3.0",
     skill: "huashu-design",
     candidateId,
     designDirectionId,
     designDirectionLabel,
+    strategyThesis: "A test-only complete strategy",
+    selectionContext: "reference-clear",
     previewThemeId,
     showcaseSha256,
     inputSha256: input.inputSha256,
     outputSha256,
+    compositionSha256,
+    componentTreeSha256,
+    huashuRunId,
+    huashuInvokedAt,
+    provenanceSha256: hashHuashuProvenance({ huashuRunId, huashuInvokedAt }),
     confirmation: { status: "pending", confirmedAt: null, confirmedBy: null }
   }, null, 2), "utf8");
   return candidateDir;
