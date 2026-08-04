@@ -1,7 +1,7 @@
 {
   "name": "edit-html-report",
-  "version": "4.3.0",
-  "description": "Agent-neutral local CLI for editable, traceable HTML reports",
+  "version": "5.0.0",
+  "description": "Source-closed Huashu website workflow with non-invasive HTML instrumentation",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -12,19 +12,23 @@
   "scripts": {
     "test": "node --test",
     "test:e2e": "playwright test",
-    "check": "node --check bin/edit-html-report.js"
+    "check": "node --check bin/edit-html-report.js",
+    "check:editor-boundary": "node scripts/check-editor-boundary.mjs"
   },
   "files": [
     "bin",
     "src",
     "schemas",
-    "skills"
+    "skills",
+    "scripts",
+    "editor-boundary.lock.json"
   ],
   "license": "MIT",
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",
     "fast-xml-parser": "5.2.5",
     "fflate": "0.8.2",
+    "parse5": "^7.2.1",
     "pdfjs-dist": "4.10.38"
   },
   "devDependencies": {

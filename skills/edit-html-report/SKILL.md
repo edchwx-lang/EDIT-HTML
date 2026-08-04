@@ -1,56 +1,61 @@
 ---
 name: edit-html-report
-description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT reports into source-closed but editorially restructured, Huashu-designed, editable, versioned HTML; comparing complete material-driven design strategies; switching six color-only themes; reviewing in the visible editor; restoring versions; or publishing traceable artifacts.
+description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT into a source-closed, Huashu-designed, editable and versioned offline HTML report; gathering content priorities; comparing executable design samples; auditing provenance; opening the visible editor; restoring versions; or publishing artifacts.
 ---
 
-# Edit HTML Report V4.3
+# Edit HTML Report V5.0
 
-Use three boundaries, in this order:
+V5 has one production boundary:
 
 ```text
-immutable facts
--> source-closed, expression-free editorial content
--> complete Huashu design strategy
--> color-only theme
+Edit HTML extracts facts and assets
+-> Huashu interviews, restructures content, and designs the site
+-> Edit HTML audits and instruments without redesigning
+-> artifact.html
+-> the existing editor/version/publication system
 ```
 
-Do not ask the user to choose `data-first` or `evidence-first`. In V4.3, information priority belongs to the complete design strategy. Legacy mode fields remain derived/read-only for compatibility.
+Huashu owns everything between extracted source material and the finished website. Do not create an editorial report model, component plan, layout grammar, primitive tree, chart plan, or fixed-renderer input before invoking Huashu.
 
 ## Run the workflow
 
-1. Run `edit-html-report doctor`. Create with `edit-html-report create <source> --out <project>`, then create a variant without `--mode`. Dry-run migration before changing a legacy project.
-2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect every extracted unit, warning, table, image, fact, qualification, and source location.
-3. Produce one editorial report model under the following contract:
-   - `sourcePolicy: closed`: report facts and data may come only from the supplied material. External references may influence visual design only.
-   - `expressionPolicy: free`: retitle, summarize, split, merge, regroup, locally reorder, and convert compatible content to lists, tables, metrics, or charts.
-   - Preserve facts, numbers, units, time, scope, qualifications, relationships, provenance, first-level research logic, and relative content weight.
-   - Map every substantive source unit through `coverage-map.json`. A source heading is evidence, not a required display heading.
-4. Validate and import the editorial model with `edit-html-report content import <project> --variant <id> --report <report-model.json> --coverage <coverage-map.json>`. Do not proceed while substantive coverage is pending or editorial validation fails.
-5. Read [references/design-selection.md](references/design-selection.md), [references/huashu-design-package.md](references/huashu-design-package.md), [references/presentation-plan.md](references/presentation-plan.md), and [references/artifact-contract.md](references/artifact-contract.md) completely. Then explicitly invoke `$huashu-design` with every file in `design/huashu-input/`.
-6. Choose the design path from available context:
-   - Clear reference/site/screenshot/design system: create one complete strategy and compile three representative scenes (hero, data/table, master-detail/evidence).
-   - Vague or absent design requirements: create three independent, material-driven complete strategies. They must differ in information priority, content composition, component tree, layout, visualization, interaction, navigation, responsive behavior, or typographic rhythm—not merely CSS.
-   - For the three-strategy comparison, use the light themes by position: `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive`. Color reduces comparison fatigue; it is not the strategy difference.
-7. Import candidates with `design candidate import`, show the compiled desktop/mobile showcases, and wait for selection. Confirm the selected candidate. Confirmation atomically promotes its composition and design payload; never regenerate after selection.
-8. Run `render` and `validate`. The compiler may inject stable edit/source IDs, semantic theme tokens, and safe offline runtime only. It must use the confirmed component tree, composition, chart specs, layouts, and interactions and must never silently redesign or fall back to a fixed template.
-9. For charts, enforce semantic behavior: line/area selects the nearest X group with a narrow crosshair/band; bar selects only the hovered bar; scatter selects the nearest point. Never fill the whole chart stage from the origin to the pointer.
-10. Read [references/editor-publication.md](references/editor-publication.md) completely. From this point onward the V4.2 editor contract is frozen. Open the visible editor with `edit-html-report editor open <project> --variant <id>` and pause. The user may edit or switch among six themes, then must click “确认设计与配色”. Do not use a hidden API or click in place of the user.
-11. Only after visible confirmation may the user save an immutable version and publish it. Theme changes, edits, undo/redo, and rerenders invalidate confirmation.
-12. Report the project path, variant ID, editorial status and coverage, three strategy IDs/showcase hashes when applicable, selected composition/component/package hashes, theme, validation, visible-editor review state, version, publication, and warnings.
+1. Run `edit-html-report doctor`, then `edit-html-report create <source> --out <project>` and `edit-html-report variant create <project>`.
+2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect `source-pack/manifest.json`, `readable-source.md`, `fact-ledger.json`, `source-map.json`, `tables-and-datasets.json`, `asset-contact-sheet.html`, all assets, and `extraction-warnings.json`. Edit HTML may extract and normalize facts; it must not recommend page order, KPIs, charts, components, or layout.
+3. Invoke `$huashu-design` to understand the Source Pack and conduct exactly three content interviews:
+   - `purpose`: the website purpose and target reader;
+   - `contentWeight`: which parts deserve the most attention after Huashu summarizes the material;
+   - `structurePreference`: preferred reading order and interaction experience.
+   Reuse answers already present in the initial request. Otherwise ask each item. If the user says “你决定”, record `user-delegated`; do not substitute a preset.
+4. Save the actual question, original answer, origin, and time in `interview.json`, then run `edit-html-report interview import <project> --variant <id> --from <interview.json>`. Verify with `interview status`. Do not proceed until every item is answered or delegated.
+5. Read [references/design-selection.md](references/design-selection.md), [references/huashu-design-package.md](references/huashu-design-package.md), and [references/artifact-contract.md](references/artifact-contract.md) completely. Run `design prepare`; give every prepared file to `$huashu-design`.
+6. Let Huashu decide content hierarchy, rewritten titles, summary depth, sequence, navigation, DOM, components, charts, tables, interactions, responsiveness, typography, and visual language:
+   - without an initial visual reference, create three executable samples using real content and the three comparison palettes specified in [references/themes.md](references/themes.md);
+   - with an initial website, screenshot, or design-system reference, create one executable sample using the closest existing theme;
+   - each sample must include real HTML/CSS/JS, desktop and mobile screenshots rendered from that HTML, content bindings, and a rationale;
+   - three samples must represent genuinely different narratives and interaction architectures, not restyling of one DOM.
+7. Import each sample with `design candidate import`, list them, show both screenshots to the user, and wait for a choice. Run `design candidate confirm` only for the selected candidate.
+8. Ask Huashu to expand the selected candidate itself into the complete website. The final site must preserve the candidate lineage, use only Source Pack facts, retain omitted detail in accessible detail/appendix views unless the user explicitly authorizes deletion, and use existing semantic theme variables for visible colors.
+9. Import the complete site with `design final import`. A failed fact or safety audit is a diagnostic for Huashu: return the original site to Huashu for correction. The audit must not modify wording, DOM, CSS, charts, or interactions.
+10. Run `render`. In V5 this invokes the Instrumenter, which only inlines local resources, injects stable edit/source attributes, adds existing theme/editor compatibility metadata, and emits `artifact.html`. It must not regenerate content or design. Run `validate` afterward.
+11. Read [references/editor-publication.md](references/editor-publication.md) completely. Open the visible editor with `edit-html-report editor open <project> --variant <id>` and pause. The user must inspect the result and click “确认设计与配色”. Never confirm through a hidden API or on the user's behalf.
+12. Only after visible confirmation may the user save an immutable version or publish. Edits, theme changes, undo/redo, and a new render invalidate confirmation.
 
 ## Hard boundaries
 
-- Facts are immutable before `artifact.html`; expression is not. Verbatim copying is not a fidelity requirement.
-- A numeric paragraph is narrative unless the editorial model explicitly supplies a complete metric contract.
-- Charts consume explicit compatible datasets. Never scrape numbers from prose.
-- Huashu owns information priority and executable design. The compiler owns protocol safety, provenance, stable IDs, and offline execution.
-- A theme changes semantic colors only; it never changes content, DOM, geometry, typography, chart type/data/order, interaction, or citations.
-- Everything after `artifact.html`—visible edits, undo/redo, theme switching, confirmation, versions, restore, and publishing—keeps the existing contract.
+- Content is source-closed and expression-free: titles, grouping, compression, hierarchy, and explanation may change; facts, values, units, times, scopes, qualifications, and relationships may not.
+- External material may guide visual design only. It cannot add report facts.
+- `content-bindings.json` proves traceability only. It never tells Huashu how to design.
+- Every visible number and substantive claim must bind to Source Pack facts and source locations.
+- Main narrative may be highly compressed. Unselected substantive material remains reachable in detail or appendix unless the user explicitly authorizes omission.
+- Huashu owns the actual DOM, CSS, local JavaScript, chart behavior, and interaction semantics. Edit HTML has no production Renderer in V5.
+- Audit failures stop output and return diagnostics; audit must not modify the site.
+- Instrumenter may add attributes and inline resources, but must preserve Huashu's DOM hierarchy, classes, geometry, typography, charts, and interactions.
+- Everything after `artifact.html`—editing, undo/redo, themes, confirmation, versions, restore, and publishing—retains the existing behavior.
 
 ## Supporting references
 
 - Theme system: [references/themes.md](references/themes.md)
-- Migration: [references/migration.md](references/migration.md)
+- V4.x compatibility: [references/migration.md](references/migration.md)
 - Editor/version/publication: [references/editor-publication.md](references/editor-publication.md)
 
-Do not skip editorial validation, real Huashu invocation, compiled showcases, user strategy selection, atomic hash promotion, visible editor review, or human confirmation.
+Report the project path, variant ID, Source Pack warnings, interview status/hash, candidate IDs and hashes, selected parent hash, final-site hash, audit result, artifact validation, current theme, editor review state, saved version, publication, and unresolved warnings.

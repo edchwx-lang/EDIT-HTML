@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-interview.schema.json",
+  "title": "Huashu Content Interview",
+  "type": "object",
+  "required": ["schemaVersion", "variantId", "answers", "references"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "variantId": { "type": "string", "minLength": 1 },
+    "answers": {
+      "type": "object",
+      "required": ["purpose", "contentWeight", "structurePreference"],
+      "properties": {
+        "purpose": { "$ref": "#/$defs/answer" },
+        "contentWeight": { "$ref": "#/$defs/answer" },
+        "structurePreference": { "$ref": "#/$defs/answer" }
+      },
+      "additionalProperties": false
+    },
+    "references": { "type": "array", "items": { "type": "object" } },
+    "status": { "enum": ["confirmed"] },
+    "confirmedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "answer": {
+      "type": "object",
+      "required": ["question", "response", "origin", "recordedAt"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "response": { "type": "string", "minLength": 1 },
+        "origin": { "enum": ["user-provided", "user-delegated"] },
+        "recordedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

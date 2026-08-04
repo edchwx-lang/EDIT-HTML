@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, readFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +26,18 @@ import { renderVariant } from "../src/renderer.js";
 import { validateVariant } from "../src/validate.js";
 import { createVariant, listVariants } from "../src/variants.js";
 import { importEditorialModel } from "../src/editorial-model.js";
+import { createV5Project, createV5Variant } from "../src/v5-project.js";
+import { getV5InterviewStatus, importV5Interview, prepareV5HuashuInput } from "../src/v5-interview.js";
+import {
+  confirmV5DesignCandidate,
+  getV5FinalStatus,
+  hashV5SitePayload,
+  importV5DesignCandidate,
+  importV5FinalSite,
+  listV5DesignCandidates
+} from "../src/v5-design.js";
+import { instrumentV5Variant } from "../src/v5-instrumenter.js";
+import { validateV5Variant } from "../src/v5-validate.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -37,7 +49,7 @@ async function main(argv) {
   if (command === "create") {
     const source = requirePositional(args, 0, "source");
     const projectDir = requireOption(args, "--out");
-    printJson(await createProject(source, projectDir));
+    printJson(await createV5Project(source, projectDir));
     return;
   }
   if (command === "inspect") {
@@ -48,22 +60,31 @@ async function main(argv) {
     return;
   }
   if (command === "mode" && args[0] === "list") {
-    throw new Error("mode selection is legacy read-only in V4.3; choose a complete design strategy instead");
+    throw new Error("mode selection was removed in V5; Huashu determines content priority through the interview");
   }
   if (command === "variant" && args[0] === "create") {
     const projectDir = requirePositional(args, 1, "project");
     if (optionalOption(args, "--mode") !== null) {
       throw new Error("--mode is legacy read-only in V4.3; choose a complete design strategy instead");
     }
-    printJson(
-      await createVariant(projectDir, {
-        themeId: optionalOption(args, "--theme") ?? undefined
-      })
-    );
+    printJson((await isV5Project(projectDir))
+      ? await createV5Variant(projectDir, { themeId: optionalOption(args, "--theme") ?? undefined })
+      : await createVariant(projectDir, { themeId: optionalOption(args, "--theme") ?? undefined }));
+    return;
+  }
+  if (command === "interview" && args[0] === "import") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await importV5Interview(projectDir, requireOption(args, "--variant"), requireOption(args, "--from")));
+    return;
+  }
+  if (command === "interview" && args[0] === "status") {
+    const projectDir = requirePositional(args, 1, "project");
+    printJson(await getV5InterviewStatus(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "content" && args[0] === "import") {
     const projectDir = requirePositional(args, 1, "project");
+    if (await isV5Project(projectDir)) throw new Error("content import was removed in V5; Huashu owns content strategy after the interview");
     printJson(await importEditorialModel(projectDir, requireOption(args, "--variant"), {
       reportPath: requireOption(args, "--report"),
       coveragePath: requireOption(args, "--coverage")
@@ -86,45 +107,59 @@ async function main(argv) {
   }
   if (command === "design" && args[0] === "prepare") {
     const projectDir = requirePositional(args, 1, "project");
-    printJson(await prepareHuashuInput(projectDir, requireOption(args, "--variant")));
+    printJson((await isV5Project(projectDir))
+      ? await prepareV5HuashuInput(projectDir, requireOption(args, "--variant"))
+      : await prepareHuashuInput(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "design" && args[0] === "hash") {
     const packageDir = requirePositional(args, 1, "design-package");
-    printJson({ packageDir, outputSha256: await hashDesignPackagePayload(packageDir) });
+    const manifest = JSON.parse(await readFile(path.join(packageDir, "manifest.json"), "utf8"));
+    printJson({ packageDir, outputSha256: manifest.packageVersion === "5.0.0" ? await hashV5SitePayload(packageDir) : await hashDesignPackagePayload(packageDir) });
     return;
   }
   if (command === "design" && args[0] === "candidate" && args[1] === "import") {
     const projectDir = requirePositional(args, 2, "project");
-    printJson(await importHuashuDesignCandidate(
-      projectDir,
-      requireOption(args, "--variant"),
-      requireOption(args, "--from")
-    ));
+    printJson((await isV5Project(projectDir))
+      ? await importV5DesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--from"))
+      : await importHuashuDesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--from")));
     return;
   }
   if (command === "design" && args[0] === "candidate" && args[1] === "list") {
     const projectDir = requirePositional(args, 2, "project");
-    printJson(await listHuashuDesignCandidates(projectDir, requireOption(args, "--variant")));
+    printJson((await isV5Project(projectDir))
+      ? await listV5DesignCandidates(projectDir, requireOption(args, "--variant"))
+      : await listHuashuDesignCandidates(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "design" && args[0] === "candidate" && args[1] === "confirm") {
     const projectDir = requirePositional(args, 2, "project");
-    printJson(await confirmHuashuDesignCandidate(
-      projectDir,
-      requireOption(args, "--variant"),
-      requireOption(args, "--candidate"),
-      { confirmedBy: optionalOption(args, "--by") ?? "user" }
-    ));
+    printJson((await isV5Project(projectDir))
+      ? await confirmV5DesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--candidate"))
+      : await confirmHuashuDesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--candidate"), { confirmedBy: optionalOption(args, "--by") ?? "user" }));
     return;
   }
   if (command === "design" && args[0] === "candidate" && args[1] === "status") {
     const projectDir = requirePositional(args, 2, "project");
-    printJson(await getHuashuDesignCandidateStatus(projectDir, requireOption(args, "--variant")));
+    printJson((await isV5Project(projectDir))
+      ? { candidates: await listV5DesignCandidates(projectDir, requireOption(args, "--variant")) }
+      : await getHuashuDesignCandidateStatus(projectDir, requireOption(args, "--variant")));
+    return;
+  }
+  if (command === "design" && args[0] === "final" && args[1] === "import") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("design final import is available only for V5 projects");
+    printJson(await importV5FinalSite(projectDir, requireOption(args, "--variant"), requireOption(args, "--from")));
+    return;
+  }
+  if (command === "design" && args[0] === "final" && args[1] === "status") {
+    const projectDir = requirePositional(args, 2, "project");
+    printJson(await getV5FinalStatus(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "design" && args[0] === "import") {
     const projectDir = requirePositional(args, 1, "project");
+    if (await isV5Project(projectDir)) throw new Error("legacy design command is unavailable for V5 projects; use design candidate import and design final import");
     printJson(await importHuashuDesignPackage(
       projectDir,
       requireOption(args, "--variant"),
@@ -134,6 +169,7 @@ async function main(argv) {
   }
   if (command === "design" && args[0] === "confirm") {
     const projectDir = requirePositional(args, 1, "project");
+    if (await isV5Project(projectDir)) throw new Error("legacy design command is unavailable for V5 projects; use design candidate confirm");
     printJson(await confirmHuashuDesign(projectDir, requireOption(args, "--variant"), {
       confirmedBy: optionalOption(args, "--by") ?? "user"
     }));
@@ -141,6 +177,7 @@ async function main(argv) {
   }
   if (command === "design" && args[0] === "status") {
     const projectDir = requirePositional(args, 1, "project");
+    if (await isV5Project(projectDir)) throw new Error("legacy design command is unavailable for V5 projects; use design candidate status or design final status");
     printJson(await getHuashuDesignStatus(projectDir, requireOption(args, "--variant")));
     return;
   }
@@ -152,12 +189,18 @@ async function main(argv) {
   if (command === "render") {
     const projectDir = requirePositional(args, 0, "project");
     const variantId = requireOption(args, "--variant");
-    printJson({ variantId, artifactPath: await renderVariant(projectDir, variantId) });
+    if (await isV5Project(projectDir)) {
+      printJson({ variantId, artifactPath: await instrumentV5Variant(projectDir, variantId) });
+    } else {
+      throw new Error("V4.x regeneration is disabled in V5; create a V5 project from the original source. Existing artifacts remain editable and publishable.");
+    }
     return;
   }
   if (command === "validate") {
     const projectDir = requirePositional(args, 0, "project");
-    printJson(await validateVariant(projectDir, requireOption(args, "--variant")));
+    printJson((await isV5Project(projectDir))
+      ? await validateV5Variant(projectDir, requireOption(args, "--variant"))
+      : await validateVariant(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "install") {
@@ -172,7 +215,11 @@ async function main(argv) {
       [codexRoot, claudeRoot].map(async (root) => {
         await mkdir(root, { recursive: true });
         const destination = path.join(root, "edit-html-report");
-        await cp(source, destination, { recursive: true, force: true });
+        const staging = path.join(root, `.edit-html-report-install-${process.pid}-${Date.now()}`);
+        await rm(staging, { recursive: true, force: true });
+        await cp(source, staging, { recursive: true, force: true });
+        await rm(destination, { recursive: true, force: true });
+        await rename(staging, destination);
         return destination;
       })
     );
@@ -243,12 +290,13 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|content|mode|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|create|inspect|interview|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 
 async function migrateIfNeeded(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
+  if (project.schemaVersion === 5) return;
   if (
     (project.schemaVersion ?? 1) < 4 ||
     project.packageVersion !== "4.3.0" ||
@@ -256,6 +304,11 @@ async function migrateIfNeeded(projectDir) {
   ) {
     await migrateProject(projectDir);
   }
+}
+
+async function isV5Project(projectDir) {
+  const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
+  return project.schemaVersion === 5;
 }
 
 async function exists(filePath) {

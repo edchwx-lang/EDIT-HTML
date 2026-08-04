@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-content-bindings.schema.json",
+  "title": "Huashu Content Provenance Bindings",
+  "type": "object",
+  "required": ["schemaVersion", "bindings", "omissions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["contentId", "factIds", "sourceRefs", "tier", "editableKind"],
+        "properties": {
+          "contentId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
+          "factIds": { "type": "array", "items": { "type": "string" } },
+          "sourceRefs": { "type": "array", "items": { "type": "string" } },
+          "tier": { "enum": ["main", "detail", "appendix"] },
+          "editableKind": { "enum": ["text", "block", "image", "chart"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourceId", "reason", "authorizedBy", "authorizedAt"],
+        "properties": {
+          "sourceId": { "type": "string" },
+          "reason": { "type": "string", "minLength": 1 },
+          "authorizedBy": { "const": "user" },
+          "authorizedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,13 +1,24 @@
-# Deterministic Artifact Contract
+# V5 Audit and Instrumenter Contract
 
-- `artifact.html` keeps legacy `data-report-mode` for compatibility; its `<html>` records strategy, package SHA, and preview theme. It is generated from V4.3 canonical models plus a confirmed complete strategy.
-- Stable report nodes use `data-node-id`; editable text uses `data-edit-id`; movable regions use `data-block-id`; replaceable images use `data-image-id`; charts use `data-chart-id`.
-- Every editable numeric value and chart carries a source reference. Derived values carry a readable formula.
-- Chart data is embedded as `application/json`; visible chart marks use `var(--report-chart-1)` through `var(--report-chart-8)`.
-- Runtime CSS, JavaScript, images, fonts, chart data, and interactions are local/inline. Published HTML contains no editor toolbar, token, credential, analytics, remote runtime import, or network fetch.
-- Responsive layout uses semantic flow, desktop/mobile gutters, keyboard focus, readable Chinese type, and no absolute positioning for report content.
-- Base CSS contains only editor/runtime safety mechanics. Layout, typography, components, tables, and responsive rules come from the hash-bound package stylesheet.
-- Theme compilation changes semantic color tokens and `data-theme` only.
-- Line/area interaction exposes a narrow nearest-X crosshair/band; bars activate only the hovered mark; scatter activates the nearest point.
+## Read-only audit
 
-Validate with `edit-html-report validate <project> --variant <id>` before visible editor review. Validation proves package participation in DOM, CSS, and interaction bindings. Never repair an artifact directly; repair the report model, coverage map, candidate, deterministic compiler, or theme.
+Before artifact creation, the auditor checks candidate lineage, Source Pack hash, interview hash, content binding hash, visible numeric fidelity, units, dates, ranges, qualifications, source references, substantive coverage, registered resources, and offline script safety.
+
+The audit writes diagnostics only. It must not modify copy, add missing qualifications, rebuild DOM, replace CSS, rewrite chart behavior, or inject a fallback component. Any failure returns the original Huashu site and diagnostics to Huashu.
+
+## Instrumenter
+
+After a passing audit, `render` performs protocol adaptation with an HTML AST:
+
+1. inline local CSS, JavaScript, fonts, and images;
+2. map `data-content-id` through `content-bindings.json`;
+3. inject stable `data-edit-id`, `data-block-id`, `data-image-id`, `data-chart-id`, and `data-source-ref` attributes;
+4. inject the six existing semantic theme variables and frozen editor metadata;
+5. write a minimal schema-v4 compatibility `report-model.json` for the existing editor, never for regeneration;
+6. emit a single offline `artifact.html` and enter `awaiting-editor-review`.
+
+V5 does not write `data-node-id`. The existing editor therefore uses its HTML-patch path.
+
+Instrumenter must preserve Huashu's DOM nesting, classes, document order, typography, geometry, SVG/canvas implementation, charts, and interactions. Only resource inlining, protocol attributes, theme declarations, and editor metadata may be added.
+
+Validation compares the recorded pre/post body structure, artifact hash, audit result, unique edit IDs, local-only runtime, and absence of forbidden execution. It does not judge or redesign visual quality.

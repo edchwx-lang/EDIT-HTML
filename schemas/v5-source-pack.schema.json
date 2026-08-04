@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-source-pack.schema.json",
+  "title": "Edit HTML Report V5 Source Pack Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "packageVersion", "sourcePackSha256", "sourceSha256", "files", "contentPolicy", "designDecisions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "packageVersion": { "const": "5.0.0" },
+    "sourcePackSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "files": { "type": "array", "items": { "type": "string" }, "minItems": 6 },
+    "contentPolicy": { "const": "source-closed" },
+    "designDecisions": { "const": false }
+  },
+  "additionalProperties": false
+}

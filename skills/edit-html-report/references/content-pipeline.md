@@ -1,26 +1,30 @@
-# V4.3 Content Pipeline
+# V5 Source Pack and Fact Boundary
 
-## Canonical order
+## Canonical flow
 
-`source -> immutable source-model -> source-closed editorial model + coverage -> Huashu strategy input -> selected complete strategy -> protocol compiler -> artifact -> unchanged visible review/version/publication`
+`source -> Source Pack -> Huashu interview/design -> Huashu final site -> read-only audit -> Instrumenter -> artifact -> existing editor`
 
-`source-model.json` is immutable extraction. `report-model.json` is editorial expression plus internal facts/datasets. `coverage-map.json` proves where every substantive source unit went. `artifact.html` is regenerable and is never parsed back into canonical content.
+`source-pack/` is the only pre-Huashu production output. It contains:
 
-## Source closed, expression free
+```text
+manifest.json
+readable-source.md
+fact-ledger.json
+source-map.json
+tables-and-datasets.json
+asset-contact-sheet.html
+assets/
+extraction-warnings.json
+```
 
-All report facts, numbers, units, conditions, qualifications, relations, and citations must come from the supplied source. External material may guide visual design only.
+The pack preserves original values, units, dates, ranges, qualifications, relationships, table cells, footnotes, images, and source positions. `readable-source.md` is optimized for material comprehension, while the JSON ledgers provide exact traceability.
 
-Editorial production may:
+The extractor may normalize whitespace, identify repeated units, associate a footnote with its paragraph, and expose table datasets. It must not label a fact as a KPI, recommend a chart, rewrite headings for display, rank chapters, choose a page order, or bind content to a component.
 
-- replace source headings with useful display/navigation titles;
-- summarize without changing factual meaning or scope;
-- split a long paragraph into finding, explanation, evidence, and qualification;
-- merge related source units and regroup locally;
-- convert compatible source material into lists, tables, metrics, or charts;
-- fold repeated entities into master-detail interaction.
+External websites, screenshots, and design systems are stored as visual references in the interview/design handoff. They are never merged into the Source Pack fact ledger.
 
-It may not add external claims, change numbers or qualifications, reverse relations, erase provenance, change first-level research logic, or distort relative content weight.
+Extraction warnings are not silently repaired. Huashu must see them, and an unresolved warning that affects factual reliability must remain visible in the later audit.
 
-Every substantive editorial node requires source references and an allowed transformation. Every substantive source unit requires a covered mapping or a reasoned omission. Numeric fidelity is checked before design. User changes made later in the visible editor remain auditable overrides under the existing editor contract.
+## Expression after extraction
 
-A number does not imply KPI. A KPI needs label, value, unit, time, scope, and source. A chart needs an explicit semantic dataset and relation; it never scrapes rendered prose.
+Huashu may summarize, retitle, merge, split, reorder, visualize, and create detail/appendix access. Every substantive statement must still resolve to one or more fact IDs and source references. Exact wording is not required; factual meaning and qualifications are.

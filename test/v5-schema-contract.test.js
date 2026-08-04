@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+test("V5 publishes source, interview, executable site, and content-binding schemas", async () => {
+  const names = ["v5-source-pack", "v5-interview", "v5-site-manifest", "v5-content-bindings"];
+  for (const name of names) {
+    const schema = JSON.parse(await readFile(path.join(root, "schemas", name + ".schema.json"), "utf8"));
+    assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+  }
+  const combined = await Promise.all(names.map((name) => readFile(path.join(root, "schemas", name + ".schema.json"), "utf8"))).then((items) => items.join("\n"));
+  for (const removed of ["displayIntent", "presentation-plan", "componentId", "layoutId", "safePrimitive"]) {
+    assert.doesNotMatch(combined, new RegExp(removed, "i"));
+  }
+});

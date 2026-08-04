@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-site-manifest.schema.json",
+  "title": "Huashu Executable Site Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "packageVersion", "kind", "candidateId", "directionId", "directionLabel", "previewThemeId", "entrypoint", "sourcePackSha256", "interviewSha256", "contentBindingsSha256", "payloadSha256", "outputSha256", "screenshotSourceSha256"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "packageVersion": { "const": "5.0.0" },
+    "kind": { "enum": ["candidate", "final"] },
+    "candidateId": { "$ref": "#/$defs/id" },
+    "directionId": { "$ref": "#/$defs/id" },
+    "directionLabel": { "type": "string", "minLength": 1 },
+    "previewThemeId": { "type": "string", "minLength": 1 },
+    "entrypoint": { "const": "index.html" },
+    "sourcePackSha256": { "$ref": "#/$defs/hash" },
+    "interviewSha256": { "$ref": "#/$defs/hash" },
+    "contentBindingsSha256": { "$ref": "#/$defs/hash" },
+    "payloadSha256": { "$ref": "#/$defs/hash" },
+    "outputSha256": { "$ref": "#/$defs/hash" },
+    "screenshotSourceSha256": { "$ref": "#/$defs/hash" },
+    "parentCandidateId": { "$ref": "#/$defs/id" },
+    "parentCandidateSha256": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": false
+}

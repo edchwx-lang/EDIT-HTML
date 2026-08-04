@@ -1,15 +1,32 @@
-# Complete Design Strategy Selection
+# V5 Huashu Interview and Sample Selection
 
-Information priority, editorial composition, component hierarchy, layout, visualization, navigation, interaction, responsive behavior, and typographic rhythm form one complete design strategy. Theme is a separate color-only layer. `data-first` and `evidence-first` are no longer public choices.
+## Interview before design
 
-If the user supplies a clear reference, create one strategy and show three compiled representative scenes: hero/overview, data/table, and master-detail/evidence.
+Huashu first reads and summarizes the Source Pack, then resolves three decisions with the user:
 
-If design intent is vague or absent, invoke Huashu for three independent, material-driven strategies. All receive the same confirmed editorial model. They must differ in composition or executable component tree, not only stylesheet values. Their comparison themes are fixed by position:
+| Field | Decision |
+|---|---|
+| `purpose` | Website purpose and target reader |
+| `contentWeight` | Material sections that deserve priority |
+| `structurePreference` | Reading sequence and interaction experience |
 
-1. `precision-blueprint`
-2. `warm-paper-terracotta`
-3. `sandstone-archive`
+Each response records the actual question, original answer, timestamp, and origin. Origin is `user-provided` when explicit, or `user-delegated` when the user asks Huashu to decide. Delegation requires a material-driven decision in the interview record; it is not permission to use a fixed template.
 
-The palettes make comparison easier but do not define the strategies. After selection, any of the six themes may be applied without changing strategy structure.
+An answer already supplied in the initial request is recorded without asking again. Design preparation is blocked while any item is unresolved.
 
-Promote the selected composition and design atomically. The showcase and final report must compile from the same hash-bound strategy payload.
+Visual references are separate from content answers. Only references present before the first candidate is generated determine the branch:
+
+- no initial visual reference: three executable samples;
+- initial website, screenshot, or design system: one executable sample.
+
+Adding a reference after generation invalidates the old candidates.
+
+## Three-sample comparison
+
+All samples use real source content. By position they use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` so the comparison is visually comfortable. The choice is about narrative and experience architecture, not palette.
+
+The three samples must differ materially in information hierarchy, content composition, navigation, DOM structure, visualization strategy, and core interaction. Different colors, fonts, radii, or card skins do not establish different candidates.
+
+Screenshots are evidence, not mockups: desktop and mobile images must be captured from each candidate's actual `index.html`.
+
+Confirmation freezes the selected candidate hash and direction. Huashu expands that exact candidate as its parent; another renderer must not reinterpret it.
