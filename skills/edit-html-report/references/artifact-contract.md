@@ -1,8 +1,10 @@
-# V5 Audit and Instrumenter Contract
+# V5.1 Audit and Instrumenter Contract
 
 ## Read-only audit
 
 Before artifact creation, the auditor checks candidate lineage, Source Pack hash, interview hash, content binding hash, visible numeric fidelity, units, dates, ranges, qualifications, source references, substantive coverage, registered resources, and offline script safety.
+
+Coverage validation distinguishes presentation from storage: the final site expands every declared focus entity and facet, while a bulk raw-source appendix is rejected unless the user explicitly requested it. Passing source-reference counts alone is not content completeness.
 
 The audit writes diagnostics only. It must not modify copy, add missing qualifications, rebuild DOM, replace CSS, rewrite chart behavior, or inject a fallback component. Any failure returns the original Huashu site and diagnostics to Huashu.
 

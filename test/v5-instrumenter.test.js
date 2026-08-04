@@ -14,7 +14,7 @@ import { confirmEditorReview } from "../src/editor-review.js";
 import { finalizeVariant } from "../src/finalize.js";
 import { updateVariantTheme } from "../src/variants.js";
 
-async function fixture(t, { number = "189", includeRemote = false } = {}) {
+async function fixture(t, { number = "189", includeRemote = false, rawAppendix = false, authorizeRawAppendix = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "edit-html-v5-instrument-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const source = path.join(root, "brief.md");
@@ -29,16 +29,39 @@ async function fixture(t, { number = "189", includeRemote = false } = {}) {
   await mkdir(path.join(packageDir, "assets"), { recursive: true });
   const ledger = JSON.parse(await readFile(path.join(projectDir, "source-pack", "fact-ledger.json"), "utf8"));
   const sourceMap = JSON.parse(await readFile(path.join(projectDir, "source-pack", "source-map.json"), "utf8"));
+  if (rawAppendix) {
+    const seed = sourceMap.documents[0].units.find((unit) => unit.substantive);
+    sourceMap.documents[0].units = Array.from({ length: 12 }, (_, index) => ({
+      ...seed,
+      sourceId: `${seed.sourceId}-raw-${index + 1}`,
+      text: `${seed.text} raw section ${index + 1}`
+    }));
+    await writeFile(path.join(projectDir, "source-pack", "source-map.json"), JSON.stringify(sourceMap), "utf8");
+  }
   const facts = ledger.facts;
   const sourceRefs = sourceMap.documents.flatMap((document) => document.units.filter((unit) => unit.substantive).map((unit) => unit.sourceId));
   const bindings = {
     schemaVersion: 1,
     bindings: [
-      { contentId: "hero", factIds: facts.map((item) => item.factId), sourceRefs, tier: "main", editableKind: "block" },
+      { contentId: "hero", factIds: facts.map((item) => item.factId), sourceRefs, tier: rawAppendix ? "appendix" : "main", editableKind: "block" },
       { contentId: "claim", factIds: facts.filter((item) => item.rawText.includes("189亿元")).map((item) => item.factId), sourceRefs: sourceRefs.slice(-1), tier: "main", editableKind: "text" },
       { contentId: "visual", factIds: [], sourceRefs: [], tier: "main", editableKind: "image" }
     ],
-    omissions: []
+    coverage: {
+      kind: "complete-site",
+      overviewContentIds: ["hero"],
+      overviewSourceRefs: [sourceRefs[0]],
+      focusEntities: [{
+        entityId: "market-focus",
+        label: "Market focus",
+        sourceRefs: [sourceRefs.at(-1)],
+        contentIds: ["claim"],
+        facets: [{ facetId: "market-status", label: "Market status", sourceRefs: [sourceRefs.at(-1)], contentIds: ["claim"] }]
+      }],
+      representedFocusEntityIds: ["market-focus"]
+    },
+    omissions: [],
+    ...(authorizeRawAppendix ? { rawAppendixAuthorization: { authorizedBy: "user", reason: "Show the complete source appendix", authorizedAt: new Date().toISOString() } } : {})
   };
   const bindingText = JSON.stringify(bindings);
   await writeFile(path.join(packageDir, "content-bindings.json"), bindingText, "utf8");
@@ -49,7 +72,7 @@ async function fixture(t, { number = "189", includeRemote = false } = {}) {
   const payloadSha256 = await hashPayload(packageDir);
   await writeFile(path.join(packageDir, "manifest.json"), JSON.stringify({
     schemaVersion: 1,
-    packageVersion: "5.0.0",
+    packageVersion: "5.1.0",
     kind: "final",
     candidateId: "selected",
     directionId: "selected",
@@ -85,6 +108,15 @@ test("V5 audit rejects changed source numbers and unsafe Huashu runtime without 
 
   const remote = await fixture(t, { includeRemote: true });
   await assert.rejects(() => auditV5FinalSite(remote.projectDir, remote.variantId), /fetch|network/i);
+});
+
+test("V5.1 audit rejects a bulk visible raw appendix unless the user explicitly authorizes it", async (t) => {
+  const rejected = await fixture(t, { rawAppendix: true });
+  await assert.rejects(() => auditV5FinalSite(rejected.projectDir, rejected.variantId), /raw source appendix requires explicit user authorization/i);
+
+  const allowed = await fixture(t, { rawAppendix: true, authorizeRawAppendix: true });
+  const report = await auditV5FinalSite(allowed.projectDir, allowed.variantId);
+  assert.equal(report.status, "passed");
 });
 
 test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline contracts", async (t) => {

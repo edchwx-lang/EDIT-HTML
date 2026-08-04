@@ -31,6 +31,9 @@ export async function importV5DesignCandidate(projectDir, variantId, sourceDir) 
   if (existing.some((item) => item.candidateId !== validation.manifest.candidateId && item.payloadSha256 === validation.payloadSha256)) {
     throw new Error("V5 candidates require distinct executable site payloads");
   }
+  if (existing.some((item) => item.candidateId !== validation.manifest.candidateId && item.contentPlanSha256 !== validation.contentPlanSha256)) {
+    throw new Error("V5.1 design candidates must share the same content plan");
+  }
   if (variant.referenceMode === "none") {
     if (!THREE_THEMES.has(validation.manifest.previewThemeId)) throw new Error("three executable samples require the three approved light themes");
     if (existing.some((item) => item.candidateId !== validation.manifest.candidateId && item.previewThemeId === validation.manifest.previewThemeId)) {
@@ -59,7 +62,7 @@ export async function listV5DesignCandidates(projectDir, variantId) {
   const result = [];
   for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
     const validation = await validateV5Site(projectDir, variantId, path.join(root, entry.name), "candidate");
-    result.push(candidateSummary(validation.manifest));
+    result.push(candidateSummary(validation));
   }
   return result;
 }
@@ -83,6 +86,7 @@ export async function confirmV5DesignCandidate(projectDir, variantId, candidateI
     directionLabel: selected.directionLabel,
     candidateSha256: selected.payloadSha256,
     previewThemeId: selected.previewThemeId,
+    contentPlanSha256: selected.contentPlanSha256,
     confirmedAt: new Date().toISOString()
   };
   await updateVariant(projectDir, variantId, (record) => ({
@@ -103,6 +107,9 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
     validation.manifest.parentCandidateSha256 !== variant.designSelection.candidateSha256
   ) {
     throw new Error("final site parent candidate does not match the selected candidate");
+  }
+  if (validation.contentPlanSha256 !== variant.designSelection.contentPlanSha256) {
+    throw new Error("final site content plan does not match the selected candidate");
   }
   const destination = path.join(projectDir, "variants", variantId, "design", "package");
   const staging = destination + ".staging";
@@ -138,14 +145,15 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
     const stat = await readdir(path.join(siteDir, directory));
     if (directory === "screenshots" && stat.length < 2) throw new Error("site requires desktop and mobile screenshots");
   }
-  const [manifest, bindings, html, project, variant] = await Promise.all([
+  const [manifest, bindings, html, project, variant, sourceMap] = await Promise.all([
     readJson(path.join(siteDir, "manifest.json")),
     readJson(path.join(siteDir, "content-bindings.json")),
     readFile(path.join(siteDir, "index.html"), "utf8"),
     readJson(path.join(projectDir, "project.json")),
-    readVariant(projectDir, variantId)
+    readVariant(projectDir, variantId),
+    readJson(path.join(projectDir, "source-pack", "source-map.json"))
   ]);
-  if (manifest.schemaVersion !== 1 || manifest.packageVersion !== "5.0.0") throw new Error("V5 site manifest requires schema 1 and package 5.0.0");
+  if (manifest.schemaVersion !== 1 || manifest.packageVersion !== "5.1.0") throw new Error("V5.1 site manifest requires schema 1 and package 5.1.0");
   if (manifest.kind !== expectedKind) throw new Error(`expected ${expectedKind} site manifest`);
   assertSafeId(manifest.candidateId, "candidateId");
   assertSafeId(manifest.directionId, "directionId");
@@ -153,31 +161,117 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   if (manifest.entrypoint !== "index.html") throw new Error("V5 site entrypoint must be index.html");
   if (manifest.sourcePackSha256 !== project.sourcePackSha256) throw new Error("site source pack hash is stale");
   if (manifest.interviewSha256 !== variant.interviewSha256) throw new Error("site interview hash is stale");
-  validateBindings(bindings, html);
+  const knownSourceRefs = new Set(sourceMap.documents.flatMap((document) => document.units.map((unit) => unit.sourceId)));
+  validateBindings(bindings, html, expectedKind, knownSourceRefs);
   const bindingText = await readFile(path.join(siteDir, "content-bindings.json"), "utf8");
   if (manifest.contentBindingsSha256 !== sha256(bindingText)) throw new Error("content bindings SHA-256 mismatch");
   const payloadSha256 = await hashV5SitePayload(siteDir);
   if (manifest.payloadSha256 !== payloadSha256 || manifest.outputSha256 !== payloadSha256) throw new Error("site payload SHA-256 mismatch");
   if (manifest.screenshotSourceSha256 !== payloadSha256) throw new Error("screenshots must declare the executable site payload they render");
   await validateLocalRuntime(html, siteDir);
-  return { manifest, bindings, payloadSha256, siteDir };
+  return {
+    manifest,
+    bindings,
+    payloadSha256,
+    contentPlanSha256: hashContentPlan(bindings.coverage),
+    siteDir
+  };
 }
 
-function validateBindings(bindings, html) {
+function validateBindings(bindings, html, expectedKind, knownSourceRefs) {
   if (bindings.schemaVersion !== 1 || !Array.isArray(bindings.bindings) || !Array.isArray(bindings.omissions)) {
     throw new Error("content-bindings.json requires bindings and omissions arrays");
   }
+  const expectedCoverageKind = expectedKind === "candidate" ? "vertical-slice" : "complete-site";
+  if (bindings.coverage?.kind !== expectedCoverageKind) {
+    throw new Error(`content coverage requires ${expectedCoverageKind}`);
+  }
   const ids = new Set();
+  const bindingsById = new Map();
   for (const binding of bindings.bindings) {
     assertSafeId(binding.contentId, "contentId");
     if (ids.has(binding.contentId)) throw new Error(`duplicate contentId "${binding.contentId}"`);
     ids.add(binding.contentId);
+    bindingsById.set(binding.contentId, binding);
     if (!Array.isArray(binding.factIds) || !Array.isArray(binding.sourceRefs)) throw new Error(`binding "${binding.contentId}" requires factIds and sourceRefs`);
     if (!new Set(["main", "detail", "appendix"]).has(binding.tier)) throw new Error(`binding "${binding.contentId}" has invalid tier`);
     if (!new Set(["text", "block", "image", "chart"]).has(binding.editableKind)) throw new Error(`binding "${binding.contentId}" has invalid editableKind`);
     const pattern = new RegExp(`\\bdata-content-id\\s*=\\s*["']${escapeRegExp(binding.contentId)}["']`, "i");
     if (!pattern.test(html)) throw new Error(`binding "${binding.contentId}" is not present in index.html`);
   }
+  validateContentCoverage(bindings.coverage, expectedKind, bindingsById, knownSourceRefs);
+}
+
+function validateContentCoverage(coverage, expectedKind, bindingsById, knownSourceRefs) {
+  const errors = [];
+  const requireContentIds = (contentIds, label) => {
+    if (!Array.isArray(contentIds) || !contentIds.length) {
+      errors.push(`${label} requires contentIds`);
+      return [];
+    }
+    const found = [];
+    for (const contentId of contentIds) {
+      const binding = bindingsById.get(contentId);
+      if (!binding) errors.push(`${label} references unknown contentId ${contentId}`);
+      else if (binding.tier === "appendix") errors.push(`${label} cannot be covered only by appendix content`);
+      else found.push(binding);
+    }
+    return found;
+  };
+  const requireSourceRefs = (sourceRefs, label) => {
+    if (!Array.isArray(sourceRefs) || !sourceRefs.length) {
+      errors.push(`${label} requires sourceRefs`);
+      return [];
+    }
+    for (const sourceId of sourceRefs) {
+      if (!knownSourceRefs.has(sourceId)) errors.push(`${label} references unknown Source Pack source ${sourceId}`);
+    }
+    return sourceRefs;
+  };
+
+  const overviewBindings = requireContentIds(coverage.overviewContentIds, "overview coverage");
+  const overviewSourceRefs = requireSourceRefs(coverage.overviewSourceRefs, "overview coverage");
+  const boundOverviewRefs = new Set(overviewBindings.flatMap((binding) => binding.sourceRefs));
+  for (const sourceId of overviewSourceRefs) {
+    if (!boundOverviewRefs.has(sourceId)) errors.push(`overview coverage source ${sourceId} is not bound to overview content`);
+  }
+
+  if (!Array.isArray(coverage.focusEntities) || !coverage.focusEntities.length) {
+    errors.push("representative focus coverage requires focusEntities");
+  }
+  if (!Array.isArray(coverage.representedFocusEntityIds) || !coverage.representedFocusEntityIds.length) {
+    errors.push("representative focus coverage requires at least one represented entity");
+  }
+  const entities = new Map((coverage.focusEntities ?? []).map((entity) => [entity.entityId, entity]));
+  for (const entityId of coverage.representedFocusEntityIds ?? []) {
+    const entity = entities.get(entityId);
+    if (!entity) {
+      errors.push(`representative focus entity ${entityId} is not declared`);
+      continue;
+    }
+    requireSourceRefs(entity.sourceRefs, `representative focus entity ${entityId}`);
+    const entityBindings = requireContentIds(entity.contentIds, `representative focus entity ${entityId}`);
+    if (!Array.isArray(entity.facets) || !entity.facets.length) {
+      errors.push(`representative focus entity ${entityId} requires at least one facet`);
+      continue;
+    }
+    const entityBoundRefs = new Set(entityBindings.flatMap((binding) => binding.sourceRefs));
+    for (const facet of entity.facets) {
+      const facetRefs = requireSourceRefs(facet.sourceRefs, `representative facet ${facet.facetId ?? "unknown"}`);
+      const facetBindings = requireContentIds(facet.contentIds, `representative facet ${facet.facetId ?? "unknown"}`);
+      const boundFacetRefs = new Set([...entityBoundRefs, ...facetBindings.flatMap((binding) => binding.sourceRefs)]);
+      for (const sourceId of facetRefs) {
+        if (!boundFacetRefs.has(sourceId)) errors.push(`representative facet ${facet.facetId} source ${sourceId} is not bound to its content`);
+      }
+    }
+  }
+  if (expectedKind === "final") {
+    const represented = new Set(coverage.representedFocusEntityIds ?? []);
+    for (const entityId of entities.keys()) {
+      if (!represented.has(entityId)) errors.push(`complete-site coverage is missing focus entity ${entityId}`);
+    }
+  }
+  if (errors.length) throw new Error(errors.join("; "));
 }
 
 async function validateLocalRuntime(html, siteDir) {
@@ -197,15 +291,34 @@ async function validateLocalRuntime(html, siteDir) {
   }
 }
 
-function candidateSummary(manifest) {
+function candidateSummary(validation) {
+  const { manifest } = validation;
   return {
     candidateId: manifest.candidateId,
     directionId: manifest.directionId,
     directionLabel: manifest.directionLabel,
     previewThemeId: manifest.previewThemeId,
     payloadSha256: manifest.payloadSha256,
-    screenshotSourceSha256: manifest.screenshotSourceSha256
+    screenshotSourceSha256: manifest.screenshotSourceSha256,
+    contentPlanSha256: validation.contentPlanSha256
   };
+}
+
+function hashContentPlan(coverage) {
+  const plan = {
+    overviewSourceRefs: [...coverage.overviewSourceRefs].sort(),
+    focusEntities: [...coverage.focusEntities]
+      .map((entity) => ({
+        entityId: entity.entityId,
+        label: entity.label,
+        sourceRefs: [...entity.sourceRefs].sort(),
+        facets: [...entity.facets]
+          .map((facet) => ({ facetId: facet.facetId, label: facet.label, sourceRefs: [...facet.sourceRefs].sort() }))
+          .sort((left, right) => left.facetId.localeCompare(right.facetId))
+      }))
+      .sort((left, right) => left.entityId.localeCompare(right.entityId))
+  };
+  return sha256(JSON.stringify(plan));
 }
 
 async function updateVariant(projectDir, variantId, update) {

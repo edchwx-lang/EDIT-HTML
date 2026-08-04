@@ -9,8 +9,8 @@ import { buildSourceModel } from "./report-model.js";
 import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
 
 export const V5_PROJECT_SCHEMA_VERSION = 5;
-export const V5_PACKAGE_VERSION = "5.0.0";
-export const V5_PIPELINE_VERSION = "5.0.0";
+export const V5_PACKAGE_VERSION = "5.1.0";
+export const V5_PIPELINE_VERSION = "5.1.0";
 
 export async function createV5Project(sourcePath, projectDir) {
   const contents = await readFile(sourcePath);

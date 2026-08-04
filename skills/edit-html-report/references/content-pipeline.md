@@ -1,4 +1,4 @@
-# V5 Source Pack and Fact Boundary
+# V5.1 Source Pack and Fact Boundary
 
 ## Canonical flow
 
@@ -28,3 +28,7 @@ Extraction warnings are not silently repaired. Huashu must see them, and an unre
 ## Expression after extraction
 
 Huashu may summarize, retitle, merge, split, reorder, visualize, and create detail/appendix access. Every substantive statement must still resolve to one or more fact IDs and source references. Exact wording is not required; factual meaning and qualifications are.
+
+`content-brief.json` carries only purpose, content emphasis, and an optional Source-Pack-anchored clarification. It must not carry structure or design decisions. Emphasis determines comparative depth, not whether the report overview or non-priority substantive content exists.
+
+A final site may use concise detail views instead of copying source prose. A visible appendix that bulk-exposes at least 80% of ten or more substantive source units is treated as a raw-source appendix and requires explicit user authorization; it cannot be used to manufacture a passing coverage count.

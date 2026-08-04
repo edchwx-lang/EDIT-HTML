@@ -16,8 +16,8 @@ test("V5 create emits a source pack without pre-design content decisions", async
   const project = await createV5Project(source, projectDir);
 
   assert.equal(project.schemaVersion, 5);
-  assert.equal(project.packageVersion, "5.0.0");
-  assert.equal(project.pipelineVersion, "5.0.0");
+  assert.equal(project.packageVersion, "5.1.0");
+  assert.equal(project.pipelineVersion, "5.1.0");
   for (const name of [
     "manifest.json",
     "readable-source.md",

@@ -1,19 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://edit-html-report.local/schemas/v5-interview.schema.json",
-  "title": "Huashu Content Interview",
+  "title": "Huashu V5.1 Content Interview",
   "type": "object",
   "required": ["schemaVersion", "variantId", "answers", "references"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "variantId": { "type": "string", "minLength": 1 },
     "answers": {
       "type": "object",
-      "required": ["purpose", "contentWeight", "structurePreference"],
+      "required": ["purpose", "contentWeight"],
+      "minProperties": 2,
+      "maxProperties": 3,
       "properties": {
         "purpose": { "$ref": "#/$defs/answer" },
         "contentWeight": { "$ref": "#/$defs/answer" },
-        "structurePreference": { "$ref": "#/$defs/answer" }
+        "contentClarification": { "$ref": "#/$defs/clarification" }
       },
       "additionalProperties": false
     },
@@ -30,6 +32,20 @@
         "response": { "type": "string", "minLength": 1 },
         "origin": { "enum": ["user-provided", "user-delegated"] },
         "recordedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "clarification": {
+      "type": "object",
+      "required": ["question", "response", "origin", "recordedAt", "reasonCode", "sourceRefs", "rationale"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "response": { "type": "string", "minLength": 1 },
+        "origin": { "enum": ["user-provided", "user-delegated"] },
+        "recordedAt": { "type": "string", "format": "date-time" },
+        "reasonCode": { "enum": ["scope", "terminology", "conflict", "omission", "time-range", "comparative-focus"] },
+        "sourceRefs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rationale": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     }

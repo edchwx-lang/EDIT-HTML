@@ -3,7 +3,7 @@
   "$id": "https://edit-html-report.local/schemas/v5-content-bindings.schema.json",
   "title": "Huashu Content Provenance Bindings",
   "type": "object",
-  "required": ["schemaVersion", "bindings", "omissions"],
+  "required": ["schemaVersion", "bindings", "coverage", "omissions"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "bindings": {
@@ -21,6 +21,22 @@
         "additionalProperties": false
       }
     },
+    "coverage": {
+      "type": "object",
+      "required": ["kind", "overviewContentIds", "overviewSourceRefs", "focusEntities", "representedFocusEntityIds"],
+      "properties": {
+        "kind": { "enum": ["vertical-slice", "complete-site"] },
+        "overviewContentIds": { "$ref": "#/$defs/nonEmptyIds" },
+        "overviewSourceRefs": { "$ref": "#/$defs/nonEmptyIds" },
+        "focusEntities": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/focusEntity" }
+        },
+        "representedFocusEntityIds": { "$ref": "#/$defs/nonEmptyIds" }
+      },
+      "additionalProperties": false
+    },
     "omissions": {
       "type": "array",
       "items": {
@@ -34,6 +50,42 @@
         },
         "additionalProperties": false
       }
+    },
+    "rawAppendixAuthorization": {
+      "type": "object",
+      "required": ["authorizedBy", "reason", "authorizedAt"],
+      "properties": {
+        "authorizedBy": { "const": "user" },
+        "reason": { "type": "string", "minLength": 1 },
+        "authorizedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "nonEmptyIds": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "facet": {
+      "type": "object",
+      "required": ["facetId", "label", "sourceRefs", "contentIds"],
+      "properties": {
+        "facetId": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "sourceRefs": { "$ref": "#/$defs/nonEmptyIds" },
+        "contentIds": { "$ref": "#/$defs/nonEmptyIds" }
+      },
+      "additionalProperties": false
+    },
+    "focusEntity": {
+      "type": "object",
+      "required": ["entityId", "label", "sourceRefs", "contentIds", "facets"],
+      "properties": {
+        "entityId": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "sourceRefs": { "$ref": "#/$defs/nonEmptyIds" },
+        "contentIds": { "$ref": "#/$defs/nonEmptyIds" },
+        "facets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/facet" } }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

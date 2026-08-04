@@ -35,6 +35,7 @@ export async function auditV5FinalSite(projectDir, variantId) {
   }
   const document = parse(html);
   const coveredSources = new Set();
+  const appendixSources = new Set();
   const seenContent = new Set();
   for (const binding of bindings.bindings ?? []) {
     if (seenContent.has(binding.contentId)) errors.push(`duplicate binding ${binding.contentId}`);
@@ -52,7 +53,10 @@ export async function auditV5FinalSite(projectDir, variantId) {
     }
     for (const sourceId of binding.sourceRefs ?? []) {
       if (!units.has(sourceId)) errors.push(`content ${binding.contentId} references unknown source ${sourceId}`);
-      else coveredSources.add(sourceId);
+      else {
+        coveredSources.add(sourceId);
+        if (binding.tier === "appendix") appendixSources.add(sourceId);
+      }
     }
     const text = visibleText(node);
     const allowed = new Set(boundFacts.flatMap((fact) => numericTokens(fact.rawText)).map(normalizeNumber));
@@ -78,6 +82,12 @@ export async function auditV5FinalSite(projectDir, variantId) {
   for (const [sourceId, unit] of units) {
     if (unit.substantive && !coveredSources.has(sourceId) && !omitted.has(sourceId)) errors.push(`substantive source ${sourceId} is not accessible in main, detail, or appendix`);
   }
+  const substantiveSources = [...units].filter(([, unit]) => unit.substantive).map(([sourceId]) => sourceId);
+  const bulkRawAppendix = substantiveSources.length >= 10
+    && substantiveSources.filter((sourceId) => appendixSources.has(sourceId)).length / substantiveSources.length >= 0.8;
+  if (bulkRawAppendix && !validRawAppendixAuthorization(bindings.rawAppendixAuthorization)) {
+    errors.push("visible raw source appendix requires explicit user authorization");
+  }
 
   errors.push(...await runtimeErrors(siteDir));
   const report = {
@@ -93,6 +103,13 @@ export async function auditV5FinalSite(projectDir, variantId) {
   await writeJsonAtomic(path.join(variantDir, "audit-report.json"), report);
   if (errors.length) throw new Error("V5 audit failed: " + errors.join("; "));
   return report;
+}
+
+function validRawAppendixAuthorization(value) {
+  return value?.authorizedBy === "user"
+    && typeof value.reason === "string"
+    && value.reason.trim().length > 0
+    && Number.isFinite(Date.parse(value.authorizedAt));
 }
 
 async function runtimeErrors(siteDir) {

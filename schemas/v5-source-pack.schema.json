@@ -6,7 +6,7 @@
   "required": ["schemaVersion", "packageVersion", "sourcePackSha256", "sourceSha256", "files", "contentPolicy", "designDecisions"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "packageVersion": { "const": "5.0.0" },
+    "packageVersion": { "const": "5.1.0" },
     "sourcePackSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "files": { "type": "array", "items": { "type": "string" }, "minItems": 6 },

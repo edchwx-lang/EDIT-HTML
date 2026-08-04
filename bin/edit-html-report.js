@@ -277,7 +277,21 @@ async function main(argv) {
       variantId: optionalOption(args, "--variant") ?? undefined
     });
     const editorUrl = session.url + "/?token=" + encodeURIComponent(session.token);
-    printJson({ ...session, url: editorUrl });
+    const launcherPath = path.resolve(projectDir, "open-editor.sh");
+    printJson({
+      ...session,
+      url: editorUrl,
+      handoff: {
+        kind: "visible-editor",
+        editorUrl,
+        launcherPath,
+        projectDir: path.resolve(projectDir),
+        variantId: session.variantId,
+        reviewState: "awaiting-editor-review",
+        confirmationRequired: true,
+        nextUserAction: "Open the visible editor, inspect the website, then confirm the design and theme in the editor."
+      }
+    });
     if (!args.includes("--no-browser")) launchBrowser(editorUrl);
     return;
   }

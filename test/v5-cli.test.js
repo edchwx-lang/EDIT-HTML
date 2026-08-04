@@ -42,9 +42,9 @@ test("V5 CLI creates a source-pack project and gates design preparation on the i
   assert.match(blocked.stderr, /confirmed interview/);
 
   const interview = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     variantId: variant.variantId,
-    answers: Object.fromEntries(["purpose", "contentWeight", "structurePreference"].map((key) => [key, {
+    answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
       question: key,
       response: "用户回答",
       origin: "user-provided",
@@ -58,9 +58,10 @@ test("V5 CLI creates a source-pack project and gates design preparation on the i
   assert.equal(imported.status, 0, imported.stderr);
   assert.equal(JSON.parse(imported.stdout).status, "confirmed");
   const status = run(["interview", "status", project, "--variant", variant.variantId]);
-  assert.equal(JSON.parse(status.stdout).requiredTopics.length, 3);
+  assert.equal(JSON.parse(status.stdout).requiredTopics.length, 2);
   const prepared = run(["design", "prepare", project, "--variant", variant.variantId]);
   assert.equal(prepared.status, 0, prepared.stderr);
   assert.equal(JSON.parse(prepared.stdout).strategySelection, "three-executable-samples");
   await readFile(path.join(project, "variants", variant.variantId, "design", "huashu-input", "manifest.json"));
+  await readFile(path.join(project, "variants", variant.variantId, "design", "huashu-input", "content-brief.json"));
 });

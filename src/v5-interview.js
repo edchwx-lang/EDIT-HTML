@@ -4,12 +4,19 @@ import path from "node:path";
 
 import { writeJsonAtomic } from "./io.js";
 
-const REQUIRED_TOPICS = ["purpose", "contentWeight", "structurePreference"];
+const LEGACY_REQUIRED_TOPICS = ["purpose", "contentWeight", "structurePreference"];
+const REQUIRED_TOPICS = ["purpose", "contentWeight"];
 const ORIGINS = new Set(["user-provided", "user-delegated"]);
+const CLARIFICATION_REASONS = new Set([
+  "scope", "terminology", "conflict", "omission", "time-range", "comparative-focus"
+]);
+const DESIGN_QUESTION_PATTERN = /\b(?:layout|component|card|dashboard|interaction|map|chart|theme|colou?r|font|visual\s+style)\b|排版|布局|组件|卡片|仪表盘|交互|地图|图表|配色|字体|视觉风格/iu;
+const TAKEAWAY_QUESTION_PATTERN = /\b(?:take\s*away|remember)\b|观众.{0,8}(?:带走|记住)|希望.{0,8}(?:带走|记住)/iu;
 
 export async function importV5Interview(projectDir, variantId, interviewPath) {
   const interview = JSON.parse(await readFile(interviewPath, "utf8"));
   validateInterview(interview, variantId);
+  await validateInterviewSourceRefs(projectDir, interview);
   const variantDir = path.join(projectDir, "variants", variantId);
   const storedPath = path.join(variantDir, "interview.json");
   const normalized = {
@@ -30,6 +37,15 @@ export async function importV5Interview(projectDir, variantId, interviewPath) {
   return { status: "confirmed", referenceMode, interviewSha256, interview: normalized };
 }
 
+async function validateInterviewSourceRefs(projectDir, interview) {
+  const references = interview.answers?.contentClarification?.sourceRefs ?? [];
+  if (!references.length) return;
+  const sourceMap = JSON.parse(await readFile(path.join(projectDir, "source-pack", "source-map.json"), "utf8"));
+  const known = new Set(sourceMap.documents.flatMap((document) => document.units.map((unit) => unit.sourceId)));
+  const unknown = references.filter((sourceId) => !known.has(sourceId));
+  if (unknown.length) throw new Error(`contentClarification has unknown Source Pack reference ${unknown.join(", ")}`);
+}
+
 export async function getV5InterviewStatus(projectDir, variantId) {
   const variant = await readVariant(projectDir, variantId);
   let interview = null;
@@ -42,6 +58,9 @@ export async function getV5InterviewStatus(projectDir, variantId) {
     variantId,
     status: variant.interviewStatus ?? "pending",
     requiredTopics: REQUIRED_TOPICS,
+    questionCount: Object.keys(interview?.answers ?? {}).length,
+    maximumQuestions: 3,
+    hasMaterialClarification: Boolean(interview?.answers?.contentClarification),
     referenceMode: variant.referenceMode ?? "none",
     interviewSha256: variant.interviewSha256 ?? null,
     interview
@@ -71,12 +90,37 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
   }
   await cp(path.join(packDir, "assets"), path.join(inputDir, "assets"), { recursive: true });
   await writeJsonAtomic(path.join(inputDir, "interview.json"), interview);
+  const contentBrief = {
+    schemaVersion: 1,
+    owner: "huashu-design",
+    purpose: interview.answers.purpose,
+    contentWeight: interview.answers.contentWeight,
+    ...(interview.answers.contentClarification
+      ? { contentClarification: interview.answers.contentClarification }
+      : {}),
+    maximumInterviewQuestions: 3,
+    coveragePolicy: "focus-controls-depth-not-presence",
+    visibleRawSourceAppendix: "explicit-user-request-only",
+    sourcePackFiles: [
+      "readable-source.md", "fact-ledger.json", "source-map.json", "tables-and-datasets.json",
+      "asset-contact-sheet.html", "extraction-warnings.json", "assets/"
+    ],
+    instructions: [
+      "Preserve every non-omitted source section in main or contextual detail content.",
+      "Give focus content greater depth without deleting supporting or context content.",
+      "Use a complete representative focus item in every candidate and expand all focus items in the final site.",
+      "Keep provenance in bindings and metadata; do not dump the raw Source Pack into a visible appendix."
+    ]
+  };
+  await writeJsonAtomic(path.join(inputDir, "content-brief.json"), contentBrief);
   const manifest = {
     schemaVersion: 1,
-    packageVersion: "5.0.0",
+    packageVersion: "5.1.0",
     variantId,
     sourcePackSha256: project.sourcePackSha256,
     interviewSha256: variant.interviewSha256,
+    contentBriefSha256: hashJson(contentBrief),
+    contentBriefFile: "content-brief.json",
     strategySelection,
     referenceMode: variant.referenceMode,
     previewThemes: strategySelection === "three-executable-samples"
@@ -99,17 +143,46 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
 }
 
 function validateInterview(interview, variantId) {
-  if (interview?.schemaVersion !== 1) throw new Error("interview requires schemaVersion 1");
+  if (![1, 2].includes(interview?.schemaVersion)) throw new Error("interview requires schemaVersion 1 or 2");
   if (interview.variantId !== variantId) throw new Error("interview variantId does not match");
-  for (const topic of REQUIRED_TOPICS) {
+  const requiredTopics = interview.schemaVersion === 1 ? LEGACY_REQUIRED_TOPICS : REQUIRED_TOPICS;
+  for (const topic of requiredTopics) {
     const answer = interview.answers?.[topic];
     if (!answer) throw new Error(`interview requires ${topic}`);
-    if (typeof answer.question !== "string" || !answer.question.trim()) throw new Error(`${topic} requires the actual question`);
-    if (typeof answer.response !== "string" || !answer.response.trim()) throw new Error(`${topic} requires a user response`);
-    if (!ORIGINS.has(answer.origin)) throw new Error(`${topic} origin must be user-provided or user-delegated`);
-    if (!Number.isFinite(Date.parse(answer.recordedAt))) throw new Error(`${topic} requires recordedAt`);
+    validateAnswer(answer, topic);
+    if (interview.schemaVersion === 2 && DESIGN_QUESTION_PATTERN.test(answer.question)) {
+      throw new Error(`${topic} must address source content, not design`);
+    }
+  }
+  if (interview.schemaVersion === 2) {
+    const answerKeys = Object.keys(interview.answers ?? {});
+    const unexpected = answerKeys.filter((key) => ![...REQUIRED_TOPICS, "contentClarification"].includes(key));
+    if (unexpected.length) throw new Error(`${unexpected.join(", ")} is not allowed in a V5.1 content interview`);
+    if (answerKeys.length > 3) throw new Error("V5.1 content interview allows at most three questions");
+    const clarification = interview.answers?.contentClarification;
+    if (clarification) {
+      validateAnswer(clarification, "contentClarification");
+      if (DESIGN_QUESTION_PATTERN.test(clarification.question) || TAKEAWAY_QUESTION_PATTERN.test(clarification.question)) {
+        throw new Error("content clarification must address a Source Pack issue, not design or an audience takeaway");
+      }
+      if (
+        !CLARIFICATION_REASONS.has(clarification.reasonCode) ||
+        !Array.isArray(clarification.sourceRefs) || !clarification.sourceRefs.length ||
+        clarification.sourceRefs.some((item) => typeof item !== "string" || !item.trim()) ||
+        typeof clarification.rationale !== "string" || !clarification.rationale.trim()
+      ) {
+        throw new Error("contentClarification requires reasonCode, sourceRefs, and rationale");
+      }
+    }
   }
   if (!Array.isArray(interview.references)) throw new Error("interview references must be an array");
+}
+
+function validateAnswer(answer, topic) {
+  if (typeof answer.question !== "string" || !answer.question.trim()) throw new Error(`${topic} requires the actual question`);
+  if (typeof answer.response !== "string" || !answer.response.trim()) throw new Error(`${topic} requires a user response`);
+  if (!ORIGINS.has(answer.origin)) throw new Error(`${topic} origin must be user-provided or user-delegated`);
+  if (!Number.isFinite(Date.parse(answer.recordedAt))) throw new Error(`${topic} requires recordedAt`);
 }
 
 async function updateVariant(projectDir, variantId, update) {

@@ -2,6 +2,10 @@
 
 This subsystem is frozen at the V4.3 behavior. V5 changes only how `artifact.html` is produced.
 
+## Conversation handoff
+
+`edit-html-report editor open <project> --variant <id>` returns `handoff.editorUrl`, an authenticated loopback URL, and `handoff.launcherPath`, an absolute local launcher. The Agent must expose both as clickable links in the conversation and identify the visible editor as the primary next step. Never finish a website-generation turn with only an `artifact.html` link.
+
 ## Persistent editor
 
 Use `edit-html-report editor open <project> --variant <id>`. It reuses a healthy loopback session and replaces stale metadata automatically. Saving, publishing, or closing the browser does not stop the server. Reopen with `打开编辑器.cmd` on Windows or `open-editor.sh` elsewhere. Use `editor status` and `editor stop` for diagnostics and control.

@@ -1,32 +1,23 @@
-# V5 Huashu Interview and Sample Selection
+# V5.1 Huashu Content Interview and Sample Selection
 
-## Interview before design
+## Content interview before design
 
-Huashu first reads and summarizes the Source Pack, then resolves three decisions with the user:
+Huashu first reads and summarizes the Source Pack. The interview has two required content decisions and at most one optional clarification:
 
-| Field | Decision |
+| Field | Rule |
 |---|---|
-| `purpose` | Website purpose and target reader |
-| `contentWeight` | Material sections that deserve priority |
-| `structurePreference` | Reading sequence and interaction experience |
+| `purpose` | Required: website purpose, occasion, and target reader |
+| `contentWeight` | Required: source sections or entities that deserve greater depth |
+| `contentClarification` | Optional: only a Source Pack ambiguity, conflict, omission risk, time range, terminology, or comparative-focus question |
 
-Each response records the actual question, original answer, timestamp, and origin. Origin is `user-provided` when explicit, or `user-delegated` when the user asks Huashu to decide. Delegation requires a material-driven decision in the interview record; it is not permission to use a fixed template.
+Every response stores the actual question, original answer, timestamp, and `user-provided` or `user-delegated` origin. A clarification also stores a reason code, rationale, and valid Source Pack references. No interview question may ask the user to choose structure, page order, layout, components, chart form, interaction, theme, color, font, or visual style. If the material does not require clarification, the interview ends after two questions.
 
-An answer already supplied in the initial request is recorded without asking again. Design preparation is blocked while any item is unresolved.
+Answers already supplied in the request are recorded without repeating the question. Visual references are separate. Only references present before candidate generation select the branch: no initial reference produces three samples; an initial website, screenshot, or design system produces one.
 
-Visual references are separate from content answers. Only references present before the first candidate is generated determine the branch:
+## Executable sample comparison
 
-- no initial visual reference: three executable samples;
-- initial website, screenshot, or design system: one executable sample.
+All candidates share the same material-driven content plan. Each is a real, content-complete vertical slice containing the overall situation, one representative focus entity, and its necessary facets. Samples use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` for comfortable comparison, but the choice is about narrative and experience architecture, not palette.
 
-Adding a reference after generation invalidates the old candidates.
+Three samples must differ materially in information hierarchy, content composition, navigation, DOM structure, visualization strategy, and core interaction. Screenshots are captured from each actual candidate HTML.
 
-## Three-sample comparison
-
-All samples use real source content. By position they use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` so the comparison is visually comfortable. The choice is about narrative and experience architecture, not palette.
-
-The three samples must differ materially in information hierarchy, content composition, navigation, DOM structure, visualization strategy, and core interaction. Different colors, fonts, radii, or card skins do not establish different candidates.
-
-Screenshots are evidence, not mockups: desktop and mobile images must be captured from each candidate's actual `index.html`.
-
-Confirmation freezes the selected candidate hash and direction. Huashu expands that exact candidate as its parent; another renderer must not reinterpret it.
+Confirmation freezes the selected candidate hash and content-plan hash. Huashu expands that parent into the final site. The final site must include the overview and every focus entity and facet declared by the shared content plan; emphasis changes depth, never silently deletes the rest of the report.

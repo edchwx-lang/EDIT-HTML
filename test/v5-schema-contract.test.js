@@ -16,4 +16,13 @@ test("V5 publishes source, interview, executable site, and content-binding schem
   for (const removed of ["displayIntent", "presentation-plan", "componentId", "layoutId", "safePrimitive"]) {
     assert.doesNotMatch(combined, new RegExp(removed, "i"));
   }
+  const interview = JSON.parse(await readFile(path.join(root, "schemas", "v5-interview.schema.json"), "utf8"));
+  assert.equal(interview.properties.schemaVersion.const, 2);
+  assert.deepEqual(interview.properties.answers.required, ["purpose", "contentWeight"]);
+  assert.equal(interview.properties.answers.maxProperties, 3);
+  assert.equal(interview.properties.answers.properties.structurePreference, undefined);
+  const bindings = JSON.parse(await readFile(path.join(root, "schemas", "v5-content-bindings.schema.json"), "utf8"));
+  assert.ok(bindings.required.includes("coverage"));
+  assert.ok(bindings.properties.coverage.properties.focusEntities);
+  assert.ok(bindings.properties.rawAppendixAuthorization);
 });

@@ -25,9 +25,9 @@ async function fixture(t, { reference = false } = {}) {
   await createV5Project(source, project);
   const variant = await createV5Variant(project, {});
   const interview = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     variantId: variant.variantId,
-    answers: Object.fromEntries(["purpose", "contentWeight", "structurePreference"].map((key) => [key, {
+    answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
       question: key,
       response: "用户回答 " + key,
       origin: "user-provided",
@@ -48,7 +48,9 @@ async function writeSite(root, project, variantId, {
   previewThemeId = "precision-blueprint",
   marker = candidateId,
   kind = "candidate",
-  parent = null
+  parent = null,
+  includeCoverage = true,
+  coverageOverride = null
 } = {}) {
   const directory = path.join(root, marker + "-site");
   await mkdir(path.join(directory, "styles"), { recursive: true });
@@ -63,7 +65,20 @@ async function writeSite(root, project, variantId, {
   const bindings = {
     schemaVersion: 1,
     bindings: [{ contentId: "market", factIds: [fact.factId], sourceRefs: [fact.sourceId], tier: "main", editableKind: "block" }],
-    omissions: []
+    omissions: [],
+    ...(includeCoverage ? { coverage: coverageOverride ?? {
+      kind: kind === "candidate" ? "vertical-slice" : "complete-site",
+      overviewContentIds: ["market"],
+      overviewSourceRefs: [fact.sourceId],
+      focusEntities: [{
+        entityId: "market-focus",
+        label: "Market focus",
+        sourceRefs: [fact.sourceId],
+        contentIds: ["market"],
+        facets: [{ facetId: "market-status", label: "Market status", sourceRefs: [fact.sourceId], contentIds: ["market"] }]
+      }],
+      representedFocusEntityIds: ["market-focus"]
+    } } : {})
   };
   const bindingText = JSON.stringify(bindings);
   await writeFile(path.join(directory, "content-bindings.json"), bindingText, "utf8");
@@ -75,7 +90,7 @@ async function writeSite(root, project, variantId, {
   const payloadSha256 = await hashV5SitePayload(directory);
   const manifest = {
     schemaVersion: 1,
-    packageVersion: "5.0.0",
+    packageVersion: "5.1.0",
     kind,
     candidateId,
     directionId,
@@ -103,6 +118,112 @@ async function refreshManifest(directory) {
   manifest.screenshotSourceSha256 = payloadSha256;
   await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
 }
+
+test("V5.1 rejects an executable candidate without a content-complete vertical slice", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true });
+  const shallow = await writeSite(root, project, variant.variantId, {
+    candidateId: "shallow",
+    marker: "shallow",
+    includeCoverage: false
+  });
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, shallow.directory),
+    /coverage.+vertical-slice/i
+  );
+});
+
+test("V5.1 candidate coverage requires an overview and a complete representative focus entity", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true });
+  const sourceMap = JSON.parse(await readFile(path.join(project, "source-pack", "source-map.json"), "utf8"));
+  const sourceId = sourceMap.documents.flatMap((document) => document.units).find((unit) => unit.substantive).sourceId;
+  const invalid = await writeSite(root, project, variant.variantId, {
+    candidateId: "incomplete-slice",
+    marker: "incomplete-slice",
+    coverageOverride: {
+      kind: "vertical-slice",
+      overviewContentIds: [],
+      overviewSourceRefs: [sourceId],
+      focusEntities: [{ entityId: "material", label: "Material", sourceRefs: [sourceId], contentIds: ["market"], facets: [] }],
+      representedFocusEntityIds: ["material"]
+    }
+  });
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, invalid.directory),
+    /overview.+representative.+facet/i
+  );
+});
+
+test("V5.1 three design candidates must share one content plan", async (t) => {
+  const { root, project, variant } = await fixture(t);
+  const first = await writeSite(root, project, variant.variantId, {
+    candidateId: "same-content-one",
+    marker: "same-content-one",
+    previewThemeId: "precision-blueprint"
+  });
+  const firstBindings = JSON.parse(await readFile(path.join(first.directory, "content-bindings.json"), "utf8"));
+  const sourceId = firstBindings.coverage.overviewSourceRefs[0];
+  await importV5DesignCandidate(project, variant.variantId, first.directory);
+  const changedPlan = await writeSite(root, project, variant.variantId, {
+    candidateId: "changed-content-two",
+    marker: "changed-content-two",
+    previewThemeId: "warm-paper-terracotta",
+    coverageOverride: {
+      kind: "vertical-slice",
+      overviewContentIds: ["market"],
+      overviewSourceRefs: [sourceId],
+      focusEntities: [{
+        entityId: "different-focus",
+        label: "Different focus",
+        sourceRefs: [sourceId],
+        contentIds: ["market"],
+        facets: [{ facetId: "different-status", label: "Different status", sourceRefs: [sourceId], contentIds: ["market"] }]
+      }],
+      representedFocusEntityIds: ["different-focus"]
+    }
+  });
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, changedPlan.directory),
+    /same content plan/i
+  );
+});
+
+test("V5.1 final site must expand every declared focus entity", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true });
+  const seed = await writeSite(root, project, variant.variantId, { candidateId: "seed", marker: "seed" });
+  const seedBindings = JSON.parse(await readFile(path.join(seed.directory, "content-bindings.json"), "utf8"));
+  const sourceId = seedBindings.coverage.overviewSourceRefs[0];
+  const focusEntities = [
+    { entityId: "one", label: "One", sourceRefs: [sourceId], contentIds: ["market"], facets: [{ facetId: "one-status", label: "Status", sourceRefs: [sourceId], contentIds: ["market"] }] },
+    { entityId: "two", label: "Two", sourceRefs: [sourceId], contentIds: ["market"], facets: [{ facetId: "two-status", label: "Status", sourceRefs: [sourceId], contentIds: ["market"] }] }
+  ];
+  const candidate = await writeSite(root, project, variant.variantId, {
+    candidateId: "focus-plan",
+    marker: "focus-plan",
+    coverageOverride: {
+      kind: "vertical-slice",
+      overviewContentIds: ["market"],
+      overviewSourceRefs: [sourceId],
+      focusEntities,
+      representedFocusEntityIds: ["one"]
+    }
+  });
+  await importV5DesignCandidate(project, variant.variantId, candidate.directory);
+  await confirmV5DesignCandidate(project, variant.variantId, "focus-plan");
+  const final = await writeSite(root, project, variant.variantId, {
+    candidateId: "focus-plan",
+    marker: "incomplete-final-focus",
+    kind: "final",
+    parent: candidate.manifest,
+    coverageOverride: {
+      kind: "complete-site",
+      overviewContentIds: ["market"],
+      overviewSourceRefs: [sourceId],
+      focusEntities,
+      representedFocusEntityIds: ["one"]
+    }
+  });
+  await assert.rejects(() => importV5FinalSite(project, variant.variantId, final.directory), /missing focus entity two/i);
+});
 
 test("V5 imports three distinct real HTML samples and confirms only after the set is complete", async (t) => {
   const { root, project, variant } = await fixture(t);

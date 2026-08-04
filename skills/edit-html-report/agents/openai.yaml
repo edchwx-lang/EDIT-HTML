@@ -1,4 +1,4 @@
 interface:
-  display_name: "Edit HTML Report V5.0"
+  display_name: "Edit HTML Report V5.1"
   short_description: "Extract facts, let Huashu own content and design, then audit and edit"
-  default_prompt: "Use $edit-html-report V5.0 to extract a Source Pack, conduct Huashu's three content interviews, compare real executable samples, preserve the chosen site's design through audit and instrumentation, and stop for visible editor confirmation."
+  default_prompt: "Use $edit-html-report V5.1 to extract a Source Pack, ask the two required content questions plus at most one material-driven clarification, let Huashu own content and design, compare content-complete executable samples, preserve the chosen site through audit and instrumentation, and return a clickable visible-editor handoff for user confirmation."

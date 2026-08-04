@@ -286,6 +286,12 @@ test("CLI open is a background alias for editor open and the session remains reu
   assert.equal(openedResult.status, 0, openedResult.stderr);
   const opened = JSON.parse(openedResult.stdout);
   assert.match(opened.url, /^http:\/\/127\.0\.0\.1:\d+\/\?token=/);
+  assert.equal(opened.handoff.kind, "visible-editor");
+  assert.equal(opened.handoff.editorUrl, opened.url);
+  assert.equal(opened.handoff.confirmationRequired, true);
+  assert.equal(opened.handoff.variantId, variant.variantId);
+  assert.equal(path.isAbsolute(opened.handoff.launcherPath), true);
+  await access(opened.handoff.launcherPath);
   assert.equal((await fetch(opened.url)).status, 200);
   const status = spawnSync(process.execPath, [cli, "editor", "status", projectDir], { cwd: root, encoding: "utf8" });
   assert.equal(status.status, 0, status.stderr);
