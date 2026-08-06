@@ -1,6 +1,8 @@
-# V5.2.1 Audit and Instrumenter Contract
+# V5.3 Audit and Instrumenter Contract
 
 ## Read-only audit
+
+`design prepare` writes the immutable allowed-input manifest. It contains only Source Pack files, the confirmed interview, `content-brief.json`, and optional visual references; renderer models, editor runtime, compiled theme output, and publication state are excluded. `design final import` freezes Huashu output and persists owner, command, timestamp, allowed-input hashes, and output hash. Audit commands require this receipt and cannot run in the same command as design generation.
 
 Before artifact creation, the auditor checks candidate lineage, Source Pack hash, interview hash, content binding hash, visible numeric fidelity, units, dates, ranges, qualifications, source references, substantive coverage, registered resources, and offline script safety.
 
@@ -23,5 +25,7 @@ After a passing audit, `render` performs protocol adaptation with an HTML AST:
 V5 does not write `data-node-id`. V5.2.1 routes text, block, image, chart, and theme operations through the HTML-patch path. The model-operation path remains only for V4 compatibility.
 
 Instrumenter must preserve Huashu's DOM nesting, classes, document order, typography, geometry, SVG/canvas implementation, charts, and interactions. Only resource inlining, protocol attributes, theme declarations, and editor metadata may be added.
+
+The preservation check compares frozen and instrumented ownership snapshots. A changed heading, class, grid/layout declaration, typography declaration, chart series, or interaction code fails with a field-specific diagnostic instead of being accepted.
 
 Validation compares the recorded pre/post body structure, artifact hash, audit result, unique edit IDs, executable chart payloads, local-only runtime, and absence of forbidden execution. It does not judge or redesign visual quality.

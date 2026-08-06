@@ -12,8 +12,10 @@ import {
   validateV511DesignProcess,
   V511_PACKAGE_VERSION,
   V52_PACKAGE_VERSION,
-  V521_PACKAGE_VERSION
+  V521_PACKAGE_VERSION,
+  V53_PACKAGE_VERSION
 } from "./v5-quality-gate.js";
+import { freezeHuashuOutput, requireHuashuInputManifest } from "./v5-stage-boundary.js";
 
 const THREE_THEMES = new Set(["precision-blueprint", "warm-paper-terracotta", "sandstone-archive"]);
 const REQUIRED_FILES = [
@@ -98,8 +100,18 @@ export async function prepareV5CandidateReviewSet(projectDir, variantId) {
     variantId,
     preparedAt: new Date().toISOString(),
     state: "awaiting-user-selection",
-    reviewInstruction: "Show the actual desktop and mobile screenshots to the user and confirm only after receiving a user selection.",
-    candidates: audits.map(({ structuralTrigrams, errors, ...audit }) => audit),
+    reviewInstruction: variant.packageVersion === V53_PACKAGE_VERSION
+      ? "Show exactly the one 1440x900 desktop screenshot for each candidate and confirm only after receiving a user selection."
+      : "Show the actual desktop and mobile screenshots to the user and confirm only after receiving a user selection.",
+    candidates: variant.packageVersion === V53_PACKAGE_VERSION
+      ? audits.map((audit) => ({
+          candidateId: audit.candidateId,
+          screenshot: path.resolve(audit.screenshot.path),
+          narrative: audit.narrative,
+          visualization: audit.visualization,
+          interaction: audit.interaction
+        }))
+      : audits.map(({ structuralTrigrams, errors, ...audit }) => audit),
     warnings: setAudit.warnings
   };
   const reviewSetSha256 = hashJson(reviewSetDraft);
@@ -150,6 +162,7 @@ export async function confirmV5DesignCandidate(projectDir, variantId, candidateI
 export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   const variant = await readVariant(projectDir, variantId);
   if (!variant.designSelection) throw new Error("final site requires a selected candidate");
+  if (variant.packageVersion === V53_PACKAGE_VERSION) await requireHuashuInputManifest(projectDir, variantId);
   const validation = await validateV5Site(projectDir, variantId, sourceDir, "final");
   if (
     validation.manifest.parentCandidateId !== variant.designSelection.candidateId ||
@@ -177,10 +190,14 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   await writeJsonAtomic(storedManifestPath, storedManifest);
   await rm(destination, { recursive: true, force: true });
   await rename(staging, destination);
+  const huashuReceipt = requiresV511Gates(variant) && variant.packageVersion === V53_PACKAGE_VERSION
+    ? await freezeHuashuOutput(projectDir, variantId, "final")
+    : null;
   await updateVariant(projectDir, variantId, (record) => ({
     ...record,
     pipelineState: "final-site-ready",
-    finalSiteSha256: validation.payloadSha256
+    finalSiteSha256: validation.payloadSha256,
+    ...(huashuReceipt ? { huashuFinalReceiptSha256: huashuReceipt.receiptSha256 } : {})
   }));
   return { ...validation, outputSha256: validation.payloadSha256 };
 }
@@ -191,15 +208,24 @@ export async function getV5FinalStatus(projectDir, variantId) {
     variantId,
     state: variant.pipelineState,
     designSelection: variant.designSelection ?? null,
-    finalSiteSha256: variant.finalSiteSha256 ?? null
+    finalSiteSha256: variant.finalSiteSha256 ?? null,
+    huashuFinalReceiptSha256: variant.huashuFinalReceiptSha256 ?? null
   };
 }
 
 async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
-  for (const name of REQUIRED_FILES) await readFile(path.join(siteDir, ...name.split("/")));
+  const provisionalManifest = await readJson(path.join(siteDir, "manifest.json"));
+  const compactCandidate = expectedKind === "candidate" && provisionalManifest.packageVersion === V53_PACKAGE_VERSION;
+  const requiredFiles = compactCandidate
+    ? REQUIRED_FILES.filter((name) => name !== "screenshots/mobile.png")
+    : REQUIRED_FILES;
+  for (const name of requiredFiles) await readFile(path.join(siteDir, ...name.split("/")));
   for (const directory of ["styles", "scripts", "assets", "screenshots"]) {
     const stat = await readdir(path.join(siteDir, directory));
-    if (directory === "screenshots" && stat.length < 2) throw new Error("site requires desktop and mobile screenshots");
+    if (directory === "screenshots" && compactCandidate && (stat.length !== 1 || stat[0] !== "desktop.png")) {
+      throw new Error("V5.3 candidate sample requires exactly one desktop screenshot");
+    }
+    if (directory === "screenshots" && !compactCandidate && stat.length < 2) throw new Error("site requires desktop and mobile screenshots");
   }
   const [manifest, bindings, html, project, variant, sourceMap] = await Promise.all([
     readJson(path.join(siteDir, "manifest.json")),
@@ -228,10 +254,13 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   if (manifest.payloadSha256 !== payloadSha256 || manifest.outputSha256 !== payloadSha256) throw new Error("site payload SHA-256 mismatch");
   if (manifest.screenshotSourceSha256 !== payloadSha256) throw new Error("screenshots must declare the executable site payload they render");
   let designProcessSha256 = null;
-  if ([V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(manifest.packageVersion)) {
-    const processResult = await validateV511DesignProcess(siteDir, html, expectedKind);
+  if ([V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(manifest.packageVersion)) {
+    const processResult = await validateV511DesignProcess(siteDir, html, expectedKind, manifest.packageVersion);
     designProcessSha256 = processResult.designProcessSha256;
     if (manifest.designProcessSha256 !== designProcessSha256) throw new Error("design-process SHA-256 mismatch");
+    if (compactCandidate && stableStringify(manifest.sampleScope) !== stableStringify(processResult.process.sampleScope)) {
+      throw new Error("manifest sampleScope must match design-process.json");
+    }
   }
   await validateLocalRuntime(html, siteDir);
   return {
@@ -364,6 +393,8 @@ function candidateSummary(validation) {
     directionId: manifest.directionId,
     directionLabel: manifest.directionLabel,
     previewThemeId: manifest.previewThemeId,
+    packageVersion: manifest.packageVersion,
+    sampleScope: manifest.sampleScope ?? null,
     payloadSha256: manifest.payloadSha256,
     screenshotSourceSha256: manifest.screenshotSourceSha256,
     contentPlanSha256: validation.contentPlanSha256,

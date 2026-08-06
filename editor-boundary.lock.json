@@ -1,20 +1,20 @@
 {
   "baseline": "edit-html-report-v5.3.0",
   "files": {
-    "src/artifact-contract.js": "b827aa02dd43c7d369a287ddcaac0cbf2c717a0eb976ed2a97993dad4c316b99",
-    "src/drafts.js": "ecd08e5c5a20a02a03efe9b1377a0e739821d4782f9282ab46516d3cc147707c",
-    "src/editor-review.js": "b90d19ecd0e66913f8b895c6d016f1e6232bfa1bb81f59a8a5acd8c052bab280",
-    "src/editor-server.js": "8d0feca1d40d803c4da664585518858e4ca9f0696149d27a44bc2c4e14324a93",
-    "src/editor-session.js": "7b2f0af6e23c7ab2627f3fc373098d5f7f4efd1c9d0504a713de22e6fd27820b",
-    "src/editor-session-worker.js": "a8eb6099b46a748b26bb4bb2ebaaf3db0f22e10164706a2da9d4064010a2119a",
-    "src/editor-shell.js": "483a032554b2d55483f137c858ff068348cbf78d4b864666dd00ecde4c03dda4",
-    "src/finalize.js": "242f7960763171790a795996ace2dc72d12250135f289dcf1165933189e57585",
-    "src/packaging.js": "40d62eaad2b74e411f649438af37e3ab5144305fc7a5da5d7080e732efc12aab",
-    "src/project-runtime.js": "019f6cb702ed9988c6621693f62d274ceed76abb16df26852f3f9fe5d728e5e7",
-    "src/publish.js": "616426d3d1f4415de7078bcf694f5076100b8efd22d15b1bb9c5b734aa2471dd",
-    "src/theme-artifact.js": "36907a8d0cff391580eeba1cde12caaaafdef900865c23295574f16b1163e809",
-    "src/themes.js": "738eb63bb42c6e6177ed792c522249f81402a01280d15e3644b129d6bba0d1d0",
-    "src/versions.js": "ee78664bc7d98f93928f919cb3fdb6427cb9bb76b166f6111d818c9cff6b1fa9",
-    "src/version-manifest.js": "9582ff8313d2fcd85081cc878dc01bcf008fd2b7c60d29561cdd93a30c2213f4"
+    "src/artifact-contract.js": "cefe0f4e8f880259c92dbb13269631597399c1705019dd0e0a49077915087cf0",
+    "src/drafts.js": "97cf854dbf4acc34aeafcb518c631151737d019ed4f532cff8e5cc2e3b1744f0",
+    "src/editor-review.js": "5946a8d21e8d079d2bc41a8c2d49ed53be470aa2cc2a06f28916492fd1bc4e6b",
+    "src/editor-server.js": "90545bef54a47cac25f343a967faa5d9fd15125ad0225cae57196d93622c1ddb",
+    "src/editor-session.js": "63d85e3d2ae24f906b679fb5bb00af664c87b738c7c174d8618f81d6d5dbc844",
+    "src/editor-session-worker.js": "b2dc051a1dea4b4176d7746f4769eabc44ce70c48ed5ab155a2658632b0e7c3e",
+    "src/editor-shell.js": "7784af01959e87244bd5370fcf18c30642fb19872d47d25e6b522631d8598906",
+    "src/finalize.js": "f28cf9ed0e9821cb5b4ff7f31673b22bb83a42a01a1edb363516dd366f020f5b",
+    "src/packaging.js": "6eab653dc6c716c6b9cfde352a0f56d8b79bca17bb744a36c134fe596d7bbe07",
+    "src/project-runtime.js": "8a16c188d18c10b4ea7465b4dc8136ed215eeb17771e3cb77253bbd5f5702b72",
+    "src/publish.js": "445d96192b3daa343193393d7b3b38a8f4346fd386db30b77d79006c7b6befab",
+    "src/theme-artifact.js": "d3b7926d6967410f48ad1b87badb86ec3c99067c38400d1ec4d9ac4a537ccd5e",
+    "src/themes.js": "2cc9be9cc2cd8bcf940f798ae20bd21b4497b62c4d3235dc4546a0c9f220c481",
+    "src/versions.js": "454920962682d5694c6f91d4001f302f99bd8e6a3fb97ddfe3311ce54f341429",
+    "src/version-manifest.js": "e33ff085aebe4a06cf0a8e7a1d3bf8f1e558e1993d8548bc25676bbea9a36e39"
   }
 }

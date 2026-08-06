@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createCanvas } from "@napi-rs/canvas";
 
 import { createV5Project, createV5Variant } from "../src/v5-project.js";
 import { importV5Interview, prepareV5HuashuInput } from "../src/v5-interview.js";
@@ -24,8 +25,10 @@ async function setProjectVersion(project, variantId, version) {
   const variantJson = JSON.parse(await readFile(variantPath, "utf8"));
   projectJson.packageVersion = version;
   projectJson.pipelineVersion = version;
+  projectJson.artifactContractVersion = version;
   variantJson.packageVersion = version;
   variantJson.pipelineVersion = version;
+  variantJson.artifactContractVersion = version;
   projectJson.variants = projectJson.variants.map((item) => item.variantId === variantId ? variantJson : item);
   await writeFile(projectPath, JSON.stringify(projectJson, null, 2), "utf8");
   await writeFile(variantPath, JSON.stringify(variantJson, null, 2), "utf8");
@@ -40,8 +43,9 @@ async function fixture(t, { reference = false, version = "5.1.0" } = {}) {
   await createV5Project(source, project);
   const variant = await createV5Variant(project, {});
   if (version !== "5.2.1") await setProjectVersion(project, variant.variantId, version);
+  const receiptGated = ["5.1.1", "5.2.0", "5.2.1", "5.3.0"].includes(version);
   const interview = {
-    schemaVersion: version === "5.1.1" ? 3 : 2,
+    schemaVersion: receiptGated ? 3 : 2,
     variantId: variant.variantId,
     answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
       question: key,
@@ -49,7 +53,7 @@ async function fixture(t, { reference = false, version = "5.1.0" } = {}) {
       origin: "user-provided",
       recordedAt: "2026-08-04T10:00:00.000Z"
     }])),
-    ...(version === "5.1.1" ? {
+    ...(receiptGated ? {
       decisionEvidence: {
         evidenceType: "direct-user-answer",
         verbatimUserQuote: "Purpose and emphasis provided for design gate testing.",
@@ -151,6 +155,17 @@ function tinyPng(marker) {
   return Buffer.concat([base, Buffer.from(String(marker))]);
 }
 
+function reviewPng(marker) {
+  const canvas = createCanvas(1440, 900);
+  const context = canvas.getContext("2d");
+  context.fillStyle = marker.length % 2 ? "#204060" : "#806040";
+  context.fillRect(0, 0, 1440, 900);
+  context.fillStyle = "#ffffff";
+  context.font = "48px sans-serif";
+  context.fillText(marker, 80, 120);
+  return canvas.toBuffer("image/png");
+}
+
 async function writeV511Site(root, project, variantId, {
   candidateId,
   marker = candidateId,
@@ -166,6 +181,7 @@ async function writeV511Site(root, project, variantId, {
   rawDump = false
 }) {
   const directory = path.join(root, marker + "-v511-site");
+  const variant = JSON.parse(await readFile(path.join(project, "variants", variantId, "variant.json"), "utf8"));
   await mkdir(path.join(directory, "styles"), { recursive: true });
   await mkdir(path.join(directory, "scripts"), { recursive: true });
   await mkdir(path.join(directory, "assets"), { recursive: true });
@@ -214,17 +230,27 @@ async function writeV511Site(root, project, variantId, {
       { id: "focus", title: "Focus evidence", category: "focus", type: focusType, selector: `.focus-${marker}`, sourceRefs: [sourceId] }
     ],
     coreInteraction: { type: interactionType, selector: `.interact-${marker}`, event: "click", description: "Switches the representative focus state" }
+    ,...(variant.packageVersion === "5.3.0" && kind === "candidate" ? {
+      sampleScope: {
+        firstViewportSelector: "body",
+        focusModuleSelector: `.focus-${marker}`,
+        coreInteractionSelector: `.interact-${marker}`
+      }
+    } : {})
   };
   const designProcessText = JSON.stringify(designProcess);
   await writeFile(path.join(directory, "design-process.json"), designProcessText, "utf8");
   await writeFile(path.join(directory, "screenshots", "desktop.png"), tinyPng("desktop-" + marker));
   await writeFile(path.join(directory, "screenshots", "mobile.png"), tinyPng("mobile-" + marker));
   const projectJson = JSON.parse(await readFile(path.join(project, "project.json"), "utf8"));
-  const variant = JSON.parse(await readFile(path.join(project, "variants", variantId, "variant.json"), "utf8"));
+  if (variant.packageVersion === "5.3.0" && kind === "candidate") {
+    await writeFile(path.join(directory, "screenshots", "desktop.png"), reviewPng(marker));
+    await rm(path.join(directory, "screenshots", "mobile.png"));
+  }
   const payloadSha256 = await hashV5SitePayload(directory);
   const manifest = {
     schemaVersion: 1,
-    packageVersion: "5.1.1",
+    packageVersion: variant.packageVersion,
     kind,
     candidateId,
     directionId,
@@ -238,6 +264,13 @@ async function writeV511Site(root, project, variantId, {
     outputSha256: payloadSha256,
     screenshotSourceSha256: payloadSha256,
     designProcessSha256: createHash("sha256").update(designProcessText).digest("hex"),
+    ...(variant.packageVersion === "5.3.0" && kind === "candidate" ? {
+      sampleScope: {
+        firstViewportSelector: "body",
+        focusModuleSelector: `.focus-${marker}`,
+        coreInteractionSelector: `.interact-${marker}`
+      }
+    } : {}),
     ...(parent ? { parentCandidateId: parent.candidateId, parentCandidateSha256: parent.payloadSha256 } : {})
   };
   await writeFile(path.join(directory, "manifest.json"), JSON.stringify(manifest), "utf8");
@@ -495,4 +528,64 @@ test("V5.1.1 review audit rejects converged templates and raw source dumps", asy
     await importV5DesignCandidate(project, variant.variantId, site.directory);
   }
   await assert.rejects(() => prepareV5CandidateReviewSet(project, variant.variantId), /candidate review audit failed.+raw source block|template-convergence|distinct narrative/is);
+});
+
+test("V5.3 candidate review exposes one compact executable 1440x900 sample per candidate", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true, version: "5.3.0" });
+  const site = await writeV511Site(root, project, variant.variantId, {
+    candidateId: "network-atlas",
+    marker: "network-atlas",
+    narrativeId: "network-evidence",
+    overviewType: "flow",
+    focusType: "matrix",
+    interactionType: "filter",
+    structure: "lab"
+  });
+  await importV5DesignCandidate(project, variant.variantId, site.directory);
+  const review = await prepareV5CandidateReviewSet(project, variant.variantId);
+  assert.equal(review.candidates.length, 1);
+  assert.deepEqual(Object.keys(review.candidates[0]).sort(), ["candidateId", "interaction", "narrative", "screenshot", "visualization"]);
+  assert.equal(path.isAbsolute(review.candidates[0].screenshot), true);
+  assert.match(review.candidates[0].screenshot, /desktop\.png$/);
+  assert.match(review.candidates[0].narrative, /network-evidence/i);
+  assert.match(review.candidates[0].visualization, /matrix|flow/i);
+  assert.match(review.candidates[0].interaction, /filter/i);
+  assert.deepEqual((await readdir(path.join(site.directory, "screenshots"))).sort(), ["desktop.png"]);
+});
+
+test("V5.3 rejects missing sample selectors, fake screenshots, and full candidate packages mislabeled as samples", async (t) => {
+  const missing = await fixture(t, { reference: true, version: "5.3.0" });
+  const missingSite = await writeV511Site(missing.root, missing.project, missing.variant.variantId, {
+    candidateId: "missing", marker: "missing", structure: "radar"
+  });
+  const missingManifestPath = path.join(missingSite.directory, "manifest.json");
+  const missingManifest = JSON.parse(await readFile(missingManifestPath, "utf8"));
+  missingManifest.sampleScope.focusModuleSelector = ".not-present";
+  await writeFile(missingManifestPath, JSON.stringify(missingManifest), "utf8");
+  const missingProcessPath = path.join(missingSite.directory, "design-process.json");
+  const missingProcess = JSON.parse(await readFile(missingProcessPath, "utf8"));
+  missingProcess.sampleScope.focusModuleSelector = ".not-present";
+  const missingProcessText = JSON.stringify(missingProcess);
+  await writeFile(missingProcessPath, missingProcessText, "utf8");
+  missingManifest.designProcessSha256 = createHash("sha256").update(missingProcessText).digest("hex");
+  await writeFile(missingManifestPath, JSON.stringify(missingManifest), "utf8");
+  await refreshManifest(missingSite.directory);
+  await assert.rejects(() => importV5DesignCandidate(missing.project, missing.variant.variantId, missingSite.directory), /focusModuleSelector.*index\.html/i);
+
+  const fake = await fixture(t, { reference: true, version: "5.3.0" });
+  const fakeSite = await writeV511Site(fake.root, fake.project, fake.variant.variantId, {
+    candidateId: "fake", marker: "fake", structure: "briefing"
+  });
+  await writeFile(path.join(fakeSite.directory, "screenshots", "desktop.png"), "not a png", "utf8");
+  await refreshManifest(fakeSite.directory);
+  await importV5DesignCandidate(fake.project, fake.variant.variantId, fakeSite.directory);
+  await assert.rejects(() => prepareV5CandidateReviewSet(fake.project, fake.variant.variantId), /real PNG/i);
+
+  const full = await fixture(t, { reference: true, version: "5.3.0" });
+  const fullSite = await writeV511Site(full.root, full.project, full.variant.variantId, {
+    candidateId: "full", marker: "full", structure: "lab"
+  });
+  await writeFile(path.join(fullSite.directory, "screenshots", "mobile.png"), reviewPng("mobile"));
+  await refreshManifest(fullSite.directory);
+  await assert.rejects(() => importV5DesignCandidate(full.project, full.variant.variantId, fullSite.directory), /exactly one desktop screenshot/i);
 });

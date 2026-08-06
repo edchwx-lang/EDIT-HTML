@@ -5,6 +5,7 @@ import path from "node:path";
 import { writeJsonAtomic } from "./io.js";
 import { requiresV511Gates } from "./v5-quality-gate.js";
 import { TOOL_VERSION } from "./version-manifest.js";
+import { writeHuashuInputManifest } from "./v5-stage-boundary.js";
 
 const LEGACY_REQUIRED_TOPICS = ["purpose", "contentWeight", "structurePreference"];
 const REQUIRED_TOPICS = ["purpose", "contentWeight"];
@@ -140,12 +141,15 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
     instructions: "Huashu owns editorial structure and all executable HTML design. Use the interview and source pack; never invent facts. Produce real runnable samples whose screenshots are rendered from their index.html."
   };
   await writeJsonAtomic(path.join(inputDir, "manifest.json"), manifest);
+  const inputReceipt = variant.packageVersion === TOOL_VERSION
+    ? await writeHuashuInputManifest(projectDir, variantId)
+    : null;
   await updateVariant(projectDir, variantId, (record) => ({
     ...record,
     pipelineState: "awaiting-design-candidates",
     huashuInputSha256: hashJson(manifest)
   }));
-  return { inputDir, strategySelection, manifest };
+  return { inputDir, strategySelection, manifest, ...(inputReceipt ? { inputReceipt } : {}) };
 }
 
 function validateInterview(interview, variantId, { requireEvidence = false } = {}) {

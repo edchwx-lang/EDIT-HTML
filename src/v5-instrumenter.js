@@ -7,10 +7,19 @@ import { markAwaitingEditorReview } from "./editor-review.js";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { auditV5FinalSite } from "./v5-audit.js";
+import {
+  assertAuditPreservedHuashuOutput,
+  requireFrozenHuashuOutput,
+  snapshotHuashuOutput
+} from "./v5-stage-boundary.js";
 
 export async function instrumentV5Variant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
   const siteDir = path.join(variantDir, "design", "package");
+  const siteManifest = await readJson(path.join(siteDir, "manifest.json"));
+  const huashuReceipt = siteManifest.packageVersion === "5.3.0"
+    ? await requireFrozenHuashuOutput(projectDir, variantId, "final")
+    : null;
   await auditV5FinalSite(projectDir, variantId);
   const [sourceHtml, bindings, sourceMap, factLedger, variant] = await Promise.all([
     readFile(path.join(siteDir, "index.html"), "utf8"),
@@ -19,6 +28,7 @@ export async function instrumentV5Variant(projectDir, variantId) {
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json")),
     readJson(path.join(variantDir, "variant.json"))
   ]);
+  const huashuBefore = await snapshotHuashuOutput(sourceHtml, { siteDir });
   const document = parse(sourceHtml);
   const bodyStructureBeforeSha256 = bodyStructureSha256(document);
   await inlineResources(document, siteDir);
@@ -51,6 +61,8 @@ export async function instrumentV5Variant(projectDir, variantId) {
     setAttribute(image, "data-image-id", stableIdentity("image", "document", nodePath(document, image)));
   }
   let artifact = serialize(document);
+  const huashuAfter = await snapshotHuashuOutput(artifact);
+  assertAuditPreservedHuashuOutput(huashuBefore, huashuAfter);
   const bodyStructureAfterSha256 = bodyStructureSha256(document);
   if (bodyStructureBeforeSha256 !== bodyStructureAfterSha256) {
     throw new Error("instrumenter changed Huashu body structure");
@@ -80,6 +92,11 @@ export async function instrumentV5Variant(projectDir, variantId) {
     bodyStructureBeforeSha256,
     bodyStructureAfterSha256,
     artifactSha256: createHash("sha256").update(artifact).digest("hex"),
+    ...(huashuReceipt ? {
+      huashuReceiptOutputSha256: huashuReceipt.outputSha256,
+      huashuPreservationBeforeSha256: hashJson(huashuBefore),
+      huashuPreservationAfterSha256: hashJson(huashuAfter)
+    } : {}),
     injectedContracts: ["offline-resources", "editor-identities", "source-bindings", "theme-variables"],
     generatedDesign: false
   });
@@ -334,4 +351,8 @@ function mimeFor(filePath) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function hashJson(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }

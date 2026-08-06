@@ -2,26 +2,28 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "parse5";
+import { loadImage } from "@napi-rs/canvas";
 import { SUPPORTED_ARTIFACT_CONTRACT_VERSIONS } from "./version-manifest.js";
 
 export const V511_PACKAGE_VERSION = "5.1.1";
 export const V52_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.0");
 export const V521_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.1");
+export const V53_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.0");
 
 const MEANINGFUL_VISUAL_TYPES = new Set(["chart", "matrix", "timeline", "comparison", "flow", "data-table", "annotated-image"]);
 const REQUIRED_VISUAL_CATEGORIES = new Set(["overview", "focus"]);
 
 export function requiresV511Gates(variant) {
-  const artifactContractVersion = variant?.artifactContractVersion ?? variant?.packageVersion;
-  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(artifactContractVersion) ||
-    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(variant?.pipelineVersion);
+  const workflowVersion = variant?.packageVersion ?? variant?.artifactContractVersion;
+  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(workflowVersion) ||
+    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(variant?.pipelineVersion);
 }
 
 export function isSupportedV5SitePackageVersion(version) {
   return SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has(version);
 }
 
-export async function validateV511DesignProcess(siteDir, html, expectedKind) {
+export async function validateV511DesignProcess(siteDir, html, expectedKind, packageVersion = null) {
   const processPath = path.join(siteDir, "design-process.json");
   const text = await readFile(processPath, "utf8");
   const process = JSON.parse(text);
@@ -32,8 +34,9 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind) {
   const narrative = process.narrativeArchitecture;
   if (!narrative?.id || !narrative?.description) errors.push("design-process.json requires narrativeArchitecture id and description");
   const modules = process.visualizationModules;
-  if (!Array.isArray(modules) || modules.length < 2) {
-    errors.push("design-process.json requires at least two meaningful visualization modules");
+  const compactCandidate = expectedKind === "candidate" && packageVersion === V53_PACKAGE_VERSION;
+  if (!Array.isArray(modules) || modules.length < (compactCandidate ? 1 : 2)) {
+    errors.push(`design-process.json requires at least ${compactCandidate ? "one" : "two"} meaningful visualization module${compactCandidate ? "" : "s"}`);
   } else {
     const categories = new Set();
     for (const module of modules) {
@@ -43,10 +46,11 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind) {
       if (!Array.isArray(module?.sourceRefs) || !module.sourceRefs.length) errors.push(`visualization module ${module?.id ?? "unknown"} requires sourceRefs`);
       if (!module?.selector || !hasSelector(document, module.selector)) errors.push(`visualization module ${module?.id ?? "unknown"} selector is not present in index.html`);
     }
-    for (const category of REQUIRED_VISUAL_CATEGORIES) {
+    for (const category of compactCandidate ? ["focus"] : REQUIRED_VISUAL_CATEGORIES) {
       if (!categories.has(category)) errors.push(`design-process.json requires a ${category} visualization module`);
     }
   }
+  if (compactCandidate) validateSampleScope(process.sampleScope, document, process, errors);
   const interaction = process.coreInteraction;
   if (!interaction?.type || !interaction?.selector || !interaction?.event) {
     errors.push("design-process.json requires a coreInteraction type, selector, and event");
@@ -62,19 +66,35 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind) {
 
 export async function auditV511CandidateForReview(projectDir, candidate) {
   const html = await readFile(path.join(candidate.siteDir, "index.html"), "utf8");
-  const [ledger, processResult, desktop, mobile] = await Promise.all([
+  const compactCandidate = candidate.packageVersion === V53_PACKAGE_VERSION;
+  const [ledger, processResult, desktop] = await Promise.all([
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json")),
-    validateV511DesignProcess(candidate.siteDir, html, "candidate"),
-    readFile(path.join(candidate.siteDir, "screenshots", "desktop.png")),
-    readFile(path.join(candidate.siteDir, "screenshots", "mobile.png"))
+    validateV511DesignProcess(candidate.siteDir, html, "candidate", candidate.packageVersion),
+    readFile(path.join(candidate.siteDir, "screenshots", "desktop.png"))
   ]);
   const document = parse(html);
   const errors = [];
   const warnings = [];
   const desktopInfo = pngInfo(desktop);
-  const mobileInfo = pngInfo(mobile);
   if (!desktopInfo) errors.push(`${candidate.candidateId} desktop screenshot must be a real PNG`);
-  if (!mobileInfo) errors.push(`${candidate.candidateId} mobile screenshot must be a real PNG`);
+  else {
+    try {
+      const decoded = await loadImage(desktop);
+      if (decoded.width !== desktopInfo.width || decoded.height !== desktopInfo.height) errors.push(`${candidate.candidateId} desktop screenshot PNG dimensions are invalid`);
+    } catch {
+      errors.push(`${candidate.candidateId} desktop screenshot must be a real PNG`);
+    }
+    if (compactCandidate && (desktopInfo.width !== 1440 || desktopInfo.height !== 900)) {
+      errors.push(`${candidate.candidateId} candidate screenshot must be exactly 1440x900`);
+    }
+  }
+  let mobile = null;
+  let mobileInfo = null;
+  if (!compactCandidate) {
+    mobile = await readFile(path.join(candidate.siteDir, "screenshots", "mobile.png"));
+    mobileInfo = pngInfo(mobile);
+    if (!mobileInfo) errors.push(`${candidate.candidateId} mobile screenshot must be a real PNG`);
+  }
   const rawAudit = auditRawSourceExposure(document, ledger.facts ?? []);
   errors.push(...rawAudit.errors.map((item) => `${candidate.candidateId}: ${item}`));
   warnings.push(...rawAudit.warnings.map((item) => `${candidate.candidateId}: ${item}`));
@@ -91,7 +111,12 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
     coreInteractionType: processResult.process.coreInteraction.type,
     coreInteractionSelector: processResult.process.coreInteraction.selector,
     structuralTrigrams: structuralTrigrams(document),
-    screenshots: {
+    screenshot: {
+        path: path.join(candidate.siteDir, "screenshots", "desktop.png"),
+        sha256: sha256(desktop),
+        ...(desktopInfo ?? {})
+    },
+    ...(compactCandidate ? {} : { screenshots: {
       desktop: {
         path: path.join(candidate.siteDir, "screenshots", "desktop.png"),
         sha256: sha256(desktop),
@@ -102,7 +127,10 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
         sha256: sha256(mobile),
         ...(mobileInfo ?? {})
       }
-    },
+    } }),
+    narrative: processResult.process.narrativeArchitecture.description,
+    visualization: processResult.process.visualizationModules.map((module) => `${module.title} (${module.type})`).join("; "),
+    interaction: `${processResult.process.coreInteraction.description} (${processResult.process.coreInteraction.type})`,
     rawSourceShare: rawAudit.rawSourceShare,
     warnings,
     errors
@@ -141,7 +169,8 @@ export function auditV511CandidateSet(candidateAudits, { requireThree }) {
   }
   const screenshotHashes = new Map();
   for (const audit of candidateAudits) {
-    for (const [viewport, shot] of Object.entries(audit.screenshots)) {
+    const shots = audit.screenshots ?? { desktop: audit.screenshot };
+    for (const [viewport, shot] of Object.entries(shots)) {
       const key = `${viewport}:${shot.sha256}`;
       if (screenshotHashes.has(key)) {
         errors.push(`duplicate ${viewport} screenshot between ${screenshotHashes.get(key)} and ${audit.candidateId}`);
@@ -164,6 +193,22 @@ export function auditV511CandidateSet(candidateAudits, { requireThree }) {
     }
   }
   return { errors, warnings };
+}
+
+function validateSampleScope(scope, document, process, errors) {
+  if (!scope || typeof scope !== "object") {
+    errors.push("design-process.json requires sampleScope for a V5.3 candidate");
+    return;
+  }
+  for (const key of ["firstViewportSelector", "focusModuleSelector", "coreInteractionSelector"]) {
+    if (!scope[key] || !hasSelector(document, scope[key])) errors.push(`sampleScope ${key} is not present in index.html`);
+  }
+  if (scope.focusModuleSelector && !process.visualizationModules?.some((module) => module.category === "focus" && module.selector === scope.focusModuleSelector)) {
+    errors.push("sampleScope focusModuleSelector must identify the representative focus visualization");
+  }
+  if (scope.coreInteractionSelector && scope.coreInteractionSelector !== process.coreInteraction?.selector) {
+    errors.push("sampleScope coreInteractionSelector must identify the declared core interaction");
+  }
 }
 
 function requireDistinct(items, key, label, errors) {

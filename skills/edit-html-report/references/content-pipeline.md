@@ -1,8 +1,10 @@
-# V5.2.1 Source Pack and Fact Boundary
+# V5.3 Source Pack and Fact Boundary
 
 ## Canonical flow
 
 `source -> Source Pack -> Huashu interview/design -> Huashu final site -> read-only audit -> Instrumenter -> artifact -> existing editor`
+
+The Huashu input stage hashes an explicit allowlist: Source Pack, interview, content brief, and optional visual references. No renderer/editor/theme/publication state crosses into design. The final output is frozen by a separate `design final import` receipt before any audit command may run.
 
 `source-pack/` is the only pre-Huashu production output. It contains:
 

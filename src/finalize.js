@@ -7,6 +7,7 @@ import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
 import { PROJECT_SCHEMA_VERSION, validateCoverage } from "./report-model.js";
+import { requireFrozenHuashuOutput } from "./v5-stage-boundary.js";
 
 export async function finalizeVariant(
   projectDir,
@@ -22,6 +23,10 @@ export async function finalizeVariant(
     throw new Error('unknown variant "' + variantId + '"');
   }
   const variant = normalizeVariantRecord(storedVariant);
+  const huashuManifest = await readJsonMaybe(path.join(projectDir, "variants", variantId, "design", "package", "manifest.json"));
+  if (huashuManifest?.packageVersion === "5.3.0") {
+    await requireFrozenHuashuOutput(projectDir, variantId, "final");
+  }
   const artifactPath = path.join(
     projectDir,
     "variants",

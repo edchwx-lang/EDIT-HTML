@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://edit-html-report.local/schemas/v5-design-process.schema.json",
-  "title": "Huashu V5.2.1 Design Process",
+  "title": "Huashu V5.3 Design Process",
   "type": "object",
   "required": ["schemaVersion", "owner", "candidateId", "narrativeArchitecture", "visualizationModules", "coreInteraction"],
   "properties": {
@@ -20,7 +20,7 @@
     },
     "visualizationModules": {
       "type": "array",
-      "minItems": 2,
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["id", "title", "category", "type", "selector", "sourceRefs"],
@@ -43,6 +43,16 @@
         "selector": { "type": "string", "minLength": 1 },
         "event": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "sampleScope": {
+      "type": "object",
+      "required": ["firstViewportSelector", "focusModuleSelector", "coreInteractionSelector"],
+      "properties": {
+        "firstViewportSelector": { "type": "string", "minLength": 1 },
+        "focusModuleSelector": { "type": "string", "minLength": 1 },
+        "coreInteractionSelector": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     }

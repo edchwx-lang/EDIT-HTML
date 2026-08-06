@@ -1,4 +1,4 @@
-# V5.2.1 Huashu Content Interview and Sample Selection
+# V5.3 Huashu Content Interview and Sample Selection
 
 ## Content interview before design
 
@@ -16,8 +16,8 @@ Answers already supplied in the request are recorded without repeating the quest
 
 ## Executable sample comparison
 
-All candidates share the same material-driven content plan. Each is a real, content-complete vertical slice containing the overall situation, one representative focus entity, and its necessary facets. Samples use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` for comfortable comparison, but the choice is about narrative and experience architecture, not palette.
+All candidates share the same material-driven content plan. Each is real executable HTML limited to one first viewport, one representative focus module, and one real core interaction. It need not contain every source facet, mobile implementation, or full-page final content before selection. Samples use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` for comfortable comparison, but the choice is about narrative and experience architecture, not palette.
 
-Three samples must differ materially in information hierarchy, content composition, navigation, DOM structure, visualization strategy, and core interaction. Screenshots are captured from each actual candidate HTML. Each V5.2.1 candidate includes `design-process.json` so the audit can verify narrative architecture, meaningful overview/focus visualizations, and a real core interaction selector.
+Three samples must differ materially in narrative architecture, DOM structure, visualization strategy, and core interaction; color-only or shared-template variants fail. Each V5.3 candidate includes matching `sampleScope.firstViewportSelector`, `focusModuleSelector`, and `coreInteractionSelector` in its manifest and design process.
 
-After candidate import, run `design candidate review prepare`. Confirmation is blocked until the review set hash has been shown with actual desktop and mobile screenshots and the user replies with a choice. `design candidate confirm` requires a selection receipt containing `reviewSetSha256`, `candidateId`, `selectedBy: "user"`, the verbatim selection, and time. Confirmation freezes the selected candidate hash and content-plan hash. Huashu expands that parent into the final site. The final site must include the overview and every focus entity and facet declared by the shared content plan; emphasis changes depth, never silently deletes the rest of the report.
+After candidate import, run `design candidate review prepare`. It exposes only candidate ID, one absolute `1440x900` desktop screenshot path, and one-sentence narrative, visualization, and interaction summaries. Capture uses `fullPage: false`; mobile and full-page checks wait until final-site completion. Confirmation is blocked until the review set hash and actual screenshots have been shown and the user replies with a choice. The selected final site must still pass complete desktop and mobile Playwright checks before editor handoff.

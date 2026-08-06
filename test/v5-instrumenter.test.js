@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,6 +13,7 @@ import { applyDraftPatch, redoDraft, undoDraft } from "../src/drafts.js";
 import { confirmEditorReview } from "../src/editor-review.js";
 import { finalizeVariant } from "../src/finalize.js";
 import { updateVariantTheme } from "../src/variants.js";
+import { freezeHuashuOutput, writeHuashuInputManifest } from "../src/v5-stage-boundary.js";
 
 async function fixture(t, { number = "189", includeRemote = false, rawAppendix = false, authorizeRawAppendix = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "edit-html-v5-instrument-"));
@@ -162,6 +163,31 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
     contractVersion: "5.3.0",
     runtimeVersion: "5.3.0"
   });
+});
+
+test("V5.3 audit instrumentation requires a prior immutable Huashu final receipt", async (t) => {
+  const { projectDir, variantId, packageDir } = await fixture(t);
+  const manifestPath = path.join(packageDir, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.packageVersion = "5.3.0";
+  await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+  await assert.rejects(() => instrumentV5Variant(projectDir, variantId), /receipt is required before audit/i);
+
+  const inputDir = path.join(projectDir, "variants", variantId, "design", "huashu-input");
+  await mkdir(path.join(inputDir, "assets"), { recursive: true });
+  for (const name of [
+    "readable-source.md", "fact-ledger.json", "source-map.json", "tables-and-datasets.json",
+    "asset-contact-sheet.html", "extraction-warnings.json"
+  ]) await cp(path.join(projectDir, "source-pack", name), path.join(inputDir, name));
+  await writeFile(path.join(inputDir, "interview.json"), "{}", "utf8");
+  await writeFile(path.join(inputDir, "content-brief.json"), "{}", "utf8");
+  await writeHuashuInputManifest(projectDir, variantId);
+  const receipt = await freezeHuashuOutput(projectDir, variantId, "final");
+  const artifactPath = await instrumentV5Variant(projectDir, variantId);
+  assert.ok((await readFile(artifactPath, "utf8")).includes("data-report-mode"));
+  const report = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "instrumentation-report.json"), "utf8"));
+  assert.equal(report.huashuReceiptOutputSha256, receipt.outputSha256);
+  assert.equal(report.huashuPreservationBeforeSha256, report.huashuPreservationAfterSha256);
 });
 
 test("V5 validation reads a persisted legacy 5.2.1 project without rewriting its records", async (t) => {

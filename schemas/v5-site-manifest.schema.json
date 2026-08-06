@@ -20,6 +20,16 @@
     "outputSha256": { "$ref": "#/$defs/hash" },
     "screenshotSourceSha256": { "$ref": "#/$defs/hash" },
     "designProcessSha256": { "$ref": "#/$defs/hash" },
+    "sampleScope": {
+      "type": "object",
+      "required": ["firstViewportSelector", "focusModuleSelector", "coreInteractionSelector"],
+      "properties": {
+        "firstViewportSelector": { "type": "string", "minLength": 1 },
+        "focusModuleSelector": { "type": "string", "minLength": 1 },
+        "coreInteractionSelector": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "parentCandidateId": { "$ref": "#/$defs/id" },
     "parentCandidateSha256": { "$ref": "#/$defs/hash" }
   },
@@ -27,5 +37,11 @@
     "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
     "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "candidate" }, "packageVersion": { "const": "5.3.0" } }, "required": ["kind", "packageVersion"] },
+      "then": { "required": ["sampleScope"] }
+    }
+  ],
   "additionalProperties": false
 }

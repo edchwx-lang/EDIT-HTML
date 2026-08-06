@@ -16,6 +16,8 @@ test("published skill documents the V5.3.0 Huashu-owned production boundary", as
   assert.match(skill, /Never ask about structure/i);
   assert.match(skill, /Source Pack/i);
   assert.match(skill, /three executable samples|三套真实可执行样稿/i);
+  assert.match(skill, /1440x900/);
+  assert.match(skill, /immutable stage receipt/i);
   assert.match(skill, /Instrumenter/);
   assert.match(skill, /clickable editor URL/i);
   assert.match(skill, /raw-source appendix/i);

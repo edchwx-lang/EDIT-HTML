@@ -8,6 +8,7 @@ import {
   EDITOR_RUNTIME_VERSION,
   SUPPORTED_ARTIFACT_CONTRACT_VERSIONS
 } from "./version-manifest.js";
+import { requireFrozenHuashuOutput } from "./v5-stage-boundary.js";
 
 export async function validateV5Variant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
@@ -19,6 +20,7 @@ export async function validateV5Variant(projectDir, variantId) {
     readJson(path.join(variantDir, "design", "package", "manifest.json"))
   ]);
   if (project.schemaVersion !== 5 || variant.schemaVersion !== 5) throw new Error("V5 validation requires schema version 5");
+  if (manifest.packageVersion === "5.3.0") await requireFrozenHuashuOutput(projectDir, variantId, "final");
   assertSupportedArtifactContractVersion(project);
   assertSupportedArtifactContractVersion(variant);
   if (variant.finalSiteSha256 !== manifest.outputSha256) throw new Error("variant and final site hash do not match");
