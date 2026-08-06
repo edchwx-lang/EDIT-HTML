@@ -49,7 +49,7 @@ export async function getEditorSessionStatus(projectDir) {
   return { running, ...(session ?? {}) };
 }
 
-export async function stopEditorSession(projectDir, { runtimeSha256 = undefined } = {}) {
+export async function stopEditorSession(projectDir, { runtimeSha256 = undefined, shutdownTimeoutMs = 4000 } = {}) {
   const absoluteProjectDir = path.resolve(projectDir);
   const session = await readSession(absoluteProjectDir);
   if (!session) return { stopped: false, reason: "not-running" };
@@ -61,15 +61,27 @@ export async function stopEditorSession(projectDir, { runtimeSha256 = undefined 
     return { stopped: false, reason: "unverified-session" };
   }
   try {
-    await fetch(session.url + "/api/shutdown", {
+    const response = await fetch(session.url + "/api/shutdown", {
       method: "POST",
       headers: { authorization: "Bearer " + session.token }
     });
-  } catch {}
-  const deadline = Date.now() + 4000;
-  while (Date.now() < deadline && await sessionIsHealthy(session, absoluteProjectDir, expectedRuntimeSha256)) await delay(50);
-  await rm(sessionPath(absoluteProjectDir), { force: true });
-  return { stopped: true, sessionId: session.sessionId };
+    if (!response.ok) return { stopped: false, reason: "shutdown-rejected" };
+  } catch {
+    return { stopped: false, reason: "shutdown-unreachable" };
+  }
+  const deadline = Date.now() + shutdownTimeoutMs;
+  while (Date.now() < deadline) {
+    if (await healthEndpointIsUnavailable(session)) {
+      await rm(sessionPath(absoluteProjectDir), { force: true });
+      return { stopped: true, sessionId: session.sessionId };
+    }
+    await delay(50);
+  }
+  if (await healthEndpointIsUnavailable(session)) {
+    await rm(sessionPath(absoluteProjectDir), { force: true });
+    return { stopped: true, sessionId: session.sessionId };
+  }
+  return { stopped: false, reason: "shutdown-timeout" };
 }
 
 export function launchBrowser(url) {
@@ -116,6 +128,15 @@ async function sessionIsHealthy(session, projectDir, runtimeSha256) {
       health.pid === session.pid;
   } catch {
     return false;
+  }
+}
+
+async function healthEndpointIsUnavailable(session) {
+  try {
+    await fetch(session.url + "/api/health", { signal: AbortSignal.timeout(800) });
+    return false;
+  } catch {
+    return true;
   }
 }
 

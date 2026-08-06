@@ -4,7 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { ensureEditorSession, getEditorSessionStatus, stopEditorSession } from "../src/editor-session.js";
+import { ensureEditorSession, getEditorSessionStatus, recordEditorSession, stopEditorSession } from "../src/editor-session.js";
+import { getProjectRuntimeManifest, refreshProjectEditorRuntime } from "../src/project-runtime.js";
+import { startEditorServer } from "../src/editor-server.js";
 import { createProject } from "../src/project.js";
 import { createVariant } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
@@ -152,4 +154,75 @@ test("session stop requires the health endpoint to confirm the recorded PID", as
   assert.equal(stopped.stopped, false);
   assert.equal((await fetch(session.url + "/api/health")).status, 200);
   await assert.rejects(readFile(metadataPath));
+});
+
+test("rejected shutdown preserves trusted session metadata and blocks runtime refresh", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-reject-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
+  const session = await ensureEditorSession(projectDir, { variantId: variant.variantId });
+  t.after(async () => {
+    await fetch(session.url + "/api/shutdown", {
+      method: "POST",
+      headers: { authorization: "Bearer " + session.token }
+    }).catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const metadataPath = path.join(projectDir, ".runtime", "editor-session.json");
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+  const rejected = { ...metadata, token: "incorrect-token" };
+  await writeFile(metadataPath, JSON.stringify(rejected), "utf8");
+
+  const stopped = await stopEditorSession(projectDir, { shutdownTimeoutMs: 50 });
+  assert.deepEqual(stopped, { stopped: false, reason: "shutdown-rejected" });
+  assert.deepEqual(JSON.parse(await readFile(metadataPath, "utf8")), rejected);
+  assert.equal((await fetch(session.url + "/api/health")).status, 200);
+  await assert.rejects(refreshProjectEditorRuntime(projectDir), /could not stop verified editor session/);
+  assert.deepEqual(JSON.parse(await readFile(metadataPath, "utf8")), rejected);
+});
+
+test("shutdown timeout preserves trusted metadata while the health endpoint remains available", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-timeout-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
+  const runtimeSha256 = (await getProjectRuntimeManifest(projectDir)).sourceSha256;
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    token: "accepted-token",
+    sessionId: "timeout-session",
+    runtimeSha256,
+    pid: process.pid,
+    onShutdown: () => {}
+  });
+  const metadata = {
+    pid: process.pid,
+    port: editor.port,
+    token: editor.token,
+    sessionId: editor.sessionId,
+    runtimeSha256,
+    projectDir: path.resolve(projectDir),
+    variantId: variant.variantId,
+    url: editor.url
+  };
+  await recordEditorSession(projectDir, metadata);
+  t.after(async () => {
+    await editor.close().catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const stopped = await stopEditorSession(projectDir, { shutdownTimeoutMs: 50 });
+
+  assert.deepEqual(stopped, { stopped: false, reason: "shutdown-timeout" });
+  assert.deepEqual(JSON.parse(await readFile(path.join(projectDir, ".runtime", "editor-session.json"), "utf8")), metadata);
+  assert.equal((await fetch(editor.url + "/api/health")).status, 200);
 });

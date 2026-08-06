@@ -18,7 +18,7 @@ import {
   prepareHuashuInput
 } from "../src/design-package.js";
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
-import { diagnoseInstallation } from "../src/doctor.js";
+import { diagnoseInstallation, resolveCommandSource } from "../src/doctor.js";
 import { migrateProject } from "../src/migrate.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
@@ -239,6 +239,9 @@ async function main(argv) {
     const doctor = await diagnoseInstallation({
       packageRoot,
       executablePath: fileURLToPath(import.meta.url),
+      commandSourcePath: await resolveCommandSource("edit-html-report", {
+        pathEntries: [path.dirname(fileURLToPath(import.meta.url))]
+      }),
       projectDir: optionalOption(args, "--project") ?? undefined
     });
     printJson(doctor);

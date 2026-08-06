@@ -45,7 +45,7 @@ export async function refreshProjectEditorRuntime(projectDir, knownManifest = un
     await writeRuntime(stagingRoot, next);
     await replaceRuntimeDirectory(absoluteProjectDir, stagingRoot);
   } catch (error) {
-    await rm(stagingRoot, { recursive: true, force: true });
+    if (!error.preserveStaging) await rm(stagingRoot, { recursive: true, force: true });
     throw error;
   }
   await writeLaunchers(absoluteProjectDir);
@@ -95,28 +95,45 @@ async function writeRuntime(runtimeRoot, manifest) {
   await writeFile(path.join(runtimeRoot, "runtime-manifest.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");
 }
 
-async function replaceRuntimeDirectory(projectDir, stagingRoot) {
+export async function replaceRuntimeDirectory(projectDir, stagingRoot, {
+  rename: renameDirectory = rename,
+  removeDirectory = rm
+} = {}) {
   const runtimeRoot = path.join(projectDir, ".editor-runtime");
   const backupRoot = path.join(projectDir, `.editor-runtime-${randomUUID()}.previous`);
   let movedPrevious = false;
   try {
-    await rename(runtimeRoot, backupRoot);
+    await renameDirectory(runtimeRoot, backupRoot);
     movedPrevious = true;
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
   try {
-    await rename(stagingRoot, runtimeRoot);
-  } catch (error) {
-    if (movedPrevious) await rename(backupRoot, runtimeRoot).catch(() => {});
-    throw error;
+    await renameDirectory(stagingRoot, runtimeRoot);
+  } catch (promotionError) {
+    if (!movedPrevious) throw promotionError;
+    try {
+      await renameDirectory(backupRoot, runtimeRoot);
+    } catch (rollbackError) {
+      const error = new AggregateError(
+        [promotionError, rollbackError],
+        "runtime promotion and rollback both failed"
+      );
+      error.recovery = { runtimeRoot, backupRoot, stagingRoot: path.resolve(stagingRoot) };
+      error.preserveStaging = true;
+      throw error;
+    }
+    throw promotionError;
   }
-  if (movedPrevious) await rm(backupRoot, { recursive: true, force: true });
+  if (movedPrevious) await removeDirectory(backupRoot, { recursive: true, force: true });
 }
 
 async function stopRuntimeSession(projectDir, runtimeSha256) {
   const { stopEditorSession } = await import("./editor-session.js");
-  await stopEditorSession(projectDir, { runtimeSha256 });
+  const result = await stopEditorSession(projectDir, { runtimeSha256 });
+  if (result.reason === "shutdown-rejected" || result.reason === "shutdown-unreachable" || result.reason === "shutdown-timeout") {
+    throw new Error("could not stop verified editor session: " + result.reason);
+  }
 }
 
 async function writeLaunchers(projectDir) {
@@ -159,9 +176,9 @@ try {
   const session = await ensureEditorSession(projectDir);
   const url = session.url + "/?token=" + encodeURIComponent(session.token);
   launchBrowser(url);
-  process.stdout.write("缂栬緫鍣ㄥ凡鎵撳紑锛? + url + "\\n");
+  process.stdout.write("编辑器已打开：" + url + "\\n");
 } catch (error) {
-  process.stderr.write("鏃犳硶鎵撳紑缂栬緫鍣細" + error.message + "\\n");
+  process.stderr.write("无法打开编辑器：" + error.message + "\\n");
   process.exitCode = 1;
 }
 `;

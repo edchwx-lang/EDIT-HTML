@@ -10,6 +10,7 @@ import { confirmEditorReview } from "../src/editor-review.js";
 import { prepareHuashuInput } from "../src/design-package.js";
 import { createProject } from "../src/project.js";
 import { createV5Project, createV5Variant } from "../src/v5-project.js";
+import { diagnoseInstallation, resolveCommandSource } from "../src/doctor.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "edit-html-report.js");
@@ -236,6 +237,26 @@ test("CLI doctor warns about stale runtime and legacy artifact metadata", async 
     "project runtime is stale",
     "project metadata uses a legacy artifact contract"
   ]);
+});
+
+test("doctor warns when the resolved command shim points to another checkout", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-checkout-"));
+  const shimDir = path.join(sandbox, "shim");
+  const otherEntry = path.join(shimDir, "node_modules", "edit-html-report", "bin", "edit-html-report.js");
+  const shimPath = path.join(shimDir, "edit-html-report.ps1");
+  await mkdir(path.dirname(otherEntry), { recursive: true });
+  await mkdir(shimDir, { recursive: true });
+  await writeFile(otherEntry, "#!/usr/bin/env node\n", "utf8");
+  await writeFile(shimPath, '$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "node" "$basedir/node_modules/edit-html-report/bin/edit-html-report.js" $args\n', "utf8");
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const resolved = await resolveCommandSource("edit-html-report", { pathEntries: [shimDir] });
+  const otherCheckout = await diagnoseInstallation({ packageRoot: root, executablePath: cli, commandSourcePath: resolved });
+  const currentCheckout = await diagnoseInstallation({ packageRoot: root, executablePath: cli, commandSourcePath: cli });
+
+  assert.equal(resolved, path.resolve(otherEntry));
+  assert.ok(otherCheckout.warnings.includes("resolved edit-html-report command points to another checkout"));
+  assert.equal(currentCheckout.warnings.includes("resolved edit-html-report command points to another checkout"), false);
 });
 
 test("CLI editor open refreshes a stale runtime without altering variants, versions, or publications", async (t) => {

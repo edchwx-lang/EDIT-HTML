@@ -9,7 +9,7 @@ import {
   TOOL_VERSION
 } from "./version-manifest.js";
 
-export async function diagnoseInstallation({ packageRoot, executablePath, projectDir = null }) {
+export async function diagnoseInstallation({ packageRoot, executablePath, commandSourcePath = executablePath, projectDir = null }) {
   const absolutePackageRoot = path.resolve(packageRoot);
   const absoluteExecutablePath = path.resolve(executablePath);
   const checks = {
@@ -17,8 +17,8 @@ export async function diagnoseInstallation({ packageRoot, executablePath, projec
     bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "edit-html-report", "SKILL.md"))
   };
   const warnings = [];
-  if (!await executableBelongsToPackage(absoluteExecutablePath, absolutePackageRoot)) {
-    warnings.push("current executable resolves to another checkout");
+  if (!commandSourceBelongsToPackage(commandSourcePath, absolutePackageRoot)) {
+    warnings.push("resolved edit-html-report command points to another checkout");
   }
 
   let runtimeStatus = "not-checked";
@@ -51,12 +51,50 @@ export async function diagnoseInstallation({ packageRoot, executablePath, projec
   };
 }
 
-async function executableBelongsToPackage(executablePath, packageRoot) {
+export async function resolveCommandSource(commandName, { pathEntries = process.env.PATH?.split(path.delimiter) ?? [] } = {}) {
+  for (const directory of pathEntries) {
+    for (const extension of ["", ".cmd", ".ps1", ".js", ".mjs"]) {
+      const candidate = path.join(directory, commandName + extension);
+      try {
+        await access(candidate);
+      } catch {
+        continue;
+      }
+      const entry = await resolveCommandEntry(candidate);
+      if (entry) return entry;
+    }
+  }
+  return null;
+}
+
+async function resolveCommandEntry(candidate) {
+  if (/\.(?:js|mjs)$/i.test(candidate)) return resolvedPath(candidate);
   try {
-    const [resolvedExecutable, resolvedPackageRoot] = await Promise.all([realpath(executablePath), realpath(packageRoot)]);
-    return samePath(path.dirname(path.dirname(resolvedExecutable)), resolvedPackageRoot);
+    const contents = await readFile(candidate, "utf8");
+    const target = contents.match(/["']([^"']+\.(?:js|mjs))["']/i)?.[1];
+    return target ? resolvedPath(expandShimTarget(target, candidate)) : null;
   } catch {
-    return samePath(path.dirname(path.dirname(executablePath)), packageRoot);
+    return null;
+  }
+}
+
+function expandShimTarget(target, shimPath) {
+  const shimDirectory = path.dirname(shimPath);
+  return target
+    .replace(/\$basedir/gi, shimDirectory)
+    .replace(/%~dp0/gi, shimDirectory + path.sep);
+}
+
+function commandSourceBelongsToPackage(commandSourcePath, packageRoot) {
+  if (!commandSourcePath) return true;
+  return samePath(path.dirname(path.dirname(commandSourcePath)), packageRoot);
+}
+
+async function resolvedPath(filePath) {
+  try {
+    return await realpath(filePath);
+  } catch {
+    return path.resolve(filePath);
   }
 }
 
