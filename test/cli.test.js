@@ -286,6 +286,44 @@ test("CLI doctor warns when PATH resolves an edit-html-report shim from another 
   assert.ok(JSON.parse(result.stdout).warnings.includes("resolved edit-html-report command points to another checkout"));
 });
 
+test("CLI doctor does not warn for a current-checkout npm CMD shim ahead of an extensionless decoy", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-cmd-current-"));
+  const shimDir = path.join(sandbox, "shim");
+  await mkdir(shimDir, { recursive: true });
+  await writeNpmCmdShim(shimDir, cli);
+  await writeFile(path.join(shimDir, "edit-html-report"), `node "${path.join(sandbox, "other", "bin", "edit-html-report.js")}"\n`, "utf8");
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [cli, "doctor", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, PATH: shimDir + path.delimiter + currentCliPath, PATHEXT: ".COM;.EXE;.BAT;.CMD" }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).warnings.includes("resolved edit-html-report command points to another checkout"), false);
+});
+
+test("CLI doctor warns for another-checkout npm CMD shim ahead of an extensionless decoy", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-cmd-other-"));
+  const shimDir = path.join(sandbox, "shim");
+  const otherEntry = path.join(shimDir, "node_modules", "edit-html-report", "bin", "edit-html-report.js");
+  await mkdir(path.dirname(otherEntry), { recursive: true });
+  await writeFile(otherEntry, "#!/usr/bin/env node\n", "utf8");
+  await writeNpmCmdShim(shimDir, otherEntry);
+  await writeFile(path.join(shimDir, "edit-html-report"), `node "${cli}"\n`, "utf8");
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [cli, "doctor", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, PATH: shimDir + path.delimiter + currentCliPath, PATHEXT: ".COM;.EXE;.BAT;.CMD" }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(JSON.parse(result.stdout).warnings.includes("resolved edit-html-report command points to another checkout"));
+});
+
 test("CLI editor open refreshes a stale runtime without altering variants, versions, or publications", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-open-runtime-"));
   const projectDir = path.join(sandbox, "report");
@@ -475,3 +513,12 @@ test("CLI preserves V4 artifacts but rejects V4 regeneration", async (t) => {
   assert.notEqual(blocked.status, 0);
   assert.match(blocked.stderr, /V4\.x regeneration is disabled/);
 });
+
+async function writeNpmCmdShim(shimDir, entryPath) {
+  const relativeEntry = path.relative(shimDir, entryPath).split(path.sep).join("\\");
+  await writeFile(
+    path.join(shimDir, "edit-html-report.cmd"),
+    `@ECHO off\r\nSET dp0=%~dp0\r\nnode "%dp0%\\${relativeEntry}" %*\r\n`,
+    "utf8"
+  );
+}

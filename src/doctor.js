@@ -72,7 +72,8 @@ export async function resolveCommandSource(commandName, {
 
 function commandPathExtensions() {
   const configured = process.env.PATHEXT?.split(";").map((value) => value.toLowerCase()) ?? [];
-  return [...new Set(["", ...configured, ".cmd", ".ps1", ".js", ".mjs"])];
+  const executableExtensions = [...new Set([...configured, ".cmd", ".ps1", ".js", ".mjs"])];
+  return process.platform === "win32" ? [...executableExtensions, ""] : ["", ...executableExtensions];
 }
 
 async function resolveCommandEntry(candidate) {
@@ -90,7 +91,7 @@ function expandShimTarget(target, shimPath) {
   const shimDirectory = path.dirname(shimPath);
   return target
     .replace(/\$basedir/gi, shimDirectory)
-    .replace(/%~dp0/gi, shimDirectory + path.sep);
+    .replace(/%~?dp0%?/gi, shimDirectory);
 }
 
 function commandSourceBelongsToPackage(commandSourcePath, packageRoot) {
