@@ -138,13 +138,14 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
 }
 
 export async function auditV511FinalSite(projectDir, finalSiteDir, selectedCandidateDir) {
-  const [html, selectedHtml, ledger] = await Promise.all([
+  const [html, selectedHtml, selectedManifest, ledger] = await Promise.all([
     readFile(path.join(finalSiteDir, "index.html"), "utf8"),
     readFile(path.join(selectedCandidateDir, "index.html"), "utf8"),
+    readJson(path.join(selectedCandidateDir, "manifest.json")),
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json"))
   ]);
   const finalProcess = await validateV511DesignProcess(finalSiteDir, html, "final");
-  const selectedProcess = await validateV511DesignProcess(selectedCandidateDir, selectedHtml, "candidate");
+  const selectedProcess = await validateV511DesignProcess(selectedCandidateDir, selectedHtml, "candidate", selectedManifest.packageVersion);
   const errors = [];
   if (finalProcess.process.coreInteraction.type !== selectedProcess.process.coreInteraction.type) {
     errors.push("final site changed the selected candidate core interaction type");

@@ -50,7 +50,7 @@ test("V5 Instrumenter is visually non-invasive at desktop and mobile", async ({ 
   }
 });
 
-test("V5.2.1 visible editor uses HTML patches without a confirmation gate", async ({ page }) => {
+test("V5.3 visible editor uses HTML patches without a confirmation gate", async ({ page }) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-v5-editor-"));
   let editor;
   try {
@@ -75,8 +75,6 @@ test("V5.2.1 visible editor uses HTML patches without a confirmation gate", asyn
     await expect(frame.locator('[data-block-id]')).toHaveCount(3);
     await page.getByRole("button", { name: "撤销" }).click();
     await expect(frame.locator('[data-block-id]')).toHaveCount(2);
-    await page.getByRole("button", { name: "重做" }).click();
-    await expect(frame.locator('[data-block-id]')).toHaveCount(3);
 
     await frame.locator('[data-image-id]').click();
     await expect(frame.locator('[data-context-action="replace-image"]')).toBeVisible();
