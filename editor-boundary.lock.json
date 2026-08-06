@@ -14,6 +14,7 @@
     "src/publish.js": "8e129285245cebc6eb1e080069599c08d87c9acaf5b8b875bdcf2b0aa7c5efd9",
     "src/theme-artifact.js": "d3b7926d6967410f48ad1b87badb86ec3c99067c38400d1ec4d9ac4a537ccd5e",
     "src/themes.js": "2cc9be9cc2cd8bcf940f798ae20bd21b4497b62c4d3235dc4546a0c9f220c481",
-    "src/versions.js": "454920962682d5694c6f91d4001f302f99bd8e6a3fb97ddfe3311ce54f341429"
+    "src/versions.js": "454920962682d5694c6f91d4001f302f99bd8e6a3fb97ddfe3311ce54f341429",
+    "src/version-manifest.js": "e33ff085aebe4a06cf0a8e7a1d3bf8f1e558e1993d8548bc25676bbea9a36e39"
   }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -164,34 +164,22 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   });
 });
 
-test("V5 validation reads legacy 5.2.1 metadata without rewriting project records", async (t) => {
-  const { projectDir, variantId } = await fixture(t);
-  await instrumentV5Variant(projectDir, variantId);
-  const projectPath = path.join(projectDir, "project.json");
-  const variantPath = path.join(projectDir, "variants", variantId, "variant.json");
-  const project = JSON.parse(await readFile(projectPath, "utf8"));
-  const variant = JSON.parse(await readFile(variantPath, "utf8"));
-  for (const record of [project, variant]) {
-    record.packageVersion = "5.2.1";
-    record.pipelineVersion = "5.2.1";
-    delete record.toolVersion;
-    delete record.artifactContractVersion;
-    delete record.editorRuntimeVersion;
-  }
-  project.versions = [{ versionId: "legacy-version", artifactPath: "versions/legacy/artifact.html" }];
-  project.publications = [{ publicationId: "legacy-publication", versionId: "legacy-version" }];
-  project.variants = project.variants.map((item) => item.variantId === variantId ? variant : item);
-  await writeFile(projectPath, JSON.stringify(project, null, 2), "utf8");
-  await writeFile(variantPath, JSON.stringify(variant, null, 2), "utf8");
-  const beforeValidation = await readFile(projectPath, "utf8");
+test("V5 validation reads a persisted legacy 5.2.1 project without rewriting its records", async (t) => {
+  const { projectDir, variantId } = await legacyV521Fixture(t);
+  const beforeValidation = await hashProjectFiles(projectDir);
+  const [project, variant] = await Promise.all([
+    readFile(path.join(projectDir, "project.json"), "utf8").then(JSON.parse),
+    readFile(path.join(projectDir, "variants", variantId, "variant.json"), "utf8").then(JSON.parse)
+  ]);
 
   const validation = await validateV5Variant(projectDir, variantId);
 
   assert.equal(validation.valid, true);
-  assert.equal(await readFile(projectPath, "utf8"), beforeValidation);
-  assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")).versions, project.versions);
-  assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")).publications, project.publications);
-  assert.equal(JSON.parse(await readFile(variantPath, "utf8")).packageVersion, "5.2.1");
+  assert.equal(project.packageVersion, "5.2.1");
+  assert.equal(variant.packageVersion, "5.2.1");
+  assert.equal("artifactContractVersion" in project, false);
+  assert.equal("artifactContractVersion" in variant, false);
+  assert.deepEqual(await hashProjectFiles(projectDir), beforeValidation);
 });
 
 test("a V5 artifact uses the HTML-backed editor, theme, and version path", async (t) => {
@@ -229,4 +217,115 @@ async function hashPayload(root) {
   const hash = createHash("sha256");
   for (const name of files) hash.update(name).update("\0").update(await readFile(path.join(root, ...name.split("/")))).update("\0");
   return hash.digest("hex");
+}
+
+async function legacyV521Fixture(t) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "edit-html-v5-legacy-521-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const projectDir = path.join(root, "project");
+  const variantId = "legacy-variant";
+  const variantDir = path.join(projectDir, "variants", variantId);
+  const packageDir = path.join(variantDir, "design", "package");
+  const sourcePackDir = path.join(projectDir, "source-pack");
+  const sourcePackSha256 = "c".repeat(64);
+  const interviewSha256 = "a".repeat(64);
+  const candidateSha256 = "b".repeat(64);
+  const sourceId = "src-legacy-1";
+  const factId = "fact-legacy-1";
+  await Promise.all([
+    mkdir(sourcePackDir, { recursive: true }),
+    mkdir(path.join(packageDir, "assets"), { recursive: true }),
+    mkdir(path.join(packageDir, "scripts"), { recursive: true }),
+    mkdir(path.join(packageDir, "styles"), { recursive: true }),
+    mkdir(path.join(projectDir, "versions", "legacy-version"), { recursive: true }),
+    mkdir(path.join(projectDir, "publications", "legacy-publication"), { recursive: true })
+  ]);
+  const bindings = {
+    schemaVersion: 1,
+    bindings: [{ contentId: "hero", factIds: [factId], sourceRefs: [sourceId], tier: "main", editableKind: "text" }],
+    coverage: {
+      kind: "complete-site",
+      overviewContentIds: ["hero"],
+      overviewSourceRefs: [sourceId],
+      focusEntities: [{ entityId: "legacy-focus", label: "Legacy focus", sourceRefs: [sourceId], contentIds: ["hero"], facets: [{ facetId: "legacy-facet", label: "Legacy facet", sourceRefs: [sourceId], contentIds: ["hero"] }] }],
+      representedFocusEntityIds: ["legacy-focus"]
+    },
+    omissions: []
+  };
+  const bindingText = JSON.stringify(bindings);
+  const siteHtml = '<!doctype html><html><body><main data-content-id="hero"><p>Legacy market reaches 189.</p></main></body></html>';
+  await Promise.all([
+    writeFile(path.join(sourcePackDir, "readable-source.md"), "Legacy market reaches 189.", "utf8"),
+    writeFile(path.join(sourcePackDir, "fact-ledger.json"), JSON.stringify({ schemaVersion: 1, facts: [{ factId, sourceId, documentName: "legacy.md", order: 1, kind: "paragraph", rawText: "Legacy market reaches 189.", numericTokens: ["189"], qualifications: [] }] }), "utf8"),
+    writeFile(path.join(sourcePackDir, "source-map.json"), JSON.stringify({ schemaVersion: 1, documents: [{ documentId: "legacy-document", name: "legacy.md", sha256: "d".repeat(64), units: [{ sourceId, order: 1, type: "paragraph", substantive: true, page: null, slide: null }] }] }), "utf8"),
+    writeFile(path.join(sourcePackDir, "tables-and-datasets.json"), JSON.stringify({ schemaVersion: 1, datasets: [] }), "utf8"),
+    writeFile(path.join(sourcePackDir, "extraction-warnings.json"), JSON.stringify({ schemaVersion: 1, warnings: [] }), "utf8"),
+    writeFile(path.join(sourcePackDir, "asset-contact-sheet.html"), "<!doctype html><p>No extracted visual assets.</p>", "utf8"),
+    writeFile(path.join(packageDir, "content-bindings.json"), bindingText, "utf8"),
+    writeFile(path.join(packageDir, "index.html"), siteHtml, "utf8"),
+    writeFile(path.join(packageDir, "styles", "site.css"), "main{color:#111}", "utf8"),
+    writeFile(path.join(packageDir, "scripts", "site.js"), "document.documentElement.dataset.siteReady='true'", "utf8"),
+    writeFile(path.join(packageDir, "assets", "pixel.png"), Buffer.from([137, 80, 78, 71])),
+    writeFile(path.join(projectDir, "versions", "legacy-version", "artifact.html"), "<!doctype html><p>Saved legacy artifact</p>", "utf8"),
+    writeFile(path.join(projectDir, "publications", "legacy-publication", "receipt.json"), JSON.stringify({ publicationId: "legacy-publication", versionId: "legacy-version" }), "utf8")
+  ]);
+  const payloadSha256 = await hashPayload(packageDir);
+  const artifact = `<!doctype html><html data-report-mode="data-first" data-design-package-sha="${payloadSha256}"><head><style>main{color:#111}</style></head><body><main data-content-id="hero" data-block-id="block-legacy"><p data-edit-id="edit-legacy" data-source-ref="legacy.md#${sourceId}">Legacy market reaches 189.</p></main></body></html>`;
+  const instrumentation = {
+    schemaVersion: 1,
+    variantId,
+    designOwner: "huashu-design",
+    bodyStructureBeforeSha256: "e".repeat(64),
+    bodyStructureAfterSha256: "e".repeat(64),
+    artifactSha256: createHash("sha256").update(artifact).digest("hex"),
+    injectedContracts: ["offline-resources", "editor-identities", "source-bindings", "theme-variables"],
+    generatedDesign: false
+  };
+  const variant = {
+    schemaVersion: 5,
+    packageVersion: "5.2.1",
+    pipelineVersion: "5.2.1",
+    variantId,
+    pipelineState: "final-site-ready",
+    interviewStatus: "confirmed",
+    interviewSha256,
+    themeId: "precision-blueprint",
+    themeSchemaVersion: 2,
+    designSelection: { candidateId: "legacy-candidate", candidateSha256 },
+    finalSiteSha256: payloadSha256
+  };
+  const project = {
+    schemaVersion: 5,
+    packageVersion: "5.2.1",
+    pipelineVersion: "5.2.1",
+    projectId: "legacy-project",
+    activeVariantId: variantId,
+    variants: [variant],
+    versions: [{ versionId: "legacy-version", artifactPath: "versions/legacy-version/artifact.html" }],
+    publications: [{ publicationId: "legacy-publication", versionId: "legacy-version", receiptPath: "publications/legacy-publication/receipt.json" }],
+    sourcePackSha256,
+    sourceFiles: [{ name: "legacy.md", sha256: "d".repeat(64) }]
+  };
+  await Promise.all([
+    writeFile(path.join(sourcePackDir, "manifest.json"), JSON.stringify({ schemaVersion: 1, packageVersion: "5.2.1", sourcePackSha256, sourceSha256: "d".repeat(64), files: ["asset-contact-sheet.html", "extraction-warnings.json", "fact-ledger.json", "readable-source.md", "source-map.json", "tables-and-datasets.json"], contentPolicy: "source-closed", designDecisions: false }), "utf8"),
+    writeFile(path.join(packageDir, "manifest.json"), JSON.stringify({ schemaVersion: 1, packageVersion: "5.2.1", kind: "final", candidateId: "legacy-candidate", directionId: "legacy-direction", directionLabel: "Legacy direction", previewThemeId: "precision-blueprint", entrypoint: "index.html", sourcePackSha256, interviewSha256, contentBindingsSha256: createHash("sha256").update(bindingText).digest("hex"), payloadSha256, outputSha256: payloadSha256, screenshotSourceSha256: payloadSha256, parentCandidateId: "legacy-candidate", parentCandidateSha256: candidateSha256 }), "utf8"),
+    writeFile(path.join(variantDir, "variant.json"), JSON.stringify(variant), "utf8"),
+    writeFile(path.join(variantDir, "artifact.html"), artifact, "utf8"),
+    writeFile(path.join(variantDir, "instrumentation-report.json"), JSON.stringify(instrumentation), "utf8"),
+    writeFile(path.join(projectDir, "project.json"), JSON.stringify(project), "utf8")
+  ]);
+  return { projectDir, variantId };
+}
+
+async function hashProjectFiles(root, prefix = "") {
+  const entries = await readdir(path.join(root, ...prefix.split("/").filter(Boolean)), { withFileTypes: true });
+  const hashes = {};
+  for (const entry of entries) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) Object.assign(hashes, await hashProjectFiles(root, relative));
+    else if (relative !== "variants/legacy-variant/audit-report.json") {
+      hashes[relative] = createHash("sha256").update(await readFile(path.join(root, ...relative.split("/")))).digest("hex");
+    }
+  }
+  return hashes;
 }
