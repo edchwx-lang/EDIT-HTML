@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -84,8 +84,14 @@ export async function revealPublication(projectDir, publicationId, { runner = re
     ? path.resolve(publication.outputPath)
     : resolveCanonicalPath(projectDir, publication.canonicalPath);
   const directoryPath = path.dirname(targetPath);
-  await runner(directoryPath);
-  return { publicationId, targetPath, directoryPath };
+  await access(targetPath);
+  const result = await runner(targetPath);
+  return {
+    publicationId,
+    targetPath,
+    directoryPath,
+    ...(result && typeof result === "object" ? result : {})
+  };
 }
 
 export async function revealLatestLocalPublication(projectDir, versionId, { runner = revealPath } = {}) {
@@ -176,20 +182,36 @@ function resolveCanonicalPath(projectDir, relativePath) {
   return resolved;
 }
 
-export function revealPath(targetPath) {
+export function buildRevealCommand(platform, targetPath) {
+  if (platform === "win32") {
+    return {
+      command: "explorer.exe",
+      args: [`/select,${targetPath}`],
+      options: { detached: false, stdio: "ignore", windowsHide: false }
+    };
+  }
+  if (platform === "darwin") {
+    return { command: "open", args: ["-R", targetPath], options: { detached: true, stdio: "ignore" } };
+  }
+  return { command: "xdg-open", args: [path.dirname(targetPath)], options: { detached: true, stdio: "ignore" } };
+}
+
+export async function revealPath(targetFile, { platform = process.platform, spawnCommand = spawn } = {}) {
+  const targetPath = path.resolve(targetFile);
+  await access(targetPath);
+  const request = buildRevealCommand(platform, targetPath);
   return new Promise((resolve, reject) => {
     let child;
-    if (process.platform === "win32") {
-      child = spawn("explorer.exe", [targetPath], { detached: true, stdio: "ignore", windowsHide: true });
-    } else if (process.platform === "darwin") {
-      child = spawn("open", ["-R", targetPath], { detached: true, stdio: "ignore" });
-    } else {
-      child = spawn("xdg-open", [path.dirname(targetPath)], { detached: true, stdio: "ignore" });
+    try {
+      child = spawnCommand(request.command, request.args, request.options);
+    } catch (error) {
+      reject(error);
+      return;
     }
     child.once("error", reject);
     child.once("spawn", () => {
-      child.unref();
-      resolve();
+      if (typeof child.unref === "function") child.unref();
+      resolve({ requested: true, targetPath, command: request.command });
     });
   });
 }

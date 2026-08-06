@@ -54,8 +54,11 @@ test("V4 editor edits the model, exposes contextual chart tools, versions, and p
     await expect(page.locator("[data-version-list] .history-item")).toHaveCount(1);
     await page.locator("[data-drawer=versions] [data-close]").click();
     await page.getByRole("button", { name: "发布", exact: true }).click();
-    await expect(page.locator("[data-publication-list] .history-item")).toHaveCount(1);
-    await expect(page.locator("[data-publication-list]")).toContainText("本地发布");
+    await page.locator("[data-version-local-publish]").click();
+    await expect(page.locator("[data-publish-list] .publication-list article")).toHaveCount(1);
+    await expect(page.locator("[data-publish-list] .publication-list")).toContainText("本地发布");
+    await page.locator("[data-version-reveal-local]").click();
+    await expect(page.locator("[data-status]")).toHaveText("已请求资源管理器定位 report.html");
   } finally {
     await editor.close();
     await rm(sandbox, { recursive: true, force: true });
@@ -93,6 +96,10 @@ async function editorFixture(mode) {
   await createProject(source, projectDir);
   const variant = await createVariant(projectDir, { mode });
   await completeTestHuashuDesign(projectDir, variant.variantId);
-  const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    onReveal: async () => ({ requested: true })
+  });
   return { editor, projectDir, sandbox, variant };
 }

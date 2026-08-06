@@ -232,10 +232,63 @@ test("editor API reveals the latest local publication for a saved version", asyn
   const revealText = await reveal.text();
   assert.equal(reveal.status, 200, revealText);
   assert.equal(revealed.length, 1);
-  assert.match(revealed[0], new RegExp("publications[\\\\/]" + publication.publicationId + "$"));
+  assert.match(revealed[0], new RegExp("publications[\\\\/]" + publication.publicationId + "[\\\\/]report\\.html$"));
   const revealBody = JSON.parse(revealText);
   assert.match(revealBody.targetPath, new RegExp("publications[\\\\/]" + publication.publicationId + "[\\\\/]report\\.html$"));
-  assert.equal(revealBody.directoryPath, revealed[0]);
+  assert.match(revealBody.directoryPath, new RegExp("publications[\\\\/]" + publication.publicationId + "$"));
+});
+
+test("editor reveal endpoint rejects a missing report without invoking the OS runner", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const revealed = [];
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    onReveal: async (targetPath) => revealed.push(targetPath)
+  });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  await confirmReview(editor, headers);
+  const version = await (await fetch(editor.url + "/api/versions", {
+    method: "POST", headers, body: JSON.stringify({ message: "Missing report" })
+  })).json();
+  const publication = await (await fetch(editor.url + "/api/publish", {
+    method: "POST", headers, body: JSON.stringify({ versionId: version.versionId, target: "local" })
+  })).json();
+  await rm(path.join(projectDir, "publications", publication.publicationId, "report.html"));
+
+  const response = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/reveal", {
+    method: "POST", headers, body: "{}"
+  });
+  const body = await response.text();
+  assert.equal(response.status, 400, body);
+  assert.match(body, /ENOENT/);
+  assert.deepEqual(revealed, []);
+});
+
+test("editor reveal endpoint returns an error when the OS runner fails", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    onReveal: async () => { throw new Error("Explorer unavailable"); }
+  });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  await confirmReview(editor, headers);
+  const version = await (await fetch(editor.url + "/api/versions", {
+    method: "POST", headers, body: JSON.stringify({ message: "Runner error" })
+  })).json();
+  const publication = await (await fetch(editor.url + "/api/publish", {
+    method: "POST", headers, body: JSON.stringify({ versionId: version.versionId, target: "local" })
+  })).json();
+
+  const response = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/reveal", {
+    method: "POST", headers, body: "{}"
+  });
+  const body = await response.text();
+  assert.equal(response.status, 400, body);
+  assert.match(body, /Explorer unavailable/);
 });
 
 test("editor API exposes health, canonical draft, revision conflict, preview, and restore", async (t) => {
@@ -295,7 +348,7 @@ test("editor API records, reveals, and republishes canonical publications", asyn
   });
   assert.equal(reveal.status, 200, await reveal.text());
   assert.equal(revealed.length, 1);
-  assert.match(revealed[0], /publications[\\/][^\\/]+$/);
+  assert.match(revealed[0], /publications[\\/][^\\/]+[\\/]report\.html$/);
 
   const republished = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/republish", {
     method: "POST", headers, body: "{}"

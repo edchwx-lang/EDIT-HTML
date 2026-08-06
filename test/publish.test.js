@@ -6,10 +6,76 @@ import test from "node:test";
 
 import { finalizeVariant } from "../src/finalize.js";
 import { createProject } from "../src/project.js";
-import { listPublications, publishLocal } from "../src/publish.js";
+import { buildRevealCommand, listPublications, publishLocal, revealPath } from "../src/publish.js";
 import { createVariant } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
 import { confirmEditorReview } from "../src/editor-review.js";
+
+test("Windows reveal command selects the published report with a visible foreground process", () => {
+  const reportPath = path.resolve("C:", "reports", "report.html");
+  assert.deepEqual(buildRevealCommand("win32", reportPath), {
+    command: "explorer.exe",
+    args: [`/select,${reportPath}`],
+    options: { detached: false, stdio: "ignore", windowsHide: false }
+  });
+});
+
+test("revealPath rejects a missing report before launching a process", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-reveal-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const missingPath = path.join(sandbox, "report.html");
+  let called = false;
+
+  await assert.rejects(
+    revealPath(missingPath, { spawnCommand: () => { called = true; } }),
+    /ENOENT/
+  );
+  assert.equal(called, false);
+});
+
+test("revealPath reports a request only after the Windows process spawns", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-reveal-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const reportPath = path.join(sandbox, "report.html");
+  await writeFile(reportPath, "<!doctype html>", "utf8");
+  let request;
+
+  const result = await revealPath(reportPath, {
+    platform: "win32",
+    spawnCommand(command, args, options) {
+      request = { command, args, options };
+      return {
+        once(event, callback) {
+          if (event === "spawn") queueMicrotask(callback);
+          return this;
+        },
+        unref() {}
+      };
+    }
+  });
+
+  assert.deepEqual(request, buildRevealCommand("win32", reportPath));
+  assert.deepEqual(result, { requested: true, targetPath: reportPath, command: "explorer.exe" });
+});
+
+test("revealPath rejects an OS process error instead of reporting a request", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-reveal-"));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const reportPath = path.join(sandbox, "report.html");
+  await writeFile(reportPath, "<!doctype html>", "utf8");
+
+  await assert.rejects(
+    revealPath(reportPath, {
+      spawnCommand: () => ({
+        once(event, callback) {
+          if (event === "error") queueMicrotask(() => callback(new Error("Explorer unavailable")));
+          return this;
+        }
+      })
+    }),
+    /Explorer unavailable/
+  );
+});
 
 test("publishLocal exports the selected saved version, never the current draft", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-"));
