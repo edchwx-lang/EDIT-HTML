@@ -150,41 +150,10 @@ test("CLI exposes variant create, variant list, and finalize as one workflow", a
   assert.match(await readFile(publishedPath, "utf8"), /42 million/);
 });
 
-test("CLI install copies one Skill into Codex and Claude discovery roots", async (t) => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-install-"));
-  t.after(() => rm(sandbox, { recursive: true, force: true }));
-  const codexRoot = path.join(sandbox, "codex-skills");
-  const claudeRoot = path.join(sandbox, "claude-skills");
-  for (const rootDir of [codexRoot, claudeRoot]) {
-    const legacyReferences = path.join(rootDir, "edit-html-report", "references");
-    await mkdir(legacyReferences, { recursive: true });
-    await writeFile(path.join(legacyReferences, "presentation-plan.md"), "legacy", "utf8");
-  }
-
-  const installed = spawnSync(
-    process.execPath,
-    [
-      cli,
-      "install",
-      "--codex-dir",
-      codexRoot,
-      "--claude-dir",
-      claudeRoot
-    ],
-    { cwd: root, encoding: "utf8" }
-  );
-
-  assert.equal(installed.status, 0, installed.stderr);
-  assert.match(
-    await readFile(path.join(codexRoot, "edit-html-report", "SKILL.md"), "utf8"),
-    /name: edit-html-report/
-  );
-  assert.equal(
-    await readFile(path.join(claudeRoot, "edit-html-report", "SKILL.md"), "utf8"),
-    await readFile(path.join(codexRoot, "edit-html-report", "SKILL.md"), "utf8")
-  );
-  await assert.rejects(access(path.join(codexRoot, "edit-html-report", "references", "presentation-plan.md")));
-  await assert.rejects(access(path.join(claudeRoot, "edit-html-report", "references", "presentation-plan.md")));
+test("CLI install points to the single tested local installer", () => {
+  const installed = spawnSync(process.execPath, [cli, "install"], { cwd: root, encoding: "utf8" });
+  assert.notEqual(installed.status, 0);
+  assert.match(installed.stderr, /npm run install:local/);
 });
 
 test("CLI doctor reports version authority and project runtime diagnostics", async (t) => {

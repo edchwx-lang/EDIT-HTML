@@ -3,9 +3,9 @@ name: edit-html-report
 description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT into a source-closed, Huashu-designed, editable and versioned offline HTML report; gathering content priorities; comparing executable design samples; auditing provenance; opening the visible editor; restoring versions; or publishing artifacts.
 ---
 
-# Edit HTML Report V5.2.3
+# Edit HTML Report V5.3.0
 
-V5.2.3 keeps one production boundary, explicit human gates for content evidence and candidate selection, and a fully HTML-backed visible editor:
+V5.3.0 keeps one production boundary, explicit human gates for content evidence and candidate selection, and a fully HTML-backed visible editor:
 
 ```text
 Edit HTML extracts facts and assets
@@ -13,10 +13,16 @@ Edit HTML extracts facts and assets
 -> Huashu owns content strategy and the complete website
 -> Edit HTML audits and instruments without redesigning
 -> artifact.html
--> the V5.2.3 HTML editor/version/publication system
+-> the V5.3.0 HTML editor/version/publication system
 ```
 
 Huashu owns everything between the Source Pack and finished website. Never create an editorial report model, display mode, page order, component plan, chart plan, primitive tree, layout grammar, or fixed-renderer input before invoking Huashu.
+
+## Installation authority
+
+From the intended merged V5.3 repository, run only `npm run install:local`. The installer prints and validates the explicit source root, runs `npm test` before changing the global npm package or Codex Skill, rejects a 4.0.0 checkout, and verifies the shim, package, Skill, runtime, source hashes, and `doctor --json` result after installation.
+
+The merged V5.3 branch is the installation authority. Archive an older worktree only after every dirty change is committed and merged. Never delete uncommitted files as repository cleanup.
 
 ## Run the workflow
 
@@ -30,7 +36,7 @@ Huashu owns everything between the Source Pack and finished website. Never creat
 4. Save the actual question, original answer, origin, time, any clarification source references, and `decisionEvidence` in interview schema v3. Run `interview import`, then verify `interview status`. `user-delegated` is allowed only when the user explicitly says the agent should decide, for example "you decide", "directly do it", "直接做", or "看着办". Do not invent delegation evidence.
 5. Read [references/design-selection.md](references/design-selection.md), [references/huashu-design-package.md](references/huashu-design-package.md), and [references/artifact-contract.md](references/artifact-contract.md) completely. Run `design prepare` and give every prepared file, including `content-brief.json`, to Huashu.
 6. Without an initial visual reference, Huashu produces three executable samples. They share one content plan and use `precision-blueprint`, `warm-paper-terracotta`, and `sandstone-archive` for comparison, but must differ in narrative architecture, DOM, visualization, and core interaction. With an initial visual reference, Huashu produces one executable sample using the closest existing theme.
-7. Every sample is a content-complete vertical slice using real content: an overall situation, a representative focus entity, and all material facets needed to prove depth. Each V5.2.3 sample must include `design-process.json` declaring Huashu ownership, narrative architecture, at least one overview visualization, at least one focus visualization, and a real core interaction selector.
+7. Every sample is a content-complete vertical slice using real content: an overall situation, a representative focus entity, and all material facets needed to prove depth. Each V5.3.0 sample must include `design-process.json` declaring Huashu ownership, narrative architecture, at least one overview visualization, at least one focus visualization, and a real core interaction selector.
 8. Import with `design candidate import`, then run `design candidate review prepare`. This creates a review set only after the fast audit passes: real PNG screenshots, distinct narrative/visualization/interaction strategies, non-converged DOM, meaningful visual modules, and no visible raw-source dumping.
 9. Show the actual desktop and mobile screenshots from the review set in the conversation. Wait for the user's choice. Confirm only with `design candidate confirm --receipt <selection-receipt.json>`, where the receipt records `reviewSetSha256`, selected `candidateId`, `selectedBy: "user"`, the verbatim user selection, and time. Never confirm in the same message that first shows screenshots, and never confirm from agent preference or hidden state.
 10. Huashu expands the selected candidate itself into the complete website. "Emphasize" controls depth, not presence: retain the overall situation and expand every declared focus entity and facet. Main narrative may be compressed, but substantive detail remains genuinely usable in main/detail views. Do not expose a bulk raw-source appendix unless the user explicitly requests it.

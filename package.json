@@ -10,6 +10,7 @@
     "edit-html-report": "./bin/edit-html-report.js"
   },
   "scripts": {
+    "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1 -SourceRoot .",
     "test": "node --test",
     "test:e2e": "playwright test",
     "check": "node --check bin/edit-html-report.js",

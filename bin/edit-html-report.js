@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, readFile, rename, rm } from "node:fs/promises";
-import os from "node:os";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +19,7 @@ import {
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
 import { diagnoseInstallation, resolveCommandSource } from "../src/doctor.js";
 import { migrateProject } from "../src/migrate.js";
+import { migrateV5Project } from "../src/v5-migration.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
 import { publishLocal, publishProvider } from "../src/publish.js";
@@ -192,7 +192,9 @@ async function main(argv) {
   }
   if (command === "migrate") {
     const projectDir = requirePositional(args, 0, "project");
-    printJson(await migrateProject(projectDir, { dryRun: args.includes("--dry-run") }));
+    printJson((await isV5Project(projectDir))
+      ? await migrateV5Project(projectDir, { dryRun: args.includes("--dry-run") })
+      : await migrateProject(projectDir, { dryRun: args.includes("--dry-run") }));
     return;
   }
   if (command === "render") {
@@ -213,27 +215,7 @@ async function main(argv) {
     return;
   }
   if (command === "install") {
-    const codexRoot =
-      optionalOption(args, "--codex-dir") ??
-      path.join(os.homedir(), ".codex", "skills");
-    const claudeRoot =
-      optionalOption(args, "--claude-dir") ??
-      path.join(os.homedir(), ".claude", "skills");
-    const source = path.join(packageRoot, "skills", "edit-html-report");
-    const destinations = await Promise.all(
-      [codexRoot, claudeRoot].map(async (root) => {
-        await mkdir(root, { recursive: true });
-        const destination = path.join(root, "edit-html-report");
-        const staging = path.join(root, `.edit-html-report-install-${process.pid}-${Date.now()}`);
-        await rm(staging, { recursive: true, force: true });
-        await cp(source, staging, { recursive: true, force: true });
-        await rm(destination, { recursive: true, force: true });
-        await rename(staging, destination);
-        return destination;
-      })
-    );
-    printJson({ installed: destinations });
-    return;
+    throw new Error("CLI installation was removed; run npm run install:local from the intended V5.3 source checkout");
   }
   if (command === "doctor") {
     const doctor = await diagnoseInstallation({
@@ -316,13 +298,18 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|runtime|create|inspect|interview|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
+    "usage: edit-html-report <doctor|runtime|create|inspect|interview|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 
 async function migrateIfNeeded(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
-  if (project.schemaVersion === 5) return;
+  if (project.schemaVersion === 5) {
+    if ((project.migratedFrom?.packageVersion ?? project.packageVersion) === "5.2.1") {
+      await migrateV5Project(projectDir);
+    }
+    return;
+  }
   if (
     (project.schemaVersion ?? 1) < 4 ||
     project.packageVersion !== "4.3.0" ||
@@ -335,15 +322,6 @@ async function migrateIfNeeded(projectDir) {
 async function isV5Project(projectDir) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   return project.schemaVersion === 5;
-}
-
-async function exists(filePath) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function requirePositional(args, index, name) {
