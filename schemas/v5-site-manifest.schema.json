@@ -6,7 +6,7 @@
   "required": ["schemaVersion", "packageVersion", "kind", "candidateId", "directionId", "directionLabel", "previewThemeId", "entrypoint", "sourcePackSha256", "interviewSha256", "contentBindingsSha256", "payloadSha256", "outputSha256", "screenshotSourceSha256", "designProcessSha256"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "packageVersion": { "const": "5.2.1" },
+    "packageVersion": { "const": "5.3.0" },
     "kind": { "enum": ["candidate", "final"] },
     "candidateId": { "$ref": "#/$defs/id" },
     "directionId": { "$ref": "#/$defs/id" },

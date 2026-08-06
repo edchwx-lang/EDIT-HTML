@@ -1,5 +1,5 @@
 {
-  "baseline": "edit-html-report-v5.2.3",
+  "baseline": "edit-html-report-v5.3.0",
   "files": {
     "src/artifact-contract.js": "cefe0f4e8f880259c92dbb13269631597399c1705019dd0e0a49077915087cf0",
     "src/drafts.js": "97cf854dbf4acc34aeafcb518c631151737d019ed4f532cff8e5cc2e3b1744f0",
@@ -7,10 +7,10 @@
     "src/editor-server.js": "902a84f44a055eb761d7040cad43fe2b623faf0ab88672c72a4eafe822942654",
     "src/editor-session.js": "c316a4d27030de37cfdb8d6d169d797470a24831ec778d422434cddacd65c2e7",
     "src/editor-session-worker.js": "3356f1d69d371fc8091958348ef6b7f70d9a98a6a60b904892a9ec6355e12b7d",
-    "src/editor-shell.js": "bf80c03e0de1dace829f12c285171ca25db6c543dff46dfb7227f37036a7d4cb",
+    "src/editor-shell.js": "fb6e5b19492a52edb9523cb907e9eda8aa22f966e534f989272639d8c4c6bb3c",
     "src/finalize.js": "467f292dc0e30f0985ed52a69d3fbbbe388172d3165f9f1bc5eb29b15c7da254",
     "src/packaging.js": "6eab653dc6c716c6b9cfde352a0f56d8b79bca17bb744a36c134fe596d7bbe07",
-    "src/project-runtime.js": "2dfdfd0f5e2bdd1f0c314df8afce252d880e175d4f87e25079b161b2246496ae",
+    "src/project-runtime.js": "6e0bf9cc657f9961db9c56ff840c9882e134b89e192dc368c6bb469c31171bdd",
     "src/publish.js": "8e129285245cebc6eb1e080069599c08d87c9acaf5b8b875bdcf2b0aa7c5efd9",
     "src/theme-artifact.js": "d3b7926d6967410f48ad1b87badb86ec3c99067c38400d1ec4d9ac4a537ccd5e",
     "src/themes.js": "2cc9be9cc2cd8bcf940f798ae20bd21b4497b62c4d3235dc4546a0c9f220c481",

@@ -36,6 +36,23 @@ async function downgradeToV510(project, variantId) {
   await writeFile(variantPath, JSON.stringify(variantJson, null, 2), "utf8");
 }
 
+async function useLegacyV511Metadata(project, variantId) {
+  const projectPath = path.join(project, "project.json");
+  const variantPath = path.join(project, "variants", variantId, "variant.json");
+  const projectJson = JSON.parse(await readFile(projectPath, "utf8"));
+  const variantJson = JSON.parse(await readFile(variantPath, "utf8"));
+  for (const record of [projectJson, variantJson]) {
+    record.packageVersion = "5.1.1";
+    record.pipelineVersion = "5.1.1";
+    delete record.toolVersion;
+    delete record.artifactContractVersion;
+    delete record.editorRuntimeVersion;
+  }
+  projectJson.variants = projectJson.variants.map((item) => item.variantId === variantId ? variantJson : item);
+  await writeFile(projectPath, JSON.stringify(projectJson, null, 2), "utf8");
+  await writeFile(variantPath, JSON.stringify(variantJson, null, 2), "utf8");
+}
+
 function interview(variantId, overrides = {}) {
   const recordedAt = "2026-08-04T10:00:00.000Z";
   return {
@@ -87,6 +104,7 @@ test("V5.1 confirms the two required content questions without forcing a third",
 
 test("V5.1.1 rejects interviews without user decision evidence", async (t) => {
   const { root, project, variant } = await fixture(t);
+  await useLegacyV511Metadata(project, variant.variantId);
   const value = v51Interview(variant.variantId);
   delete value.decisionEvidence;
   const interviewPath = path.join(root, "interview-v511-no-evidence.json");
@@ -96,6 +114,7 @@ test("V5.1.1 rejects interviews without user decision evidence", async (t) => {
 
 test("V5.1.1 user-delegated answers require an explicit delegation quote", async (t) => {
   const { root, project, variant } = await fixture(t);
+  await useLegacyV511Metadata(project, variant.variantId);
   const value = v51Interview(variant.variantId, {
     answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
       question: key,

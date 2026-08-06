@@ -22,8 +22,10 @@ test("V5 publishes source, interview, executable site, and content-binding schem
   assert.equal(interview.properties.answers.maxProperties, 3);
   assert.equal(interview.properties.answers.properties.structurePreference, undefined);
   assert.ok(interview.required.includes("decisionEvidence"));
+  const sourcePack = JSON.parse(await readFile(path.join(root, "schemas", "v5-source-pack.schema.json"), "utf8"));
+  assert.equal(sourcePack.properties.packageVersion.const, "5.3.0");
   const siteManifest = JSON.parse(await readFile(path.join(root, "schemas", "v5-site-manifest.schema.json"), "utf8"));
-  assert.equal(siteManifest.properties.packageVersion.const, "5.2.1");
+  assert.equal(siteManifest.properties.packageVersion.const, "5.3.0");
   assert.ok(siteManifest.required.includes("designProcessSha256"));
   const bindings = JSON.parse(await readFile(path.join(root, "schemas", "v5-content-bindings.schema.json"), "utf8"));
   assert.ok(bindings.required.includes("coverage"));

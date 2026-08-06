@@ -157,7 +157,41 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   const validation = await validateV5Variant(projectDir, variantId);
   assert.equal(validation.valid, true);
   assert.equal(validation.designOwner, "huashu-design");
-  assert.equal(validation.editorBoundary, "v5.2.1-html-backed");
+  assert.deepEqual(validation.editorBoundary, {
+    kind: "html-backed",
+    contractVersion: "5.3.0",
+    runtimeVersion: "5.3.0"
+  });
+});
+
+test("V5 validation reads legacy 5.2.1 metadata without rewriting project records", async (t) => {
+  const { projectDir, variantId } = await fixture(t);
+  await instrumentV5Variant(projectDir, variantId);
+  const projectPath = path.join(projectDir, "project.json");
+  const variantPath = path.join(projectDir, "variants", variantId, "variant.json");
+  const project = JSON.parse(await readFile(projectPath, "utf8"));
+  const variant = JSON.parse(await readFile(variantPath, "utf8"));
+  for (const record of [project, variant]) {
+    record.packageVersion = "5.2.1";
+    record.pipelineVersion = "5.2.1";
+    delete record.toolVersion;
+    delete record.artifactContractVersion;
+    delete record.editorRuntimeVersion;
+  }
+  project.versions = [{ versionId: "legacy-version", artifactPath: "versions/legacy/artifact.html" }];
+  project.publications = [{ publicationId: "legacy-publication", versionId: "legacy-version" }];
+  project.variants = project.variants.map((item) => item.variantId === variantId ? variant : item);
+  await writeFile(projectPath, JSON.stringify(project, null, 2), "utf8");
+  await writeFile(variantPath, JSON.stringify(variant, null, 2), "utf8");
+  const beforeValidation = await readFile(projectPath, "utf8");
+
+  const validation = await validateV5Variant(projectDir, variantId);
+
+  assert.equal(validation.valid, true);
+  assert.equal(await readFile(projectPath, "utf8"), beforeValidation);
+  assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")).versions, project.versions);
+  assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")).publications, project.publications);
+  assert.equal(JSON.parse(await readFile(variantPath, "utf8")).packageVersion, "5.2.1");
 });
 
 test("a V5 artifact uses the HTML-backed editor, theme, and version path", async (t) => {

@@ -8,8 +8,11 @@ import {
   ARTIFACT_CONTRACT_VERSION,
   EDITOR_RUNTIME_VERSION,
   PIPELINE_VERSION,
+  SUPPORTED_ARTIFACT_CONTRACT_VERSIONS,
   TOOL_VERSION
 } from "../src/version-manifest.js";
+import { renderEditorShell } from "../src/editor-shell.js";
+import { listThemes } from "../src/themes.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -18,5 +21,15 @@ test("V5.3 version fields come from one authority", async () => {
   assert.equal(PIPELINE_VERSION, "5.3.0");
   assert.equal(ARTIFACT_CONTRACT_VERSION, "5.3.0");
   assert.equal(EDITOR_RUNTIME_VERSION, "5.3.0");
+  assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.2.1"), true);
   assert.equal(JSON.parse(await readFile(path.join(root, "package.json"), "utf8")).version, TOOL_VERSION);
+});
+
+test("editor shell displays the authoritative tool version", () => {
+  const html = renderEditorShell({
+    variant: { themeId: "precision-blueprint" },
+    themes: listThemes({ locale: "zh-CN" })
+  });
+
+  assert.match(html, new RegExp(`<title>Edit HTML Report V${TOOL_VERSION.replaceAll(".", "\\.")}</title>`));
 });
