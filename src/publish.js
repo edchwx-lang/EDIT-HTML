@@ -83,8 +83,17 @@ export async function revealPublication(projectDir, publicationId, { runner = re
   const targetPath = publication.outputPath
     ? path.resolve(publication.outputPath)
     : resolveCanonicalPath(projectDir, publication.canonicalPath);
-  await runner(targetPath);
-  return { publicationId, targetPath };
+  const directoryPath = path.dirname(targetPath);
+  await runner(directoryPath);
+  return { publicationId, targetPath, directoryPath };
+}
+
+export async function revealLatestLocalPublication(projectDir, versionId, { runner = revealPath } = {}) {
+  const publication = [...await listPublications(projectDir)]
+    .reverse()
+    .find((item) => item.versionId === versionId && item.target === "local" && item.status === "published");
+  if (!publication) throw new Error('version "' + versionId + '" has no local publication');
+  return revealPublication(projectDir, publication.publicationId, { runner });
 }
 
 export async function readPublicationArtifact(projectDir, publicationId) {
@@ -167,11 +176,11 @@ function resolveCanonicalPath(projectDir, relativePath) {
   return resolved;
 }
 
-function revealPath(targetPath) {
+export function revealPath(targetPath) {
   return new Promise((resolve, reject) => {
     let child;
     if (process.platform === "win32") {
-      child = spawn("explorer.exe", ["/select," + targetPath], { detached: true, stdio: "ignore", windowsHide: true });
+      child = spawn("explorer.exe", [targetPath], { detached: true, stdio: "ignore", windowsHide: true });
     } else if (process.platform === "darwin") {
       child = spawn("open", ["-R", targetPath], { detached: true, stdio: "ignore" });
     } else {

@@ -1,6 +1,6 @@
 {
   "name": "edit-html-report",
-  "version": "5.1.0",
+  "version": "5.2.3",
   "description": "Source-closed Huashu website workflow with non-invasive HTML instrumentation",
   "type": "module",
   "engines": {

@@ -42,6 +42,13 @@ test("compileThemeIntoArtifact replaces an old compiled theme idempotently", () 
   assert.equal(bodyHtml(second), bodyHtml(source));
 });
 
+test("compiled theme variables come after Huashu defaults and win the cascade", () => {
+  const source = '<!doctype html><html><head><style>:root{--report-accent:#123456}</style></head><body>Report</body></html>';
+  const compiled = compileThemeIntoArtifact(source, "signal-orange");
+  assert.ok(compiled.indexOf("--report-accent:#FF6900") > compiled.indexOf("--report-accent:#123456"));
+  assert.equal((compiled.match(/data-edit-html-report-theme/g) ?? []).length, 1);
+});
+
 function bodyHtml(html) {
   return html.match(/<body\b[^>]*>[\s\S]*<\/body>/i)?.[0] ?? null;
 }

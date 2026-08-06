@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("V5 publishes source, interview, executable site, and content-binding schemas", async () => {
-  const names = ["v5-source-pack", "v5-interview", "v5-site-manifest", "v5-content-bindings"];
+  const names = ["v5-source-pack", "v5-interview", "v5-site-manifest", "v5-content-bindings", "v5-design-process", "v5-selection-receipt"];
   for (const name of names) {
     const schema = JSON.parse(await readFile(path.join(root, "schemas", name + ".schema.json"), "utf8"));
     assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
@@ -17,10 +17,14 @@ test("V5 publishes source, interview, executable site, and content-binding schem
     assert.doesNotMatch(combined, new RegExp(removed, "i"));
   }
   const interview = JSON.parse(await readFile(path.join(root, "schemas", "v5-interview.schema.json"), "utf8"));
-  assert.equal(interview.properties.schemaVersion.const, 2);
+  assert.equal(interview.properties.schemaVersion.const, 3);
   assert.deepEqual(interview.properties.answers.required, ["purpose", "contentWeight"]);
   assert.equal(interview.properties.answers.maxProperties, 3);
   assert.equal(interview.properties.answers.properties.structurePreference, undefined);
+  assert.ok(interview.required.includes("decisionEvidence"));
+  const siteManifest = JSON.parse(await readFile(path.join(root, "schemas", "v5-site-manifest.schema.json"), "utf8"));
+  assert.equal(siteManifest.properties.packageVersion.const, "5.2.1");
+  assert.ok(siteManifest.required.includes("designProcessSha256"));
   const bindings = JSON.parse(await readFile(path.join(root, "schemas", "v5-content-bindings.schema.json"), "utf8"));
   assert.ok(bindings.required.includes("coverage"));
   assert.ok(bindings.properties.coverage.properties.focusEntities);

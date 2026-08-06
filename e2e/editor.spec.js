@@ -45,8 +45,6 @@ test("V4 editor edits the model, exposes contextual chart tools, versions, and p
 
     await edit.click();
     await expect(edit).toHaveText("编辑");
-    await expect(page.getByRole("button", { name: "保存版本" })).toBeDisabled();
-    await page.getByRole("button", { name: "确认设计与配色" }).click();
     await expect(page.getByRole("button", { name: "保存版本" })).toBeEnabled();
     await page.getByRole("button", { name: "保存版本" }).click();
     await expect(page.getByRole("button", { name: "发布", exact: true })).toBeEnabled();
@@ -78,8 +76,6 @@ for (const mode of ["data-first", "evidence-first"]) {
         await expect(frame.locator("html")).toHaveAttribute("data-theme", themeId);
         expect(await frame.locator(".report-shell").innerText()).toBe(originalText);
         expect(await frame.locator(".report-shell").evaluate((node) => getComputedStyle(node).width)).toBe(originalWidth);
-        await expect(page.getByRole("button", { name: "保存版本" })).toBeDisabled();
-        await page.getByRole("button", { name: "确认设计与配色" }).click();
         await expect(page.getByRole("button", { name: "保存版本" })).toBeEnabled();
       }
     } finally {

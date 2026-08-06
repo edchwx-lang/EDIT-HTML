@@ -22,6 +22,20 @@ async function fixture(t) {
   return { root, project, variant };
 }
 
+async function downgradeToV510(project, variantId) {
+  const projectPath = path.join(project, "project.json");
+  const variantPath = path.join(project, "variants", variantId, "variant.json");
+  const projectJson = JSON.parse(await readFile(projectPath, "utf8"));
+  const variantJson = JSON.parse(await readFile(variantPath, "utf8"));
+  projectJson.packageVersion = "5.1.0";
+  projectJson.pipelineVersion = "5.1.0";
+  variantJson.packageVersion = "5.1.0";
+  variantJson.pipelineVersion = "5.1.0";
+  projectJson.variants = projectJson.variants.map((item) => item.variantId === variantId ? variantJson : item);
+  await writeFile(projectPath, JSON.stringify(projectJson, null, 2), "utf8");
+  await writeFile(variantPath, JSON.stringify(variantJson, null, 2), "utf8");
+}
+
 function interview(variantId, overrides = {}) {
   const recordedAt = "2026-08-04T10:00:00.000Z";
   return {
@@ -40,11 +54,17 @@ function interview(variantId, overrides = {}) {
 function v51Interview(variantId, overrides = {}) {
   const recordedAt = "2026-08-04T10:00:00.000Z";
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     variantId,
     answers: {
       purpose: { question: "What is the use case and audience?", response: "Executive presentation", origin: "user-provided", recordedAt },
       contentWeight: { question: "Which source content deserves emphasis?", response: "Emphasize the twelve materials without dropping the overview", origin: "user-provided", recordedAt }
+    },
+    decisionEvidence: {
+      evidenceType: "direct-user-answer",
+      verbatimUserQuote: "Purpose: Executive presentation. Emphasis: twelve materials without dropping overview.",
+      recordedAt,
+      topicsCovered: ["purpose", "contentWeight"]
     },
     references: [],
     ...overrides
@@ -65,6 +85,36 @@ test("V5.1 confirms the two required content questions without forcing a third",
   assert.equal(status.hasMaterialClarification, false);
 });
 
+test("V5.1.1 rejects interviews without user decision evidence", async (t) => {
+  const { root, project, variant } = await fixture(t);
+  const value = v51Interview(variant.variantId);
+  delete value.decisionEvidence;
+  const interviewPath = path.join(root, "interview-v511-no-evidence.json");
+  await writeFile(interviewPath, JSON.stringify(value), "utf8");
+  await assert.rejects(() => importV5Interview(project, variant.variantId, interviewPath), /decisionEvidence/i);
+});
+
+test("V5.1.1 user-delegated answers require an explicit delegation quote", async (t) => {
+  const { root, project, variant } = await fixture(t);
+  const value = v51Interview(variant.variantId, {
+    answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
+      question: key,
+      response: "Huashu decides from the source material",
+      origin: "user-delegated",
+      recordedAt: "2026-08-04T10:00:00.000Z"
+    }])),
+    decisionEvidence: {
+      evidenceType: "explicit-user-delegation",
+      verbatimUserQuote: "Make a report from this document.",
+      recordedAt: "2026-08-04T10:00:00.000Z",
+      topicsCovered: ["purpose", "contentWeight"]
+    }
+  });
+  const interviewPath = path.join(root, "interview-v511-bad-delegation.json");
+  await writeFile(interviewPath, JSON.stringify(value), "utf8");
+  await assert.rejects(() => importV5Interview(project, variant.variantId, interviewPath), /explicit user delegation quote/i);
+});
+
 test("V5.1 accepts one source-anchored material clarification", async (t) => {
   const { root, project, variant } = await fixture(t);
   const interviewPath = path.join(root, "interview-v51-clarified.json");
@@ -83,6 +133,12 @@ test("V5.1 accepts one source-anchored material clarification", async (t) => {
         rationale: "The source contains two competing content goals.",
         recordedAt
       }
+    },
+    decisionEvidence: {
+      evidenceType: "direct-user-answer",
+      verbatimUserQuote: "Purpose: Executive presentation. Emphasis: twelve materials. Clarification: keep recommendations concise but accessible.",
+      recordedAt,
+      topicsCovered: ["purpose", "contentWeight", "contentClarification"]
     }
   })), "utf8");
 
@@ -157,6 +213,12 @@ test("V5.1 rejects a material clarification that is not anchored in the Source P
         rationale: "The source contains multiple scopes.",
         recordedAt: "2026-08-04T10:00:00.000Z"
       }
+    },
+    decisionEvidence: {
+      evidenceType: "direct-user-answer",
+      verbatimUserQuote: "Purpose: Executive presentation. Emphasis: twelve materials. Clarification: industry section.",
+      recordedAt: "2026-08-04T10:00:00.000Z",
+      topicsCovered: ["purpose", "contentWeight", "contentClarification"]
     }
   })), "utf8");
   await assert.rejects(() => importV5Interview(project, variant.variantId, interviewPath), /unknown Source Pack reference/i);
@@ -167,7 +229,7 @@ test("V5 design preparation is blocked until both required Huashu interview answ
   await assert.rejects(() => prepareV5HuashuInput(project, variant.variantId), /confirmed interview/);
 
   const incompletePath = path.join(root, "incomplete.json");
-  const incomplete = interview(variant.variantId);
+  const incomplete = v51Interview(variant.variantId);
   delete incomplete.answers.contentWeight;
   await writeFile(incompletePath, JSON.stringify(incomplete), "utf8");
   await assert.rejects(() => importV5Interview(project, variant.variantId, incompletePath), /contentWeight/);
@@ -175,6 +237,7 @@ test("V5 design preparation is blocked until both required Huashu interview answ
 
 test("V5.1 reads a legacy interview but exposes the current two-question contract", async (t) => {
   const { root, project, variant } = await fixture(t);
+  await downgradeToV510(project, variant.variantId);
   const interviewPath = path.join(root, "interview.json");
   await writeFile(interviewPath, JSON.stringify(interview(variant.variantId)), "utf8");
 
@@ -202,7 +265,7 @@ test("V5.1 reads a legacy interview but exposes the current two-question contrac
 test("an initial visual reference changes Huashu preparation to one executable sample", async (t) => {
   const { root, project, variant } = await fixture(t);
   const interviewPath = path.join(root, "interview.json");
-  await writeFile(interviewPath, JSON.stringify(interview(variant.variantId, {
+  await writeFile(interviewPath, JSON.stringify(v51Interview(variant.variantId, {
     references: [{ kind: "screenshot", value: "reference.png", suppliedAtStart: true }]
   })), "utf8");
   await importV5Interview(project, variant.variantId, interviewPath);

@@ -12,10 +12,12 @@ export async function ensureEditorSession(projectDir, { variantId } = {}) {
   const absoluteProjectDir = path.resolve(projectDir);
   const selectedVariantId = variantId ?? await readActiveVariantId(absoluteProjectDir);
   const current = await readSession(absoluteProjectDir);
-  if (current && current.variantId === selectedVariantId && await sessionIsHealthy(current)) {
+  const belongsToProject = current && samePath(current.projectDir, absoluteProjectDir);
+  if (belongsToProject && current.variantId === selectedVariantId && await sessionIsHealthy(current)) {
     return { ...current, reused: true };
   }
-  await discardSession(absoluteProjectDir, current);
+  if (current && !belongsToProject) await rm(sessionPath(absoluteProjectDir), { force: true });
+  else await discardSession(absoluteProjectDir, current);
 
   const runtimeDir = path.join(absoluteProjectDir, ".runtime");
   await mkdir(runtimeDir, { recursive: true });
@@ -109,6 +111,15 @@ async function discardSession(projectDir, session) {
 
 function sessionPath(projectDir) {
   return path.join(projectDir, ".runtime", "editor-session.json");
+}
+
+function samePath(left, right) {
+  if (!left || !right) return false;
+  const normalize = (value) => {
+    const resolved = path.resolve(value);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return normalize(left) === normalize(right);
 }
 
 function delay(milliseconds) {

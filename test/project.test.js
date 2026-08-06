@@ -44,6 +44,10 @@ test("createProject copies and hashes a source file into a new workspace", async
   await access(path.join(projectDir, "open-editor.sh"));
   await access(path.join(projectDir, ".editor-runtime", "src", "chart-data.js"));
   await access(path.join(projectDir, ".editor-runtime", "src", "design-package.js"));
+  await access(path.join(projectDir, ".editor-runtime", "src", "editor-review.js"));
+  await access(path.join(projectDir, ".editor-runtime", "src", "editorial-model.js"));
+  await access(path.join(projectDir, ".editor-runtime", "node_modules", "parse5", "dist", "index.js"));
+  await access(path.join(projectDir, ".editor-runtime", "node_modules", "entities", "lib", "esm", "index.js"));
   assert.match(await readFile(path.join(projectDir, "打开编辑器.cmd"), "utf8"), /%~dp0/);
   assert.match(await readFile(path.join(projectDir, "open-editor.sh"), "utf8"), /dirname/);
 });

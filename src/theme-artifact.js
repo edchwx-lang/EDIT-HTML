@@ -43,8 +43,9 @@ export function compileThemeIntoArtifact(html, themeId) {
   let compiled = html;
   const existingStyle =
     /<style\b[^>]*\bdata-edit-html-report-theme(?:\s*=\s*["'][^"']*["'])?[^>]*>[\s\S]*?<\/style>/i;
-  if (existingStyle.test(compiled)) {
-    compiled = compiled.replace(existingStyle, style);
+  compiled = compiled.replace(existingStyle, "");
+  if (/<\/head\s*>/i.test(compiled)) {
+    compiled = compiled.replace(/<\/head\s*>/i, style + "</head>");
   } else if (/<head\b[^>]*>/i.test(compiled)) {
     compiled = compiled.replace(/<head\b[^>]*>/i, (tag) => tag + style);
   } else if (/<html\b[^>]*>/i.test(compiled)) {

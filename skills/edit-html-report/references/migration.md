@@ -6,4 +6,4 @@ V4.x projects must not regenerate through the V5 production chain and must not b
 
 `editor open` routes by project schema: V4.x uses the existing artifact/runtime, while V5 opens the instrumented artifact. Opening, editing, restoring, or publishing a V4.x artifact never creates a V5 Source Pack or candidate.
 
-Legacy design packages, production report models, presentation plans, component primitives, and fixed Renderer inputs cannot enter a V5 project. V5's minimal schema-v4 report model exists solely so the frozen editor can maintain its existing HTML patch behavior.
+Legacy design packages, production report models, presentation plans, component primitives, and fixed Renderer inputs cannot enter a V5 project. V5's minimal schema-v4 report model exists solely for V4 route compatibility; V5.2.1 editor actions operate directly on the instrumented HTML.

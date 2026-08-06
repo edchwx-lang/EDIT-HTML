@@ -2,7 +2,7 @@ import { access, copyFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { finalizeVariant } from "./finalize.js";
-import { writeTextAtomic } from "./io.js";
+import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { renderVariant } from "./renderer.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 
@@ -58,6 +58,20 @@ export async function restoreVersion(projectDir, versionId) {
     message: "Restore " + versionId,
     restoredFromVersionId: versionId
   });
+}
+
+export async function deleteVersion(projectDir, versionId) {
+  const projectPath = path.join(projectDir, "project.json");
+  const project = JSON.parse(await readFile(projectPath, "utf8"));
+  const index = project.versions.findIndex((version) => version.versionId === versionId);
+  if (index === -1) throw new Error('unknown version "' + versionId + '"');
+  const [deleted] = project.versions.splice(index, 1);
+  for (const version of project.versions) {
+    if (version.parentVersionId === versionId) version.parentVersionId = deleted.parentVersionId ?? null;
+  }
+  await rm(path.join(projectDir, "versions", versionId), { recursive: true, force: true });
+  await writeJsonAtomic(projectPath, project);
+  return { versionId, deleted: true };
 }
 
 async function exists(filePath) {

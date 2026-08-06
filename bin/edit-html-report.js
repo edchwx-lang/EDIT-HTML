@@ -34,7 +34,8 @@ import {
   hashV5SitePayload,
   importV5DesignCandidate,
   importV5FinalSite,
-  listV5DesignCandidates
+  listV5DesignCandidates,
+  prepareV5CandidateReviewSet
 } from "../src/v5-design.js";
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
@@ -132,10 +133,16 @@ async function main(argv) {
       : await listHuashuDesignCandidates(projectDir, requireOption(args, "--variant")));
     return;
   }
+  if (command === "design" && args[0] === "candidate" && args[1] === "review" && args[2] === "prepare") {
+    const projectDir = requirePositional(args, 3, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("candidate review prepare is available only for V5 projects");
+    printJson(await prepareV5CandidateReviewSet(projectDir, requireOption(args, "--variant")));
+    return;
+  }
   if (command === "design" && args[0] === "candidate" && args[1] === "confirm") {
     const projectDir = requirePositional(args, 2, "project");
     printJson((await isV5Project(projectDir))
-      ? await confirmV5DesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--candidate"))
+      ? await confirmV5DesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--candidate"), { receiptPath: optionalOption(args, "--receipt") ?? undefined })
       : await confirmHuashuDesignCandidate(projectDir, requireOption(args, "--variant"), requireOption(args, "--candidate"), { confirmedBy: optionalOption(args, "--by") ?? "user" }));
     return;
   }
@@ -287,9 +294,7 @@ async function main(argv) {
         launcherPath,
         projectDir: path.resolve(projectDir),
         variantId: session.variantId,
-        reviewState: "awaiting-editor-review",
-        confirmationRequired: true,
-        nextUserAction: "Open the visible editor, inspect the website, then confirm the design and theme in the editor."
+        nextUserAction: "Open the visible editor, inspect and edit the website, then save a version when ready."
       }
     });
     if (!args.includes("--no-browser")) launchBrowser(editorUrl);

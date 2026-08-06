@@ -26,6 +26,7 @@ export async function validateV5Variant(projectDir, variantId) {
     throw new Error("V5 artifact contains forbidden runtime behavior");
   }
   assertUniqueAttributes(artifact, ["data-edit-id", "data-block-id", "data-image-id", "data-chart-id"]);
+  assertExecutableCharts(artifact);
   const audit = await auditV5FinalSite(projectDir, variantId);
   const artifactSha256 = createHash("sha256").update(artifact).digest("hex");
   if (artifactSha256 !== instrumentation.artifactSha256) throw new Error("artifact changed after instrumentation");
@@ -37,8 +38,17 @@ export async function validateV5Variant(projectDir, variantId) {
     finalSiteSha256: variant.finalSiteSha256,
     artifactSha256,
     coveredSources: audit.coveredSources,
-    editorBoundary: "v4.3-frozen"
+    editorBoundary: "v5.2.1-html-backed"
   };
+}
+
+function assertExecutableCharts(html) {
+  for (const match of html.matchAll(/\bdata-chart-id\s*=\s*["']([^"']+)["']/gi)) {
+    const escaped = match[1].replace(/[\^$.*+?()[\]{}|]/g, "\\$&");
+    if (!new RegExp(`data-chart-data-for\\s*=\\s*["']${escaped}["']`, "i").test(html)) {
+      throw new Error(`chart "${match[1]}" lacks an executable data payload`);
+    }
+  }
 }
 
 function assertUniqueAttributes(html, names) {

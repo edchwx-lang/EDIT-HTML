@@ -1,11 +1,11 @@
-import { chmod, copyFile, mkdir, writeFile } from "node:fs/promises";
+import { chmod, copyFile, cp, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
 const runtimeFiles = [
   "artifact-contract.js", "chart-data.js", "design-package.js", "drafts.js", "editor-server.js", "editor-session.js",
-  "editor-session-worker.js", "editor-shell.js", "finalize.js", "io.js",
+  "editor-review.js", "editor-session-worker.js", "editor-shell.js", "editorial-model.js", "finalize.js", "io.js",
   "publish.js", "renderer.js", "report-model.js", "theme-artifact.js",
   "themes.js", "variants.js", "versions.js", "modes/data-first.js",
   "modes/evidence-first.js", "modes/index.js"
@@ -18,6 +18,13 @@ export async function installProjectEditorRuntime(projectDir) {
     const destination = path.join(runtimeRoot, "src", relativePath);
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(path.join(sourceRoot, relativePath), destination);
+  }
+  for (const dependency of ["parse5", "entities"]) {
+    await cp(
+      path.join(path.dirname(sourceRoot), "node_modules", dependency),
+      path.join(runtimeRoot, "node_modules", dependency),
+      { recursive: true, force: true }
+    );
   }
   await writeFile(path.join(runtimeRoot, "package.json"), '{"type":"module"}\n', "utf8");
   await writeFile(path.join(runtimeRoot, "open-editor.mjs"), embeddedLauncher(), "utf8");

@@ -28,14 +28,12 @@ async function fixture(t) {
   return { project, variant };
 }
 
-test("render waits for a hash-bound visible editor review before finalize", async (t) => {
+test("legacy review metadata remains readable but no longer gates finalize", async (t) => {
   const { project, variant } = await fixture(t);
   const awaiting = await getEditorReviewState(project, variant.variantId);
   assert.equal(awaiting.status, "awaiting-editor-review");
-  await assert.rejects(
-    () => finalizeVariant(project, variant.variantId),
-    /editor confirmation is required/
-  );
+  const directVersion = await finalizeVariant(project, variant.variantId);
+  assert.equal("reviewConfirmation" in directVersion, false);
   const confirmed = await confirmEditorReview(project, variant.variantId, {
     sessionId: "visible-editor-session"
   });
@@ -45,28 +43,28 @@ test("render waits for a hash-bound visible editor review before finalize", asyn
   assert.equal(confirmed.themeId, "deep-data-blue");
   assert.equal(confirmed.sessionId, "visible-editor-session");
   const version = await finalizeVariant(project, variant.variantId);
-  assert.equal(version.reviewConfirmation.sessionId, "visible-editor-session");
+  assert.equal("reviewConfirmation" in version, false);
 });
 
-test("theme changes and rerenders invalidate editor confirmation", async (t) => {
+test("theme changes and rerenders keep legacy review metadata informational", async (t) => {
   const { project, variant } = await fixture(t);
   await confirmEditorReview(project, variant.variantId, { sessionId: "session-one" });
   await updateVariantTheme(project, variant.variantId, "signal-orange", { source: "editor" });
   assert.equal((await getEditorReviewState(project, variant.variantId)).status, "awaiting-editor-review");
-  await assert.rejects(() => finalizeVariant(project, variant.variantId), /editor confirmation is required/);
+  assert.equal((await finalizeVariant(project, variant.variantId)).themeId, "signal-orange");
 
   await confirmEditorReview(project, variant.variantId, { sessionId: "session-two" });
   await renderVariant(project, variant.variantId);
   assert.equal((await getEditorReviewState(project, variant.variantId)).status, "awaiting-editor-review");
-  await assert.rejects(() => finalizeVariant(project, variant.variantId), /editor confirmation is required/);
+  assert.equal((await finalizeVariant(project, variant.variantId)).variantId, variant.variantId);
 });
 
-test("artifact drift invalidates a previously confirmed review", async (t) => {
+test("artifact drift does not create a second save authorization gate", async (t) => {
   const { project, variant } = await fixture(t);
   await confirmEditorReview(project, variant.variantId, { sessionId: "session-three" });
   const artifactPath = path.join(project, "variants", variant.variantId, "artifact.html");
   await writeFile(artifactPath, (await readFile(artifactPath, "utf8")).replace("</body>", "<!-- drift --></body>"), "utf8");
-  await assert.rejects(() => finalizeVariant(project, variant.variantId), /editor confirmation no longer matches/);
+  assert.equal((await finalizeVariant(project, variant.variantId)).variantId, variant.variantId);
 });
 
 test("legacy HTML draft edits and undo also invalidate confirmation", async (t) => {

@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 import { createV5Project, createV5Variant } from "../src/v5-project.js";
+import { startEditorServer } from "../src/editor-server.js";
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { renderThemeCss } from "../src/theme-artifact.js";
 import { getTheme } from "../src/themes.js";
@@ -49,6 +50,66 @@ test("V5 Instrumenter is visually non-invasive at desktop and mobile", async ({ 
   }
 });
 
+test("V5.2.1 visible editor uses HTML patches without a confirmation gate", async ({ page }) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-v5-editor-"));
+  let editor;
+  try {
+    const { projectDir, variantId } = await visualFixture(sandbox);
+    await instrumentV5Variant(projectDir, variantId);
+    editor = await startEditorServer({ projectDir, variantId });
+    await page.goto(editor.url + "/?token=" + editor.token);
+    const frame = page.frameLocator('iframe[title="报告画布"]');
+
+    await expect(page.locator('[data-action="confirm-review"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "保存版本" })).toBeEnabled();
+    await page.getByRole("button", { name: "编辑" }).click();
+
+    const heading = frame.locator("h1[data-edit-id]");
+    await heading.fill("Updated market outlook");
+    await heading.blur();
+    await expect(page.locator("[data-status]")).toHaveText("草稿已保存");
+    await expect(frame.locator("h1[data-edit-id]")).toHaveText("Updated market outlook");
+
+    await frame.locator('[data-block-id]').first().click();
+    await frame.locator('[data-context-action="clone"]').click();
+    await expect(frame.locator('[data-block-id]')).toHaveCount(3);
+    await page.getByRole("button", { name: "撤销" }).click();
+    await expect(frame.locator('[data-block-id]')).toHaveCount(2);
+    await page.getByRole("button", { name: "重做" }).click();
+    await expect(frame.locator('[data-block-id]')).toHaveCount(3);
+
+    await frame.locator('[data-image-id]').click();
+    await expect(frame.locator('[data-context-action="replace-image"]')).toBeVisible();
+    await expect(frame.locator('[data-context-action="clone"]')).toBeHidden();
+    await expect(frame.locator('[data-context-action="delete"]')).toBeHidden();
+    await frame.getByRole("button", { name: "替换图片" }).click();
+    await page.locator('[data-image-input]').setInputFiles({
+      name: "replacement.png",
+      mimeType: "image/png",
+      buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+    });
+    await expect(frame.locator('[data-image-id]')).toHaveAttribute("src", /^data:image\/png;base64,/);
+
+    await frame.locator('[data-chart-id]').click();
+    await frame.getByRole("button", { name: "编辑数据" }).click();
+    await page.locator('[data-chart-grid] input[data-row="0"][data-column="1"]').fill("200");
+    await page.getByRole("button", { name: "应用修改" }).click();
+    await expect.poll(() => frame.locator('script[data-chart-data-for]').textContent()).toContain("200");
+
+    await page.locator(".theme-picker summary").click();
+    await page.locator('[data-theme-id="signal-orange"]').click();
+    await expect.poll(() => frame.locator("html").evaluate((node) => getComputedStyle(node).getPropertyValue("--report-accent").trim())).toBe("#FF6900");
+    const savedResponse = page.waitForResponse((response) => response.url().endsWith("/api/versions") && response.request().method() === "POST");
+    await page.getByRole("button", { name: "保存版本" }).click();
+    const saveResult = await savedResponse;
+    expect(saveResult.status(), await saveResult.text()).toBe(201);
+    await expect(page.getByRole("button", { name: "发布", exact: true })).toBeEnabled();
+  } finally {
+    if (editor) await editor.close();
+    await rm(sandbox, { recursive: true, force: true });
+  }
+});
+
 async function visualFixture(root) {
   const source = path.join(root, "brief.md");
   const projectDir = path.join(root, "project");
@@ -67,6 +128,8 @@ async function visualFixture(root) {
     schemaVersion: 1,
     bindings: [
       { contentId: "hero", factIds: ledger.facts.map((fact) => fact.factId), sourceRefs, tier: "main", editableKind: "block" },
+      { contentId: "detail", factIds: ledger.facts.map((fact) => fact.factId), sourceRefs, tier: "main", editableKind: "block" },
+      { contentId: "chart", factIds: ledger.facts.map((fact) => fact.factId), sourceRefs, tier: "main", editableKind: "chart" },
       { contentId: "picture", factIds: [], sourceRefs: [], tier: "detail", editableKind: "image" },
     ],
     omissions: [],
@@ -75,6 +138,7 @@ async function visualFixture(root) {
   await writeFile(path.join(siteDir, "content-bindings.json"), bindingText, "utf8");
   await writeFile(path.join(siteDir, "design-rationale.md"), "A responsive editorial split with one local interaction.", "utf8");
   await writeFile(path.join(siteDir, "styles", "site.css"), `
+    :root{--report-canvas:#fafafa;--report-surface:#ffffff;--report-text:#111111;--report-accent:#123456;--report-border:#dddddd}
     *{box-sizing:border-box} body{margin:0;background:var(--report-canvas);color:var(--report-text);font-family:Arial,sans-serif}
     .shell{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,.6fr);gap:32px;padding:64px}
     .hero{padding:36px;border:1px solid var(--report-border);background:var(--report-surface)}
@@ -85,7 +149,7 @@ async function visualFixture(root) {
   await writeFile(path.join(siteDir, "assets", "visual.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="none" stroke="currentColor"/><path d="M40 230L140 150L220 180L360 60" fill="none" stroke="currentColor" stroke-width="8"/></svg>', "utf8");
   await writeFile(path.join(siteDir, "screenshots", "desktop.png"), Buffer.from("desktop"));
   await writeFile(path.join(siteDir, "screenshots", "mobile.png"), Buffer.from("mobile"));
-  await writeFile(path.join(siteDir, "index.html"), '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="styles/site.css"></head><body><main class="shell"><section class="hero" data-content-id="hero"><h1>Market outlook</h1><p class="value">Expected 189 units in 2028.</p></section><img class="visual" data-content-id="picture" src="assets/visual.svg" alt="Trend"></main><script src="scripts/site.js"></script></body></html>', "utf8");
+  await writeFile(path.join(siteDir, "index.html"), '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="styles/site.css"></head><body><main class="shell"><section class="hero" data-content-id="hero"><h1>Market outlook</h1><p class="value">Expected 189 units in 2028.</p></section><section data-content-id="detail"><h2>Market detail</h2><p>Expected 189 units in 2028.</p></section><section data-content-id="chart"><div>Market chart</div><span data-chart-mark style="background:var(--report-chart-1)"></span><span class="chart-tooltip"></span><span class="chart-selection-band"></span></section><img class="visual" data-content-id="picture" src="assets/visual.svg" alt="Trend"></main><script type="application/json" data-chart-data-for="chart">{"columns":["Label","Value"],"rows":[["Market",189]]}</script><script src="scripts/site.js"></script></body></html>', "utf8");
   const payloadSha256 = await hashV5SitePayload(siteDir);
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   const interviewSha256 = "a".repeat(64);

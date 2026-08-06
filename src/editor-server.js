@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 
-import { applyDraftPatch, redoDraft, undoDraft } from "./drafts.js";
+import { applyDraftPatch, getDraftHistoryState, redoDraft, undoDraft } from "./drafts.js";
 import { renderEditorShell } from "./editor-shell.js";
 import { finalizeVariant } from "./finalize.js";
 import {
@@ -11,13 +11,14 @@ import {
   publishLocal,
   publishProvider,
   readPublicationArtifact,
+  revealLatestLocalPublication,
   republishPublication,
   revealPublication
 } from "./publish.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { listThemes } from "./themes.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
-import { restoreVersion } from "./versions.js";
+import { deleteVersion, restoreVersion } from "./versions.js";
 import { confirmEditorReview, getEditorReviewState } from "./editor-review.js";
 
 export async function startEditorServer({
@@ -63,7 +64,11 @@ export async function startEditorServer({
         return sendHtml(response, compileThemeIntoArtifact(artifact, variant.themeId));
       }
       if (request.method === "GET" && url.pathname === "/api/draft") {
-        sendJson(response, 200, JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "report-model.json"), "utf8")));
+        const [model, history] = await Promise.all([
+          readFile(path.join(projectDir, "variants", variantId, "report-model.json"), "utf8").then(JSON.parse),
+          getDraftHistoryState(projectDir, variantId)
+        ]);
+        sendJson(response, 200, { ...model, historyCursor: history.cursor, historyLength: history.length });
         return;
       }
       if (request.method === "PATCH" && url.pathname === "/api/draft") {
@@ -100,6 +105,37 @@ export async function startEditorServer({
       if (request.method === "GET" && url.pathname === "/api/versions") {
         const project = await readProject(projectDir);
         sendJson(response, 200, project.versions.filter((version) => version.variantId === variantId));
+        return;
+      }
+      const versionDeleteRoute = url.pathname.match(/^\/api\/versions\/([^/]+)$/);
+      if (versionDeleteRoute && request.method === "DELETE") {
+        sendJson(response, 200, await deleteVersion(projectDir, versionDeleteRoute[1]));
+        return;
+      }
+      const versionRevealLocalRoute = url.pathname.match(/^\/api\/versions\/([^/]+)\/reveal-local$/);
+      if (versionRevealLocalRoute && request.method === "POST") {
+        sendJson(response, 200, await revealLatestLocalPublication(
+          projectDir,
+          versionRevealLocalRoute[1],
+          onReveal ? { runner: onReveal } : undefined
+        ));
+        return;
+      }
+      const versionActionRoute = url.pathname.match(/^\/api\/versions\/([^/]+)\/(artifact|path|reveal)$/);
+      if (versionActionRoute && request.method === "GET" && versionActionRoute[2] === "artifact") {
+        return sendHtml(response, await readFile(await versionArtifactPath(projectDir, versionActionRoute[1]), "utf8"));
+      }
+      if (versionActionRoute && request.method === "GET" && versionActionRoute[2] === "path") {
+        sendJson(response, 200, {
+          versionId: versionActionRoute[1],
+          artifactPath: await versionArtifactPath(projectDir, versionActionRoute[1])
+        });
+        return;
+      }
+      if (versionActionRoute && request.method === "POST" && versionActionRoute[2] === "reveal") {
+        const artifactPath = await versionArtifactPath(projectDir, versionActionRoute[1]);
+        if (onReveal) await onReveal(artifactPath);
+        sendJson(response, 200, { versionId: versionActionRoute[1], artifactPath });
         return;
       }
       const versionRoute = url.pathname.match(/^\/api\/versions\/([^/]+)\/(preview|restore)$/);
@@ -207,9 +243,13 @@ async function readProject(projectDir) {
 }
 
 async function readVersionArtifact(projectDir, versionId) {
+  return readFile(await versionArtifactPath(projectDir, versionId), "utf8");
+}
+
+async function versionArtifactPath(projectDir, versionId) {
   const project = await readProject(projectDir);
   if (!project.versions.some((version) => version.versionId === versionId)) throw new Error('unknown saved version "' + versionId + '"');
-  return readFile(path.join(projectDir, "versions", versionId, "artifact.html"), "utf8");
+  return path.join(projectDir, "versions", versionId, "artifact.html");
 }
 
 async function sendSavedVersion(projectDir, versionId, response) {
@@ -230,6 +270,7 @@ function isAuthorized(request, url, token) {
   if (request.headers.authorization === "Bearer " + token) return true;
   const immutablePreview = request.method === "GET" && (
     /^\/api\/versions\/[^/]+\/preview$/.test(url.pathname) ||
+    /^\/api\/versions\/[^/]+\/artifact$/.test(url.pathname) ||
     /^\/api\/publications\/[^/]+\/artifact$/.test(url.pathname)
   );
   return immutablePreview && url.searchParams.get("token") === token;

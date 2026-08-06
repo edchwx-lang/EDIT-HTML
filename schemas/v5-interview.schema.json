@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://edit-html-report.local/schemas/v5-interview.schema.json",
-  "title": "Huashu V5.1 Content Interview",
+  "title": "Huashu V5.2.1 Content Interview",
   "type": "object",
-  "required": ["schemaVersion", "variantId", "answers", "references"],
+  "required": ["schemaVersion", "variantId", "answers", "references", "decisionEvidence"],
   "properties": {
-    "schemaVersion": { "const": 2 },
+    "schemaVersion": { "const": 3 },
     "variantId": { "type": "string", "minLength": 1 },
     "answers": {
       "type": "object",
@@ -20,6 +20,7 @@
       "additionalProperties": false
     },
     "references": { "type": "array", "items": { "type": "object" } },
+    "decisionEvidence": { "$ref": "#/$defs/decisionEvidence" },
     "status": { "enum": ["confirmed"] },
     "confirmedAt": { "type": "string", "format": "date-time" }
   },
@@ -46,6 +47,22 @@
         "reasonCode": { "enum": ["scope", "terminology", "conflict", "omission", "time-range", "comparative-focus"] },
         "sourceRefs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "rationale": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "decisionEvidence": {
+      "type": "object",
+      "required": ["evidenceType", "verbatimUserQuote", "recordedAt", "topicsCovered"],
+      "properties": {
+        "evidenceType": { "enum": ["direct-user-answer", "explicit-user-delegation", "preanswered-request"] },
+        "verbatimUserQuote": { "type": "string", "minLength": 1 },
+        "recordedAt": { "type": "string", "format": "date-time" },
+        "topicsCovered": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "enum": ["purpose", "contentWeight", "contentClarification"] },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     }

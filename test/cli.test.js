@@ -288,7 +288,7 @@ test("CLI open is a background alias for editor open and the session remains reu
   assert.match(opened.url, /^http:\/\/127\.0\.0\.1:\d+\/\?token=/);
   assert.equal(opened.handoff.kind, "visible-editor");
   assert.equal(opened.handoff.editorUrl, opened.url);
-  assert.equal(opened.handoff.confirmationRequired, true);
+  assert.equal("confirmationRequired" in opened.handoff, false);
   assert.equal(opened.handoff.variantId, variant.variantId);
   assert.equal(path.isAbsolute(opened.handoff.launcherPath), true);
   await access(opened.handoff.launcherPath);

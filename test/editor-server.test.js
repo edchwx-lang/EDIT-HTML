@@ -106,14 +106,14 @@ test("editor root renders mode-aware controls, contextual actions, and history d
 
   assert.equal(response.status, 200);
   assert.match(html, /data-action="undo">撤销<\/button>/);
-  assert.match(html, /data-action="redo">重做<\/button>/);
+  assert.doesNotMatch(html, /data-action="redo"/);
   assert.match(html, /data-action="save"[^>]*>保存版本<\/button>/);
   assert.match(html, /data-theme-id="warm-paper-terracotta"/);
   assert.match(html, /data-theme-id="signal-orange"/);
   assert.match(html, /浅色配色/);
   assert.match(html, /深色配色/);
   assert.match(html, /data-action="publish"[^>]*disabled[^>]*>发布<\/button>/);
-  assert.match(html, /data-action="publications">发布历史<\/button>/);
+  assert.doesNotMatch(html, /data-action="publications"/);
   assert.match(html, /data-context-action="replace-image">替换图片<\/button>/);
   assert.match(html, /data-context-action="edit-chart">编辑数据<\/button>/);
   assert.match(html, /data-context-action="move-up">上移<\/button>/);
@@ -122,47 +122,120 @@ test("editor root renders mode-aware controls, contextual actions, and history d
   assert.match(html, /data-context-action="delete">删除<\/button>/);
   assert.match(html, /editButton\.textContent=editing\?'完成':'编辑'/);
   assert.match(html, /class="drawer" data-drawer="versions"/);
-  assert.match(html, /class="drawer" data-drawer="publications"/);
-  assert.match(html, /data-reveal-publication=/);
-  assert.match(html, /data-republish-publication=/);
+  assert.match(html, /class="drawer" data-drawer="publish"/);
+  assert.match(html, /data-version-local-publish=/);
+  assert.match(html, /data-version-domain-publish=/);
+  assert.match(html, /data-version-reveal-local=/);
+  assert.match(html, /data-version-delete=/);
+  assert.doesNotMatch(html, /data-version-open=/);
+  assert.doesNotMatch(html, /data-version-copy=/);
+  assert.doesNotMatch(html, /data-publish-target="local"/);
+  assert.doesNotMatch(html, /data-publish-target="vercel"/);
+  assert.doesNotMatch(html, /data-publish-target="netlify"/);
+  assert.match(html, /applyPatchToLiveDocument/);
+  assert.match(html, /preserveViewport/);
+  assert.doesNotMatch(html, /Promise\.all\(\[loadArtifact\(\),syncState\(\)\]\)/);
   assert.match(html, /class="dialog" data-dialog="chart"/);
   assert.doesNotMatch(html, /prompt\('编辑图表 JSON'/);
   assert.doesNotMatch(html, /status\('Draft saved'\);\s*},\{once:true\}/);
   assert.doesNotMatch(html, /sidebar/i);
 });
 
-test("editor exposes a visible design and color confirmation gate bound to its session", async (t) => {
+test("editor omits the redundant confirmation control and enables direct version saving", async (t) => {
   const { projectDir, variant } = await editorFixture(t);
   const editor = await startEditorServer({ projectDir, variantId: variant.variantId });
   t.after(() => editor.close());
-  const headers = {
-    authorization: "Bearer " + editor.token,
-    "content-type": "application/json"
-  };
   const root = await (await fetch(editor.url + "/?token=" + encodeURIComponent(editor.token))).text();
-  assert.match(root, /data-action="confirm-review"/);
-  assert.match(root, /确认设计与配色/);
+  assert.doesNotMatch(root, /data-action="confirm-review"/);
+  assert.doesNotMatch(root, /确认设计与配色/);
+  assert.doesNotMatch(root, /data-action="save" disabled/);
+});
 
-  const before = await (await fetch(editor.url + "/api/review", { headers })).json();
-  assert.equal(before.status, "awaiting-editor-review");
-  const confirmedResponse = await fetch(editor.url + "/api/review", {
+test("editor API exposes saved version artifact path and deletes saved version files", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId
+  });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  await confirmReview(editor, headers);
+  const saved = await fetch(editor.url + "/api/versions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message: "Version path" })
+  });
+  assert.equal(saved.status, 201);
+  const version = await saved.json();
+
+  const artifact = await fetch(editor.url + "/api/versions/" + version.versionId + "/artifact", { headers });
+  const artifactBody = await artifact.text();
+  assert.equal(artifact.status, 200, artifactBody);
+  assert.match(artifactBody, />Old<\/h1>/);
+
+  const pathResponse = await fetch(editor.url + "/api/versions/" + version.versionId + "/path", { headers });
+  const pathBodyText = await pathResponse.text();
+  assert.equal(pathResponse.status, 200, pathBodyText);
+  const pathBody = JSON.parse(pathBodyText);
+  assert.equal(pathBody.versionId, version.versionId);
+  assert.match(pathBody.artifactPath, new RegExp("versions[\\\\/]" + version.versionId + "[\\\\/]artifact\\.html$"));
+
+  const deleted = await fetch(editor.url + "/api/versions/" + version.versionId, {
+    method: "DELETE",
+    headers
+  });
+  assert.equal(deleted.status, 200, await deleted.text());
+  await assert.rejects(readFile(pathBody.artifactPath, "utf8"), /ENOENT/);
+  const versions = await (await fetch(editor.url + "/api/versions", { headers })).json();
+  assert.equal(versions.some((item) => item.versionId === version.versionId), false);
+});
+
+test("editor API reveals the latest local publication for a saved version", async (t) => {
+  const { projectDir, variant } = await editorFixture(t);
+  const revealed = [];
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: variant.variantId,
+    onReveal: async (targetPath) => revealed.push(targetPath)
+  });
+  t.after(() => editor.close());
+  const headers = { authorization: "Bearer " + editor.token, "content-type": "application/json" };
+  await confirmReview(editor, headers);
+  const version = await (await fetch(editor.url + "/api/versions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message: "Local publish" })
+  })).json();
+
+  const missing = await fetch(editor.url + "/api/versions/" + version.versionId + "/reveal-local", {
     method: "POST",
     headers,
     body: "{}"
   });
-  assert.equal(confirmedResponse.status, 200);
-  const confirmed = await confirmedResponse.json();
-  assert.equal(confirmed.status, "confirmed");
-  assert.equal(confirmed.sessionId, editor.sessionId);
+  assert.equal(missing.status, 400);
+  assert.match(await missing.text(), /local publication/);
 
-  await fetch(editor.url + "/api/theme", {
+  const published = await fetch(editor.url + "/api/publish", {
     method: "POST",
     headers,
-    body: JSON.stringify({ themeId: "signal-orange" })
+    body: JSON.stringify({ versionId: version.versionId, target: "local" })
   });
-  const invalidated = await (await fetch(editor.url + "/api/review", { headers })).json();
-  assert.equal(invalidated.status, "awaiting-editor-review");
-  assert.equal(invalidated.reason, "theme-changed");
+  const publishedBody = await published.text();
+  assert.equal(published.status, 201, publishedBody);
+  const publication = JSON.parse(publishedBody);
+
+  const reveal = await fetch(editor.url + "/api/versions/" + version.versionId + "/reveal-local", {
+    method: "POST",
+    headers,
+    body: "{}"
+  });
+  const revealText = await reveal.text();
+  assert.equal(reveal.status, 200, revealText);
+  assert.equal(revealed.length, 1);
+  assert.match(revealed[0], new RegExp("publications[\\\\/]" + publication.publicationId + "$"));
+  const revealBody = JSON.parse(revealText);
+  assert.match(revealBody.targetPath, new RegExp("publications[\\\\/]" + publication.publicationId + "[\\\\/]report\\.html$"));
+  assert.equal(revealBody.directoryPath, revealed[0]);
 });
 
 test("editor API exposes health, canonical draft, revision conflict, preview, and restore", async (t) => {
@@ -222,7 +295,7 @@ test("editor API records, reveals, and republishes canonical publications", asyn
   });
   assert.equal(reveal.status, 200, await reveal.text());
   assert.equal(revealed.length, 1);
-  assert.match(revealed[0], /publications[\\/].+[\\/]report\.html$/);
+  assert.match(revealed[0], /publications[\\/][^\\/]+$/);
 
   const republished = await fetch(editor.url + "/api/publications/" + publication.publicationId + "/republish", {
     method: "POST", headers, body: "{}"
@@ -247,6 +320,9 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
     authorization: "Bearer " + editor.token,
     "content-type": "application/json"
   };
+  const initialDraft = await (await fetch(editor.url + "/api/draft", { headers })).json();
+  assert.equal(initialDraft.historyCursor, 0);
+  assert.equal(initialDraft.historyLength, 0);
   await fetch(editor.url + "/api/draft", {
     method: "PATCH",
     headers,
@@ -256,6 +332,9 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
       value: "New"
     })
   });
+  const changedDraft = await (await fetch(editor.url + "/api/draft", { headers })).json();
+  assert.equal(changedDraft.historyCursor, 1);
+  assert.equal(changedDraft.historyLength, 1);
 
   assert.equal(
     (
@@ -268,6 +347,9 @@ test("editor API exposes undo, redo, and saved-version actions", async (t) => {
     200
   );
   assert.match(await readFile(artifactPath, "utf8"), />Old<\/h1>/);
+  const undoneDraft = await (await fetch(editor.url + "/api/draft", { headers })).json();
+  assert.equal(undoneDraft.historyCursor, 0);
+  assert.equal(undoneDraft.historyLength, 1);
   await fetch(editor.url + "/api/redo", {
     method: "POST",
     headers,

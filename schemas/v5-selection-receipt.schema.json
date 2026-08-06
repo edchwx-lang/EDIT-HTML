@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-selection-receipt.schema.json",
+  "title": "Huashu V5.2.1 Candidate Selection Receipt",
+  "type": "object",
+  "required": ["schemaVersion", "reviewSetSha256", "candidateId", "selectedBy", "verbatimUserSelection", "recordedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reviewSetSha256": { "$ref": "#/$defs/hash" },
+    "candidateId": { "$ref": "#/$defs/id" },
+    "selectedBy": { "const": "user" },
+    "verbatimUserSelection": { "type": "string", "minLength": 1 },
+    "recordedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": false
+}

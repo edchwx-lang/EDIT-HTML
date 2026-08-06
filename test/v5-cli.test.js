@@ -42,7 +42,7 @@ test("V5 CLI creates a source-pack project and gates design preparation on the i
   assert.match(blocked.stderr, /confirmed interview/);
 
   const interview = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     variantId: variant.variantId,
     answers: Object.fromEntries(["purpose", "contentWeight"].map((key) => [key, {
       question: key,
@@ -50,6 +50,12 @@ test("V5 CLI creates a source-pack project and gates design preparation on the i
       origin: "user-provided",
       recordedAt: "2026-08-04T10:00:00.000Z"
     }])),
+    decisionEvidence: {
+      evidenceType: "direct-user-answer",
+      verbatimUserQuote: "Purpose and emphasis were provided by the user.",
+      recordedAt: "2026-08-04T10:00:00.000Z",
+      topicsCovered: ["purpose", "contentWeight"]
+    },
     references: []
   };
   const interviewPath = path.join(sandbox, "interview.json");

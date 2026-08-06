@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html-report.local/schemas/v5-design-process.schema.json",
+  "title": "Huashu V5.2.1 Design Process",
+  "type": "object",
+  "required": ["schemaVersion", "owner", "candidateId", "narrativeArchitecture", "visualizationModules", "coreInteraction"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "owner": { "const": "huashu-design" },
+    "candidateId": { "$ref": "#/$defs/id" },
+    "parentCandidateId": { "$ref": "#/$defs/id" },
+    "narrativeArchitecture": {
+      "type": "object",
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "visualizationModules": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "category", "type", "selector", "sourceRefs"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "title": { "type": "string", "minLength": 1 },
+          "category": { "enum": ["overview", "focus", "comparison", "timeline", "matrix", "flow"] },
+          "type": { "enum": ["chart", "matrix", "timeline", "comparison", "flow", "data-table", "annotated-image"] },
+          "selector": { "type": "string", "minLength": 1 },
+          "sourceRefs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coreInteraction": {
+      "type": "object",
+      "required": ["type", "selector", "event", "description"],
+      "properties": {
+        "type": { "$ref": "#/$defs/id" },
+        "selector": { "type": "string", "minLength": 1 },
+        "event": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" }
+  },
+  "additionalProperties": false
+}

@@ -3,6 +3,17 @@ import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { writeJsonAtomic } from "./io.js";
+import {
+  auditV511CandidateForReview,
+  auditV511CandidateSet,
+  auditV511FinalSite,
+  isSupportedV5SitePackageVersion,
+  requiresV511Gates,
+  validateV511DesignProcess,
+  V511_PACKAGE_VERSION,
+  V52_PACKAGE_VERSION,
+  V521_PACKAGE_VERSION
+} from "./v5-quality-gate.js";
 
 const THREE_THEMES = new Set(["precision-blueprint", "warm-paper-terracotta", "sandstone-archive"]);
 const REQUIRED_FILES = [
@@ -46,7 +57,11 @@ export async function importV5DesignCandidate(projectDir, variantId, sourceDir) 
   await rm(destination, { recursive: true, force: true });
   await mkdir(path.dirname(destination), { recursive: true });
   await cp(sourceDir, destination, { recursive: true });
-  await updateVariant(projectDir, variantId, (record) => ({ ...record, pipelineState: "awaiting-candidate-selection" }));
+  await updateVariant(projectDir, variantId, (record) => ({
+    ...record,
+    pipelineState: requiresV511Gates(record) ? "awaiting-candidate-review" : "awaiting-candidate-selection",
+    candidateReviewSetSha256: undefined
+  }));
   return validation;
 }
 
@@ -67,19 +82,48 @@ export async function listV5DesignCandidates(projectDir, variantId) {
   return result;
 }
 
-export async function confirmV5DesignCandidate(projectDir, variantId, candidateId) {
+export async function prepareV5CandidateReviewSet(projectDir, variantId) {
+  const variant = await readVariant(projectDir, variantId);
+  if (!requiresV511Gates(variant)) {
+    throw new Error("candidate review sets are required only for V5.1.1 projects");
+  }
+  const candidates = await listV5DesignCandidates(projectDir, variantId);
+  enforceCandidateCount(variant, candidates);
+  const audits = await Promise.all(candidates.map((candidate) => auditV511CandidateForReview(projectDir, candidate)));
+  const setAudit = auditV511CandidateSet(audits, { requireThree: variant.referenceMode === "none" });
+  if (setAudit.errors.length) throw new Error("V5.1.1 candidate review audit failed: " + setAudit.errors.join("; "));
+  const reviewSetDraft = {
+    schemaVersion: 1,
+    packageVersion: variant.packageVersion,
+    variantId,
+    preparedAt: new Date().toISOString(),
+    state: "awaiting-user-selection",
+    reviewInstruction: "Show the actual desktop and mobile screenshots to the user and confirm only after receiving a user selection.",
+    candidates: audits.map(({ structuralTrigrams, errors, ...audit }) => audit),
+    warnings: setAudit.warnings
+  };
+  const reviewSetSha256 = hashJson(reviewSetDraft);
+  const reviewSet = { ...reviewSetDraft, reviewSetSha256 };
+  const reviewSetPath = path.join(projectDir, "variants", variantId, "design", "candidate-review-set.json");
+  await writeJsonAtomic(reviewSetPath, reviewSet);
+  await updateVariant(projectDir, variantId, (record) => ({
+    ...record,
+    pipelineState: "awaiting-user-selection",
+    candidateReviewSetSha256: reviewSetSha256
+  }));
+  return { ...reviewSet, reviewSetPath };
+}
+
+export async function confirmV5DesignCandidate(projectDir, variantId, candidateId, options = {}) {
   assertSafeId(candidateId, "candidateId");
   const variant = await readVariant(projectDir, variantId);
   const candidates = await listV5DesignCandidates(projectDir, variantId);
-  if (variant.referenceMode === "none") {
-    if (candidates.length !== 3 || new Set(candidates.map((item) => item.previewThemeId)).size !== 3) {
-      throw new Error("confirmation requires all three executable samples");
-    }
-  } else if (candidates.length !== 1) {
-    throw new Error("reference-guided confirmation requires one executable sample");
-  }
+  enforceCandidateCount(variant, candidates);
   const selected = candidates.find((item) => item.candidateId === candidateId);
   if (!selected) throw new Error(`unknown candidate "${candidateId}"`);
+  const selectionReceipt = requiresV511Gates(variant)
+    ? await validateSelectionReceipt(projectDir, variantId, candidateId, options)
+    : null;
   const selection = {
     candidateId,
     directionId: selected.directionId,
@@ -87,6 +131,11 @@ export async function confirmV5DesignCandidate(projectDir, variantId, candidateI
     candidateSha256: selected.payloadSha256,
     previewThemeId: selected.previewThemeId,
     contentPlanSha256: selected.contentPlanSha256,
+    ...(selectionReceipt ? {
+      reviewSetSha256: selectionReceipt.reviewSetSha256,
+      selectionReceiptSha256: selectionReceipt.selectionReceiptSha256,
+      userSelectionQuote: selectionReceipt.verbatimUserSelection
+    } : {}),
     confirmedAt: new Date().toISOString()
   };
   await updateVariant(projectDir, variantId, (record) => ({
@@ -110,6 +159,13 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   }
   if (validation.contentPlanSha256 !== variant.designSelection.contentPlanSha256) {
     throw new Error("final site content plan does not match the selected candidate");
+  }
+  if (requiresV511Gates(variant)) {
+    await auditV511FinalSite(
+      projectDir,
+      sourceDir,
+      candidatePath(projectDir, variantId, variant.designSelection.candidateId)
+    );
   }
   const destination = path.join(projectDir, "variants", variantId, "design", "package");
   const staging = destination + ".staging";
@@ -153,7 +209,10 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
     readVariant(projectDir, variantId),
     readJson(path.join(projectDir, "source-pack", "source-map.json"))
   ]);
-  if (manifest.schemaVersion !== 1 || manifest.packageVersion !== "5.1.0") throw new Error("V5.1 site manifest requires schema 1 and package 5.1.0");
+  if (manifest.schemaVersion !== 1 || !isSupportedV5SitePackageVersion(manifest.packageVersion)) throw new Error("V5.1 site manifest requires schema 1 and a supported package version");
+  if (requiresV511Gates(variant) && manifest.packageVersion !== variant.packageVersion) {
+    throw new Error(`${variant.packageVersion} projects require matching site packages`);
+  }
   if (manifest.kind !== expectedKind) throw new Error(`expected ${expectedKind} site manifest`);
   assertSafeId(manifest.candidateId, "candidateId");
   assertSafeId(manifest.directionId, "directionId");
@@ -168,12 +227,19 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   const payloadSha256 = await hashV5SitePayload(siteDir);
   if (manifest.payloadSha256 !== payloadSha256 || manifest.outputSha256 !== payloadSha256) throw new Error("site payload SHA-256 mismatch");
   if (manifest.screenshotSourceSha256 !== payloadSha256) throw new Error("screenshots must declare the executable site payload they render");
+  let designProcessSha256 = null;
+  if ([V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(manifest.packageVersion)) {
+    const processResult = await validateV511DesignProcess(siteDir, html, expectedKind);
+    designProcessSha256 = processResult.designProcessSha256;
+    if (manifest.designProcessSha256 !== designProcessSha256) throw new Error("design-process SHA-256 mismatch");
+  }
   await validateLocalRuntime(html, siteDir);
   return {
     manifest,
     bindings,
     payloadSha256,
     contentPlanSha256: hashContentPlan(bindings.coverage),
+    designProcessSha256,
     siteDir
   };
 }
@@ -300,7 +366,9 @@ function candidateSummary(validation) {
     previewThemeId: manifest.previewThemeId,
     payloadSha256: manifest.payloadSha256,
     screenshotSourceSha256: manifest.screenshotSourceSha256,
-    contentPlanSha256: validation.contentPlanSha256
+    contentPlanSha256: validation.contentPlanSha256,
+    designProcessSha256: validation.designProcessSha256 ?? null,
+    siteDir: validation.siteDir
   };
 }
 
@@ -319,6 +387,44 @@ function hashContentPlan(coverage) {
       .sort((left, right) => left.entityId.localeCompare(right.entityId))
   };
   return sha256(JSON.stringify(plan));
+}
+
+function enforceCandidateCount(variant, candidates) {
+  if (variant.referenceMode === "none") {
+    if (candidates.length !== 3 || new Set(candidates.map((item) => item.previewThemeId)).size !== 3) {
+      throw new Error("confirmation requires all three executable samples");
+    }
+  } else if (candidates.length !== 1) {
+    throw new Error("reference-guided confirmation requires one executable sample");
+  }
+}
+
+async function validateSelectionReceipt(projectDir, variantId, candidateId, options) {
+  const variant = await readVariant(projectDir, variantId);
+  if (variant.pipelineState !== "awaiting-user-selection") {
+    throw new Error("candidate confirmation requires a prepared review set shown to the user");
+  }
+  const receipt = options.receipt ?? (options.receiptPath ? await readJson(options.receiptPath) : null);
+  if (!receipt) throw new Error("V5.1.1 candidate confirmation requires a user selection receipt");
+  if (receipt.schemaVersion !== 1) throw new Error("selection receipt requires schemaVersion 1");
+  if (receipt.selectedBy !== "user") throw new Error("selection receipt must be selectedBy user");
+  if (receipt.candidateId !== candidateId) throw new Error("selection receipt candidateId does not match the confirmation candidate");
+  if (typeof receipt.verbatimUserSelection !== "string" || !receipt.verbatimUserSelection.trim()) {
+    throw new Error("selection receipt requires verbatimUserSelection");
+  }
+  if (!Number.isFinite(Date.parse(receipt.recordedAt))) throw new Error("selection receipt requires recordedAt");
+  const reviewSetPath = path.join(projectDir, "variants", variantId, "design", "candidate-review-set.json");
+  const reviewSet = await readJson(reviewSetPath);
+  if (receipt.reviewSetSha256 !== variant.candidateReviewSetSha256 || receipt.reviewSetSha256 !== reviewSet.reviewSetSha256) {
+    throw new Error("selection receipt is stale or does not match the current review set");
+  }
+  if (!reviewSet.candidates.some((item) => item.candidateId === candidateId)) {
+    throw new Error("selection receipt references a candidate outside the current review set");
+  }
+  return {
+    ...receipt,
+    selectionReceiptSha256: hashJson(receipt)
+  };
 }
 
 async function updateVariant(projectDir, variantId, update) {
@@ -362,6 +468,18 @@ function assertSafeId(value, name) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function hashJson(value) {
+  return sha256(stableStringify(value));
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map((key) => JSON.stringify(key) + ":" + stableStringify(value[key])).join(",") + "}";
+  }
+  return JSON.stringify(value);
 }
 
 function escapeRegExp(value) {

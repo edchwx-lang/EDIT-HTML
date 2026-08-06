@@ -7,7 +7,7 @@ import { verifyEditorBoundary } from "../scripts/check-editor-boundary.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("V5 keeps the V4.3 editor and post-artifact implementation byte-for-byte frozen", async () => {
+test("V5.2.3 keeps the verified editor and post-artifact implementation byte-for-byte locked", async () => {
   const result = await verifyEditorBoundary(root);
   assert.equal(result.ok, true, result.mismatches.join("\n"));
   assert.ok(result.checked >= 12);

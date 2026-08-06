@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -74,4 +74,28 @@ test("editor session discards stale metadata before starting", async (t) => {
   const opened = await ensureEditorSession(projectDir, { variantId: variant.variantId });
   assert.equal(opened.reused, false);
   assert.notEqual(opened.sessionId, "stale");
+});
+
+test("a copied project does not reuse or stop the source project's live editor", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-copy-"));
+  const sourceProject = path.join(sandbox, "source-report");
+  const copiedProject = path.join(sandbox, "copied-report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, sourceProject);
+  const variant = await createVariant(sourceProject, { mode: "evidence-first" });
+  await completeTestHuashuDesign(sourceProject, variant.variantId);
+  const sourceSession = await ensureEditorSession(sourceProject, { variantId: variant.variantId });
+  await cp(sourceProject, copiedProject, { recursive: true });
+  t.after(async () => {
+    await stopEditorSession(sourceProject).catch(() => {});
+    await stopEditorSession(copiedProject).catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const copiedSession = await ensureEditorSession(copiedProject, { variantId: variant.variantId });
+  assert.equal(copiedSession.reused, false);
+  assert.notEqual(copiedSession.sessionId, sourceSession.sessionId);
+  assert.equal(copiedSession.projectDir, path.resolve(copiedProject));
+  assert.equal((await fetch(sourceSession.url + "/api/health")).status, 200);
 });

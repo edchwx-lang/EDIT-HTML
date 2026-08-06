@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parse, parseFragment, serialize, serializeOuter } from "parse5";
 
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { findReportNode, walkNodes } from "./report-model.js";
@@ -136,6 +137,11 @@ export async function redoDraft(projectDir, variantId) {
   await markAwaitingEditorReview(projectDir, variantId, { reason: "draft-redo" });
   await writeDraftCursor(paths, state.cursor + 1);
   return true;
+}
+
+export async function getDraftHistoryState(projectDir, variantId) {
+  const state = await readDraftState(draftPaths(projectDir, variantId));
+  return { cursor: state.cursor, length: state.patches.length };
 }
 
 function draftPaths(projectDir, variantId) {
@@ -440,30 +446,25 @@ function applyHtmlOperation(html, patch) {
       inverse: {
         type: "moveBlock",
         blockId: patch.blockId,
-        direction: patch.direction === "up" ? "down" : "up"
+        direction: ({ up: "down", down: "up", left: "right", right: "left" })[patch.direction]
       }
     };
   }
   if (patch.type === "deleteBlock") {
-    const block = findBlocks(html).find((item) => item.id === patch.blockId);
-    if (!block) {
-      throw new Error('unknown data-block-id "' + patch.blockId + '"');
-    }
+    const result = deleteHtmlBlock(html, patch.blockId);
     return {
-      html: html.slice(0, block.index) + html.slice(block.end),
+      html: result.html,
       inverse: {
         type: "restoreBlock",
-        index: block.index,
-        value: block.value
+        parentPath: result.parentPath,
+        index: result.index,
+        value: result.value
       }
     };
   }
   if (patch.type === "restoreBlock") {
     return {
-      html:
-        html.slice(0, patch.index) +
-        patch.value +
-        html.slice(patch.index),
+      html: restoreHtmlBlock(html, patch),
       inverse: null
     };
   }
@@ -474,31 +475,11 @@ function applyHtmlOperation(html, patch) {
     ) {
       throw new Error("duplicate block identities contain invalid characters");
     }
-    const blocks = findBlocks(html);
-    const block = blocks.find((item) => item.id === patch.blockId);
-    if (!block) {
-      throw new Error('unknown data-block-id "' + patch.blockId + '"');
-    }
-    if (blocks.some((item) => item.id === patch.newBlockId)) {
+    if (findHtmlNode(parse(html), "data-block-id", patch.newBlockId)) {
       throw new Error('duplicate data-block-id "' + patch.newBlockId + '"');
     }
-    let clone = block.value.replace(
-      /\bdata-block-id\s*=\s*(["'])([^"']+)\1/gi,
-      (_, quote, value) =>
-        'data-block-id=' +
-        quote +
-        (value === patch.blockId
-          ? patch.newBlockId
-          : value + patch.idSuffix) +
-        quote
-    );
-    clone = clone.replace(
-      /\b(data-edit-id|data-image-id|data-chart-id|data-chart-data-for)\s*=\s*(["'])([^"']+)\2/gi,
-      (_, attribute, quote, value) =>
-        attribute + "=" + quote + value + patch.idSuffix + quote
-    );
     return {
-      html: html.slice(0, block.end) + clone + html.slice(block.end),
+      html: duplicateHtmlBlock(html, patch),
       inverse: {
         type: "deleteBlock",
         blockId: patch.newBlockId
@@ -509,37 +490,102 @@ function applyHtmlOperation(html, patch) {
 }
 
 function moveBlock(html, blockId, direction) {
-  if (direction !== "up" && direction !== "down") {
+  if (!["up", "down", "left", "right"].includes(direction)) {
     throw new Error('invalid block direction "' + direction + '"');
   }
-  const blocks = findBlocks(html);
-  const index = blocks.findIndex((block) => block.id === blockId);
-  if (index === -1) throw new Error('unknown data-block-id "' + blockId + '"');
-  const swapIndex = direction === "up" ? index - 1 : index + 1;
-  if (swapIndex < 0 || swapIndex >= blocks.length) {
+  const document = parse(html);
+  const node = findHtmlNode(document, "data-block-id", blockId);
+  if (!node) throw new Error('unknown data-block-id "' + blockId + '"');
+  const siblings = (node.parentNode?.childNodes ?? []).filter((item) => htmlAttribute(item, "data-block-id"));
+  const index = siblings.indexOf(node);
+  const offset = direction === "up" || direction === "left" ? -1 : 1;
+  const swapIndex = index + offset;
+  if (swapIndex < 0 || swapIndex >= siblings.length) {
     throw new Error('block "' + blockId + '" cannot move ' + direction);
   }
-  const first = blocks[Math.min(index, swapIndex)];
-  const second = blocks[Math.max(index, swapIndex)];
-  const between = html.slice(first.end, second.index);
-  return (
-    html.slice(0, first.index) +
-    second.value +
-    between +
-    first.value +
-    html.slice(second.end)
-  );
+  const target = siblings[swapIndex];
+  const children = node.parentNode.childNodes;
+  const nodeIndex = children.indexOf(node);
+  const targetIndex = children.indexOf(target);
+  [children[nodeIndex], children[targetIndex]] = [children[targetIndex], children[nodeIndex]];
+  return serialize(document);
 }
 
-function findBlocks(html) {
-  const pattern =
-    /<(section|article)\b[^>]*\bdata-block-id\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<\/\1>/gi;
-  return [...html.matchAll(pattern)].map((match) => ({
-    id: match[2],
-    index: match.index,
-    end: match.index + match[0].length,
-    value: match[0]
-  }));
+function deleteHtmlBlock(html, blockId) {
+  const document = parse(html);
+  const node = findHtmlNode(document, "data-block-id", blockId);
+  if (!node) throw new Error('unknown data-block-id "' + blockId + '"');
+  const parent = node.parentNode;
+  const index = parent.childNodes.indexOf(node);
+  const value = serializeOuter(node);
+  const parentPath = htmlNodePath(document, parent);
+  parent.childNodes.splice(index, 1);
+  return { html: serialize(document), parentPath, index, value };
+}
+
+function restoreHtmlBlock(html, patch) {
+  const document = parse(html);
+  const parent = htmlNodeAtPath(document, patch.parentPath);
+  if (!parent?.childNodes) throw new Error("cannot restore block into missing parent");
+  const fragment = parseFragment(parent, patch.value);
+  for (const node of fragment.childNodes) node.parentNode = parent;
+  parent.childNodes.splice(patch.index, 0, ...fragment.childNodes);
+  return serialize(document);
+}
+
+function duplicateHtmlBlock(html, patch) {
+  const document = parse(html);
+  const node = findHtmlNode(document, "data-block-id", patch.blockId);
+  if (!node) throw new Error('unknown data-block-id "' + patch.blockId + '"');
+  const fragment = parseFragment(node.parentNode, serializeOuter(node));
+  const clone = fragment.childNodes[0];
+  rewriteHtmlIdentities(clone, patch);
+  clone.parentNode = node.parentNode;
+  const index = node.parentNode.childNodes.indexOf(node);
+  node.parentNode.childNodes.splice(index + 1, 0, clone);
+  return serialize(document);
+}
+
+function rewriteHtmlIdentities(node, patch) {
+  for (const item of flattenHtml(node)) {
+    for (const attribute of item.attrs ?? []) {
+      if (attribute.name === "data-block-id") {
+        attribute.value = attribute.value === patch.blockId ? patch.newBlockId : attribute.value + patch.idSuffix;
+      } else if (["data-edit-id", "data-image-id", "data-chart-id", "data-chart-data-for"].includes(attribute.name)) {
+        attribute.value += patch.idSuffix;
+      }
+    }
+  }
+}
+
+function findHtmlNode(node, name, value) {
+  return flattenHtml(node).find((item) => htmlAttribute(item, name) === value) ?? null;
+}
+
+function flattenHtml(node, result = []) {
+  result.push(node);
+  for (const child of node.childNodes ?? []) flattenHtml(child, result);
+  return result;
+}
+
+function htmlAttribute(node, name) {
+  return node.attrs?.find((item) => item.name === name)?.value ?? null;
+}
+
+function htmlNodePath(root, node) {
+  const result = [];
+  let current = node;
+  while (current && current !== root) {
+    result.push(current.parentNode.childNodes.indexOf(current));
+    current = current.parentNode;
+  }
+  return result.reverse();
+}
+
+function htmlNodeAtPath(root, nodePath) {
+  let node = root;
+  for (const index of nodePath ?? []) node = node?.childNodes?.[index];
+  return node;
 }
 
 function replaceChartJson(html, chartId, replacement) {

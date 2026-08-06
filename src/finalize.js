@@ -7,7 +7,6 @@ import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
 import { PROJECT_SCHEMA_VERSION, validateCoverage } from "./report-model.js";
-import { assertEditorReviewConfirmed } from "./editor-review.js";
 
 export async function finalizeVariant(
   projectDir,
@@ -23,18 +22,6 @@ export async function finalizeVariant(
     throw new Error('unknown variant "' + variantId + '"');
   }
   const variant = normalizeVariantRecord(storedVariant);
-  const restoredSource = restoredFromVersionId
-    ? project.versions.find((version) => version.versionId === restoredFromVersionId)
-    : null;
-  const reviewConfirmation = restoredSource
-    ? (restoredSource.reviewConfirmation ?? {
-        status: "historical-version-restored",
-        restoredFromVersionId,
-        confirmedAt: restoredSource.createdAt,
-        sessionId: "historical-version"
-      })
-    : await assertEditorReviewConfirmed(projectDir, variantId);
-
   const artifactPath = path.join(
     projectDir,
     "variants",
@@ -100,7 +87,6 @@ export async function finalizeVariant(
     reportRevision: reportModel?.revision ?? null,
     hasUserOverrides: Boolean(reportModel?.overrides?.length),
     modelBacked: Boolean(reportModel && /\bdata-node-id\s*=/.test(artifactHtml)),
-    reviewConfirmation,
     ...(restoredFromVersionId ? { restoredFromVersionId } : {}),
     artifactSha256: createHash("sha256")
       .update(compiledArtifact, "utf8")

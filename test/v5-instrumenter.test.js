@@ -68,11 +68,11 @@ async function fixture(t, { number = "189", includeRemote = false, rawAppendix =
   await writeFile(path.join(packageDir, "styles", "site.css"), ".hero{color:var(--report-text);background:var(--report-canvas)}", "utf8");
   await writeFile(path.join(packageDir, "scripts", "site.js"), includeRemote ? "fetch('https://example.com/data')" : "document.documentElement.dataset.siteReady='true'", "utf8");
   await writeFile(path.join(packageDir, "assets", "pixel.png"), Buffer.from([137,80,78,71]));
-  await writeFile(path.join(packageDir, "index.html"), `<!doctype html><html><head><link rel="stylesheet" href="styles/site.css"></head><body><main class="hero" data-content-id="hero"><h1>市场判断</h1><p data-content-id="claim">2028年市场规模预计达到${number}亿元。</p><img data-content-id="visual" src="assets/pixel.png" alt="材料图"></main><script src="scripts/site.js"></script></body></html>`, "utf8");
+  await writeFile(path.join(packageDir, "index.html"), `<!doctype html><html><head><link rel="stylesheet" href="styles/site.css"></head><body><nav><strong>研究框架</strong><button><span>材料图谱</span><b>189</b></button></nav><h2>未绑定章节标题</h2><main class="hero" data-content-id="hero"><h1>市场判断</h1><p data-content-id="claim">2028年市场规模预计达到${number}亿元。</p><img data-content-id="visual" src="assets/pixel.png" alt="材料图"></main><img src="assets/pixel.png" alt="未绑定材料图"><script src="scripts/site.js"></script></body></html>`, "utf8");
   const payloadSha256 = await hashPayload(packageDir);
   await writeFile(path.join(packageDir, "manifest.json"), JSON.stringify({
     schemaVersion: 1,
-    packageVersion: "5.1.0",
+    packageVersion: "5.2.1",
     kind: "final",
     candidateId: "selected",
     directionId: "selected",
@@ -127,7 +127,13 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   assert.match(html, /<main[^>]*class="hero"[^>]*data-content-id="hero"/);
   assert.match(html, /data-block-id="block-/);
   assert.match(html, /data-edit-id="edit-/);
+  assert.match(html, /<h1[^>]*data-edit-id="edit-/);
+  assert.match(html, /<h2[^>]*data-edit-id="edit-/);
+  assert.match(html, /<strong[^>]*data-edit-id="edit-/);
+  assert.match(html, /<span[^>]*data-edit-id="edit-/);
+  assert.match(html, /<b[^>]*data-edit-id="edit-/);
   assert.match(html, /data-image-id="image-/);
+  assert.equal(new Set([...html.matchAll(/data-image-id="([^"]+)"/g)].map((match) => match[1])).size, 2);
   assert.match(html, /data-source-ref="brief\.md#src-/);
   assert.match(html, /data-report-mode="data-first"/);
   assert.match(html, /data-edit-html-report-theme/);
@@ -146,17 +152,20 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   assert.equal(variant.reviewState.status, "awaiting-editor-review");
   const instrumentation = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "instrumentation-report.json"), "utf8"));
   assert.equal(instrumentation.bodyStructureBeforeSha256, instrumentation.bodyStructureAfterSha256);
+  assert.equal(await readFile(path.join(projectDir, "variants", variantId, "draft-patches.jsonl"), "utf8"), "");
+  assert.equal(JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "draft-cursor.json"), "utf8")).cursor, 0);
   const validation = await validateV5Variant(projectDir, variantId);
   assert.equal(validation.valid, true);
   assert.equal(validation.designOwner, "huashu-design");
+  assert.equal(validation.editorBoundary, "v5.2.1-html-backed");
 });
 
-test("a V5 artifact uses the frozen HTML editor, theme, review, and version path", async (t) => {
+test("a V5 artifact uses the HTML-backed editor, theme, and version path", async (t) => {
   const { projectDir, variantId } = await fixture(t);
   await instrumentV5Variant(projectDir, variantId);
   const artifactPath = path.join(projectDir, "variants", variantId, "artifact.html");
   const html = await readFile(artifactPath, "utf8");
-  const editId = html.match(/data-edit-id="([^"]+)"/)[1];
+  const editId = html.match(/<p[^>]*data-edit-id="([^"]+)"/)[1];
   await applyDraftPatch(projectDir, variantId, { type: "replaceText", editId, value: "市场更新" });
   assert.match(await readFile(artifactPath, "utf8"), />市场更新<\/p>/);
   assert.equal(await undoDraft(projectDir, variantId), true);
@@ -169,6 +178,16 @@ test("a V5 artifact uses the frozen HTML editor, theme, review, and version path
   const version = await finalizeVariant(projectDir, variantId, { message: "V5 editor compatibility" });
   assert.equal(version.modelBacked, false);
   assert.equal(version.themeId, "warm-paper-terracotta");
+});
+
+test("a V5 artifact can be saved without a separate editor confirmation", async (t) => {
+  const { projectDir, variantId } = await fixture(t);
+  await instrumentV5Variant(projectDir, variantId);
+
+  const version = await finalizeVariant(projectDir, variantId, { message: "V5.2.1 direct save" });
+
+  assert.equal(version.variantId, variantId);
+  assert.equal("reviewConfirmation" in version, false);
 });
 
 async function hashPayload(root) {
