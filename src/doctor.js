@@ -51,9 +51,12 @@ export async function diagnoseInstallation({ packageRoot, executablePath, comman
   };
 }
 
-export async function resolveCommandSource(commandName, { pathEntries = process.env.PATH?.split(path.delimiter) ?? [] } = {}) {
+export async function resolveCommandSource(commandName, {
+  pathEntries = process.env.PATH?.split(path.delimiter) ?? [],
+  pathExtensions = commandPathExtensions()
+} = {}) {
   for (const directory of pathEntries) {
-    for (const extension of ["", ".cmd", ".ps1", ".js", ".mjs"]) {
+    for (const extension of pathExtensions) {
       const candidate = path.join(directory, commandName + extension);
       try {
         await access(candidate);
@@ -65,6 +68,11 @@ export async function resolveCommandSource(commandName, { pathEntries = process.
     }
   }
   return null;
+}
+
+function commandPathExtensions() {
+  const configured = process.env.PATHEXT?.split(";").map((value) => value.toLowerCase()) ?? [];
+  return [...new Set(["", ...configured, ".cmd", ".ps1", ".js", ".mjs"])];
 }
 
 async function resolveCommandEntry(candidate) {

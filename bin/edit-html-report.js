@@ -239,9 +239,7 @@ async function main(argv) {
     const doctor = await diagnoseInstallation({
       packageRoot,
       executablePath: fileURLToPath(import.meta.url),
-      commandSourcePath: await resolveCommandSource("edit-html-report", {
-        pathEntries: [path.dirname(fileURLToPath(import.meta.url))]
-      }),
+      commandSourcePath: await resolveCommandSource("edit-html-report"),
       projectDir: optionalOption(args, "--project") ?? undefined
     });
     printJson(doctor);

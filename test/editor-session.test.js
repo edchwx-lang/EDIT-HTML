@@ -226,3 +226,84 @@ test("shutdown timeout preserves trusted metadata while the health endpoint rema
   assert.deepEqual(JSON.parse(await readFile(path.join(projectDir, ".runtime", "editor-session.json"), "utf8")), metadata);
   assert.equal((await fetch(editor.url + "/api/health")).status, 200);
 });
+
+test("variant switch refuses to replace a session whose shutdown is rejected", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-switch-reject-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const firstVariant = await createVariant(projectDir, { mode: "evidence-first" });
+  const secondVariant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, firstVariant.variantId);
+  const firstSession = await ensureEditorSession(projectDir, { variantId: firstVariant.variantId });
+  t.after(async () => {
+    const current = await readSessionMetadata(projectDir);
+    if (current) await fetch(current.url + "/api/shutdown", { method: "POST", headers: { authorization: "Bearer " + current.token } }).catch(() => {});
+    await fetch(firstSession.url + "/api/shutdown", { method: "POST", headers: { authorization: "Bearer " + firstSession.token } }).catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const metadataPath = path.join(projectDir, ".runtime", "editor-session.json");
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+  const rejected = { ...metadata, token: "incorrect-token" };
+  await writeFile(metadataPath, JSON.stringify(rejected), "utf8");
+
+  await assert.rejects(
+    ensureEditorSession(projectDir, { variantId: secondVariant.variantId, shutdownTimeoutMs: 50 }),
+    /could not stop current editor session: shutdown-rejected/
+  );
+  assert.deepEqual(JSON.parse(await readFile(metadataPath, "utf8")), rejected);
+  assert.equal((await fetch(firstSession.url + "/api/health")).status, 200);
+});
+
+test("variant switch refuses to replace a session whose shutdown times out", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-switch-timeout-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const firstVariant = await createVariant(projectDir, { mode: "evidence-first" });
+  const secondVariant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, firstVariant.variantId);
+  const runtimeSha256 = (await getProjectRuntimeManifest(projectDir)).sourceSha256;
+  const editor = await startEditorServer({
+    projectDir,
+    variantId: firstVariant.variantId,
+    token: "accepted-token",
+    sessionId: "switch-timeout-session",
+    runtimeSha256,
+    pid: process.pid,
+    onShutdown: () => {}
+  });
+  const metadata = {
+    pid: process.pid,
+    port: editor.port,
+    token: editor.token,
+    sessionId: editor.sessionId,
+    runtimeSha256,
+    projectDir: path.resolve(projectDir),
+    variantId: firstVariant.variantId,
+    url: editor.url
+  };
+  await recordEditorSession(projectDir, metadata);
+  t.after(async () => {
+    await editor.close().catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  await assert.rejects(
+    ensureEditorSession(projectDir, { variantId: secondVariant.variantId, shutdownTimeoutMs: 50 }),
+    /could not stop current editor session: shutdown-timeout/
+  );
+  assert.deepEqual(JSON.parse(await readFile(path.join(projectDir, ".runtime", "editor-session.json"), "utf8")), metadata);
+  assert.equal((await fetch(editor.url + "/api/health")).status, 200);
+});
+
+async function readSessionMetadata(projectDir) {
+  try {
+    return JSON.parse(await readFile(path.join(projectDir, ".runtime", "editor-session.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}

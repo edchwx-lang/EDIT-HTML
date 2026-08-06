@@ -14,6 +14,7 @@ import { diagnoseInstallation, resolveCommandSource } from "../src/doctor.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "edit-html-report.js");
+const currentCliPath = path.dirname(cli) + path.delimiter + (process.env.PATH ?? "");
 
 test("CLI create emits JSON and creates an inspectable project", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-cli-"));
@@ -196,7 +197,8 @@ test("CLI doctor reports version authority and project runtime diagnostics", asy
 
   const result = spawnSync(process.execPath, [cli, "doctor", "--project", projectDir, "--json"], {
     cwd: root,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: { ...process.env, PATH: currentCliPath }
   });
 
   assert.equal(result.status, 0, result.stderr);
@@ -208,6 +210,7 @@ test("CLI doctor reports version authority and project runtime diagnostics", asy
   assert.equal(doctor.executablePath, path.resolve(cli));
   assert.equal(doctor.packageRoot, root);
   assert.equal(doctor.runtimeStatus, "current");
+  assert.equal(doctor.warnings.includes("resolved edit-html-report command points to another checkout"), false);
 });
 
 test("CLI doctor warns about stale runtime and legacy artifact metadata", async (t) => {
@@ -226,7 +229,8 @@ test("CLI doctor warns about stale runtime and legacy artifact metadata", async 
 
   const result = spawnSync(process.execPath, [cli, "doctor", "--project", projectDir, "--json"], {
     cwd: root,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: { ...process.env, PATH: currentCliPath }
   });
 
   assert.equal(result.status, 0, result.stderr);
@@ -257,6 +261,29 @@ test("doctor warns when the resolved command shim points to another checkout", a
   assert.equal(resolved, path.resolve(otherEntry));
   assert.ok(otherCheckout.warnings.includes("resolved edit-html-report command points to another checkout"));
   assert.equal(currentCheckout.warnings.includes("resolved edit-html-report command points to another checkout"), false);
+});
+
+test("CLI doctor warns when PATH resolves an edit-html-report shim from another checkout", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-path-"));
+  const shimDir = path.join(sandbox, "shim");
+  const otherEntry = path.join(shimDir, "node_modules", "edit-html-report", "bin", "edit-html-report.js");
+  await mkdir(path.dirname(otherEntry), { recursive: true });
+  await writeFile(otherEntry, "#!/usr/bin/env node\n", "utf8");
+  await writeFile(
+    path.join(shimDir, "edit-html-report.ps1"),
+    '$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "node" "$basedir/node_modules/edit-html-report/bin/edit-html-report.js" $args\n',
+    "utf8"
+  );
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [cli, "doctor", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, PATH: shimDir + path.delimiter + currentCliPath }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(JSON.parse(result.stdout).warnings.includes("resolved edit-html-report command points to another checkout"));
 });
 
 test("CLI editor open refreshes a stale runtime without altering variants, versions, or publications", async (t) => {

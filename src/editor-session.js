@@ -9,7 +9,7 @@ import { getProjectRuntimeManifest } from "./project-runtime.js";
 
 const workerPath = fileURLToPath(new URL("./editor-session-worker.js", import.meta.url));
 
-export async function ensureEditorSession(projectDir, { variantId } = {}) {
+export async function ensureEditorSession(projectDir, { variantId, shutdownTimeoutMs = 4000 } = {}) {
   const absoluteProjectDir = path.resolve(projectDir);
   const selectedVariantId = variantId ?? await readActiveVariantId(absoluteProjectDir);
   const runtimeSha256 = await readRuntimeSha256(absoluteProjectDir);
@@ -18,7 +18,10 @@ export async function ensureEditorSession(projectDir, { variantId } = {}) {
   if (belongsToProject && current.variantId === selectedVariantId) {
     return { ...current, reused: true };
   }
-  await discardSession(absoluteProjectDir, current, runtimeSha256);
+  const discarded = await discardSession(absoluteProjectDir, current, runtimeSha256, shutdownTimeoutMs);
+  if (belongsToProject && !discarded.stopped) {
+    throw new Error("could not stop current editor session: " + discarded.reason);
+  }
 
   const runtimeDir = path.join(absoluteProjectDir, ".runtime");
   await mkdir(runtimeDir, { recursive: true });
@@ -140,11 +143,12 @@ async function healthEndpointIsUnavailable(session) {
   }
 }
 
-async function discardSession(projectDir, session, runtimeSha256) {
+async function discardSession(projectDir, session, runtimeSha256, shutdownTimeoutMs) {
   if (session && await sessionBelongsToProject(session, projectDir, runtimeSha256)) {
-    await stopEditorSession(projectDir, { runtimeSha256 });
+    return stopEditorSession(projectDir, { runtimeSha256, shutdownTimeoutMs });
   } else {
     await rm(sessionPath(projectDir), { force: true });
+    return { stopped: false, reason: "unverified-session" };
   }
 }
 

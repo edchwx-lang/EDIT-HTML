@@ -5,7 +5,7 @@
     "src/drafts.js": "97cf854dbf4acc34aeafcb518c631151737d019ed4f532cff8e5cc2e3b1744f0",
     "src/editor-review.js": "5946a8d21e8d079d2bc41a8c2d49ed53be470aa2cc2a06f28916492fd1bc4e6b",
     "src/editor-server.js": "90545bef54a47cac25f343a967faa5d9fd15125ad0225cae57196d93622c1ddb",
-    "src/editor-session.js": "afa718d1f3a5574200dab358e8524c30d4dec70011c115208b9cf1950eb77beb",
+    "src/editor-session.js": "63d85e3d2ae24f906b679fb5bb00af664c87b738c7c174d8618f81d6d5dbc844",
     "src/editor-session-worker.js": "b2dc051a1dea4b4176d7746f4769eabc44ce70c48ed5ab155a2658632b0e7c3e",
     "src/editor-shell.js": "fb6e5b19492a52edb9523cb907e9eda8aa22f966e534f989272639d8c4c6bb3c",
     "src/finalize.js": "467f292dc0e30f0985ed52a69d3fbbbe388172d3165f9f1bc5eb29b15c7da254",
