@@ -10,6 +10,7 @@ const projectDir = path.resolve(projectArgument);
 const variantId = option(args, "--variant");
 const token = option(args, "--token");
 const sessionId = option(args, "--session-id");
+const runtimeSha256 = option(args, "--runtime-sha256");
 let requestShutdown;
 let sessionMetadata = null;
 const shutdownRequested = new Promise((resolve) => { requestShutdown = resolve; });
@@ -19,6 +20,7 @@ const editor = await startEditorServer({
   variantId,
   token,
   sessionId,
+  runtimeSha256,
   onShutdown: requestShutdown,
   onActiveVersion: async (activeVersionId) => {
     if (!sessionMetadata) return;
@@ -34,6 +36,7 @@ sessionMetadata = {
   port: editor.port,
   token,
   sessionId,
+  runtimeSha256,
   projectDir,
   variantId,
   activeVersionId,

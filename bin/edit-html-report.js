@@ -18,6 +18,7 @@ import {
   prepareHuashuInput
 } from "../src/design-package.js";
 import { ensureEditorSession, getEditorSessionStatus, launchBrowser, stopEditorSession } from "../src/editor-session.js";
+import { diagnoseInstallation } from "../src/doctor.js";
 import { migrateProject } from "../src/migrate.js";
 import { packProject } from "../src/packaging.js";
 import { createProject } from "../src/project.js";
@@ -39,6 +40,7 @@ import {
 } from "../src/v5-design.js";
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
+import { ensureProjectEditorRuntime, refreshProjectEditorRuntime } from "../src/project-runtime.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -234,14 +236,17 @@ async function main(argv) {
     return;
   }
   if (command === "doctor") {
-    const checks = {
-      node20: Number.parseInt(process.versions.node.split(".")[0], 10) >= 20,
-      bundledSkill: await exists(
-        path.join(packageRoot, "skills", "edit-html-report", "SKILL.md")
-      )
-    };
-    printJson({ ok: Object.values(checks).every(Boolean), checks });
-    if (!Object.values(checks).every(Boolean)) process.exitCode = 1;
+    const doctor = await diagnoseInstallation({
+      packageRoot,
+      executablePath: fileURLToPath(import.meta.url),
+      projectDir: optionalOption(args, "--project") ?? undefined
+    });
+    printJson(doctor);
+    if (!doctor.checks.node20 || !doctor.checks.bundledSkill) process.exitCode = 1;
+    return;
+  }
+  if (command === "runtime" && args[0] === "refresh") {
+    printJson(await refreshProjectEditorRuntime(requirePositional(args, 1, "project")));
     return;
   }
   if (command === "pack") {
@@ -280,6 +285,7 @@ async function main(argv) {
     const offset = command === "open" ? 0 : 1;
     const projectDir = requirePositional(args, offset, "project");
     await migrateIfNeeded(projectDir);
+    await ensureProjectEditorRuntime(projectDir);
     const session = await ensureEditorSession(projectDir, {
       variantId: optionalOption(args, "--variant") ?? undefined
     });
@@ -309,7 +315,7 @@ async function main(argv) {
     return;
   }
   throw new Error(
-    "usage: edit-html-report <install|doctor|create|inspect|interview|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
+    "usage: edit-html-report <install|doctor|runtime|create|inspect|interview|variant|design|finalize|migrate|render|validate|editor|open|pack|publish> [arguments]"
   );
 }
 

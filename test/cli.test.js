@@ -9,6 +9,7 @@ import { completeTestHuashuDesign, writeTestHuashuCandidate } from "./helpers/hu
 import { confirmEditorReview } from "../src/editor-review.js";
 import { prepareHuashuInput } from "../src/design-package.js";
 import { createProject } from "../src/project.js";
+import { createV5Project, createV5Variant } from "../src/v5-project.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "edit-html-report.js");
@@ -184,16 +185,119 @@ test("CLI install copies one Skill into Codex and Claude discovery roots", async
   await assert.rejects(access(path.join(claudeRoot, "edit-html-report", "references", "presentation-plan.md")));
 });
 
-test("CLI doctor reports whether the local runtime can execute the package", () => {
-  const result = spawnSync(process.execPath, [cli, "doctor"], {
+test("CLI doctor reports version authority and project runtime diagnostics", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createV5Project(source, projectDir);
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [cli, "doctor", "--project", projectDir, "--json"], {
     cwd: root,
     encoding: "utf8"
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout).checks, {
-    node20: true,
-    bundledSkill: true
+  const doctor = JSON.parse(result.stdout);
+  assert.equal(doctor.toolVersion, "5.3.0");
+  assert.equal(doctor.pipelineVersion, "5.3.0");
+  assert.equal(doctor.artifactContractVersion, "5.3.0");
+  assert.equal(doctor.editorRuntimeVersion, "5.3.0");
+  assert.equal(doctor.executablePath, path.resolve(cli));
+  assert.equal(doctor.packageRoot, root);
+  assert.equal(doctor.runtimeStatus, "current");
+});
+
+test("CLI doctor warns about stale runtime and legacy artifact metadata", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-warning-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createV5Project(source, projectDir);
+  const manifestPath = path.join(projectDir, ".editor-runtime", "runtime-manifest.json");
+  const projectPath = path.join(projectDir, "project.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const project = JSON.parse(await readFile(projectPath, "utf8"));
+  await writeFile(manifestPath, JSON.stringify({ ...manifest, runtimeVersion: "5.2.1" }), "utf8");
+  await writeFile(projectPath, JSON.stringify({ ...project, artifactContractVersion: "5.2.1" }), "utf8");
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [cli, "doctor", "--project", projectDir, "--json"], {
+    cwd: root,
+    encoding: "utf8"
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const doctor = JSON.parse(result.stdout);
+  assert.equal(doctor.runtimeStatus, "stale");
+  assert.equal(doctor.legacyArtifactContract, true);
+  assert.deepEqual(doctor.warnings, [
+    "project runtime is stale",
+    "project metadata uses a legacy artifact contract"
+  ]);
+});
+
+test("CLI editor open refreshes a stale runtime without altering variants, versions, or publications", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-open-runtime-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createV5Project(source, projectDir);
+  const variant = await createV5Variant(projectDir);
+  await writeFile(path.join(projectDir, "variants", variant.variantId, "artifact.html"), "<!doctype html><h1>Editable</h1>", "utf8");
+  const projectPath = path.join(projectDir, "project.json");
+  const before = JSON.parse(await readFile(projectPath, "utf8"));
+  const manifestPath = path.join(projectDir, ".editor-runtime", "runtime-manifest.json");
+  await writeFile(manifestPath, JSON.stringify({
+    runtimeVersion: "5.2.1",
+    sourcePackageRoot: "C:\\old-checkout",
+    sourceSha256: "old-runtime-hash",
+    installedAt: "2026-01-01T00:00:00.000Z"
+  }), "utf8");
+  t.after(async () => {
+    spawnSync(process.execPath, [cli, "editor", "stop", projectDir], { cwd: root, encoding: "utf8" });
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const opened = spawnSync(process.execPath, [cli, "editor", "open", projectDir, "--no-browser"], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 10000
+  });
+
+  assert.equal(opened.status, 0, opened.stderr);
+  assert.equal(JSON.parse(await readFile(manifestPath, "utf8")).runtimeVersion, "5.3.0");
+  const after = JSON.parse(await readFile(projectPath, "utf8"));
+  assert.deepEqual(after.variants, before.variants);
+  assert.deepEqual(after.versions, before.versions);
+  assert.deepEqual(after.publications, before.publications);
+});
+
+test("CLI runtime refresh reports the old and new runtime hashes", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-runtime-cli-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createV5Project(source, projectDir);
+  const manifestPath = path.join(projectDir, ".editor-runtime", "runtime-manifest.json");
+  await writeFile(manifestPath, JSON.stringify({
+    runtimeVersion: "5.2.1",
+    sourcePackageRoot: "C:\\old-checkout",
+    sourceSha256: "old-runtime-hash",
+    installedAt: "2026-01-01T00:00:00.000Z"
+  }), "utf8");
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  const refreshed = spawnSync(process.execPath, [cli, "runtime", "refresh", projectDir], {
+    cwd: root,
+    encoding: "utf8"
+  });
+
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  assert.deepEqual(JSON.parse(refreshed.stdout), {
+    oldRuntimeHash: "old-runtime-hash",
+    newRuntimeHash: JSON.parse(await readFile(manifestPath, "utf8")).sourceSha256
   });
 });
 

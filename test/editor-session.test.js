@@ -99,3 +99,57 @@ test("a copied project does not reuse or stop the source project's live editor",
   assert.equal(copiedSession.projectDir, path.resolve(copiedProject));
   assert.equal((await fetch(sourceSession.url + "/api/health")).status, 200);
 });
+
+test("session stop discards hash-mismatched metadata without shutting down the live server", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-hash-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
+  const session = await ensureEditorSession(projectDir, { variantId: variant.variantId });
+  t.after(async () => {
+    await fetch(session.url + "/api/shutdown", {
+      method: "POST",
+      headers: { authorization: "Bearer " + session.token }
+    }).catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const metadataPath = path.join(projectDir, ".runtime", "editor-session.json");
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+  await writeFile(metadataPath, JSON.stringify({ ...metadata, runtimeSha256: "unrelated-runtime-hash" }), "utf8");
+
+  const stopped = await stopEditorSession(projectDir);
+  assert.equal(stopped.stopped, false);
+  assert.equal((await fetch(session.url + "/api/health")).status, 200);
+  await assert.rejects(readFile(metadataPath));
+});
+
+test("session stop requires the health endpoint to confirm the recorded PID", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-session-pid-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createProject(source, projectDir);
+  const variant = await createVariant(projectDir, { mode: "evidence-first" });
+  await completeTestHuashuDesign(projectDir, variant.variantId);
+  const session = await ensureEditorSession(projectDir, { variantId: variant.variantId });
+  t.after(async () => {
+    await fetch(session.url + "/api/shutdown", {
+      method: "POST",
+      headers: { authorization: "Bearer " + session.token }
+    }).catch(() => {});
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  const metadataPath = path.join(projectDir, ".runtime", "editor-session.json");
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+  await writeFile(metadataPath, JSON.stringify({ ...metadata, pid: metadata.pid + 1 }), "utf8");
+
+  const stopped = await stopEditorSession(projectDir);
+  assert.equal(stopped.stopped, false);
+  assert.equal((await fetch(session.url + "/api/health")).status, 200);
+  await assert.rejects(readFile(metadataPath));
+});

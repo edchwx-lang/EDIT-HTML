@@ -27,6 +27,8 @@ export async function startEditorServer({
   token: requestedToken,
   port = 0,
   sessionId = randomUUID(),
+  runtimeSha256 = null,
+  pid = process.pid,
   onShutdown = null,
   onReveal = null,
   onActiveVersion = null
@@ -38,7 +40,7 @@ export async function startEditorServer({
     try {
       const url = new URL(request.url, "http://127.0.0.1");
       if (request.method === "GET" && url.pathname === "/api/health") {
-        sendJson(response, 200, { ok: true, schemaVersion: 4, sessionId, variantId });
+        sendJson(response, 200, { ok: true, schemaVersion: 4, sessionId, variantId, projectDir: path.resolve(projectDir), runtimeSha256, pid });
         return;
       }
       if (request.method === "GET" && url.pathname === "/") {
