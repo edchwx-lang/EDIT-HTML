@@ -2,21 +2,23 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "parse5";
+import { SUPPORTED_ARTIFACT_CONTRACT_VERSIONS } from "./version-manifest.js";
 
 export const V511_PACKAGE_VERSION = "5.1.1";
-export const V52_PACKAGE_VERSION = "5.2.0";
-export const V521_PACKAGE_VERSION = "5.2.1";
+export const V52_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.0");
+export const V521_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.1");
 
 const MEANINGFUL_VISUAL_TYPES = new Set(["chart", "matrix", "timeline", "comparison", "flow", "data-table", "annotated-image"]);
 const REQUIRED_VISUAL_CATEGORIES = new Set(["overview", "focus"]);
 
 export function requiresV511Gates(variant) {
-  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(variant?.packageVersion) ||
+  const artifactContractVersion = variant?.artifactContractVersion ?? variant?.packageVersion;
+  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(artifactContractVersion) ||
     [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION].includes(variant?.pipelineVersion);
 }
 
 export function isSupportedV5SitePackageVersion(version) {
-  return version === "5.1.0" || version === V511_PACKAGE_VERSION || version === V52_PACKAGE_VERSION || version === V521_PACKAGE_VERSION;
+  return SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has(version);
 }
 
 export async function validateV511DesignProcess(siteDir, html, expectedKind) {

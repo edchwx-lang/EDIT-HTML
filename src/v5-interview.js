@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { writeJsonAtomic } from "./io.js";
 import { requiresV511Gates } from "./v5-quality-gate.js";
+import { TOOL_VERSION } from "./version-manifest.js";
 
 const LEGACY_REQUIRED_TOPICS = ["purpose", "contentWeight", "structurePreference"];
 const REQUIRED_TOPICS = ["purpose", "contentWeight"];
@@ -120,7 +121,7 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
   await writeJsonAtomic(path.join(inputDir, "content-brief.json"), contentBrief);
   const manifest = {
     schemaVersion: 1,
-    packageVersion: variant.packageVersion ?? "5.2.1",
+    packageVersion: variant.packageVersion ?? TOOL_VERSION,
     variantId,
     sourcePackSha256: project.sourcePackSha256,
     interviewSha256: variant.interviewSha256,

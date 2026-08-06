@@ -3,6 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { auditV5FinalSite } from "./v5-audit.js";
+import {
+  ARTIFACT_CONTRACT_VERSION,
+  EDITOR_RUNTIME_VERSION,
+  SUPPORTED_ARTIFACT_CONTRACT_VERSIONS
+} from "./version-manifest.js";
 
 export async function validateV5Variant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
@@ -14,6 +19,8 @@ export async function validateV5Variant(projectDir, variantId) {
     readJson(path.join(variantDir, "design", "package", "manifest.json"))
   ]);
   if (project.schemaVersion !== 5 || variant.schemaVersion !== 5) throw new Error("V5 validation requires schema version 5");
+  assertSupportedArtifactContractVersion(project);
+  assertSupportedArtifactContractVersion(variant);
   if (variant.finalSiteSha256 !== manifest.outputSha256) throw new Error("variant and final site hash do not match");
   if (instrumentation.bodyStructureBeforeSha256 !== instrumentation.bodyStructureAfterSha256) throw new Error("Huashu body structure changed during instrumentation");
   if (!/\bdata-report-mode\s*=\s*["']data-first["']/i.test(artifact)) throw new Error("V5 artifact lacks the hidden editor compatibility mode");
@@ -38,8 +45,19 @@ export async function validateV5Variant(projectDir, variantId) {
     finalSiteSha256: variant.finalSiteSha256,
     artifactSha256,
     coveredSources: audit.coveredSources,
-    editorBoundary: "v5.2.1-html-backed"
+    editorBoundary: {
+      kind: "html-backed",
+      contractVersion: ARTIFACT_CONTRACT_VERSION,
+      runtimeVersion: EDITOR_RUNTIME_VERSION
+    }
   };
+}
+
+function assertSupportedArtifactContractVersion(record) {
+  const version = record.artifactContractVersion ?? record.packageVersion;
+  if (!SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has(version)) {
+    throw new Error(`unsupported V5 artifact contract version ${version ?? "(missing)"}`);
+  }
 }
 
 function assertExecutableCharts(html) {

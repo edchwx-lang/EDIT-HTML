@@ -7,10 +7,16 @@ import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { installProjectEditorRuntime } from "./project-runtime.js";
 import { buildSourceModel } from "./report-model.js";
 import { getTheme, THEME_SCHEMA_VERSION } from "./themes.js";
+import {
+  ARTIFACT_CONTRACT_VERSION,
+  EDITOR_RUNTIME_VERSION,
+  PIPELINE_VERSION,
+  TOOL_VERSION
+} from "./version-manifest.js";
 
 export const V5_PROJECT_SCHEMA_VERSION = 5;
-export const V5_PACKAGE_VERSION = "5.2.1";
-export const V5_PIPELINE_VERSION = "5.2.1";
+export const V5_PACKAGE_VERSION = TOOL_VERSION;
+export const V5_PIPELINE_VERSION = PIPELINE_VERSION;
 
 export async function createV5Project(sourcePath, projectDir) {
   const contents = await readFile(sourcePath);
@@ -34,7 +40,10 @@ export async function createV5Project(sourcePath, projectDir) {
   const project = {
     schemaVersion: V5_PROJECT_SCHEMA_VERSION,
     packageVersion: V5_PACKAGE_VERSION,
+    toolVersion: TOOL_VERSION,
     pipelineVersion: V5_PIPELINE_VERSION,
+    artifactContractVersion: ARTIFACT_CONTRACT_VERSION,
+    editorRuntimeVersion: EDITOR_RUNTIME_VERSION,
     projectId: randomUUID(),
     createdAt: new Date().toISOString(),
     activeVariantId: null,
@@ -69,7 +78,10 @@ export async function createV5Variant(projectDir, { themeId } = {}) {
   const variant = {
     schemaVersion: V5_PROJECT_SCHEMA_VERSION,
     packageVersion: V5_PACKAGE_VERSION,
+    toolVersion: TOOL_VERSION,
     pipelineVersion: V5_PIPELINE_VERSION,
+    artifactContractVersion: ARTIFACT_CONTRACT_VERSION,
+    editorRuntimeVersion: EDITOR_RUNTIME_VERSION,
     variantId: randomUUID(),
     pipelineState: "awaiting-interview",
     interviewStatus: "pending",

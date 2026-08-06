@@ -8,7 +8,7 @@ const runtimeFiles = [
   "editor-review.js", "editor-session-worker.js", "editor-shell.js", "editorial-model.js", "finalize.js", "io.js",
   "publish.js", "renderer.js", "report-model.js", "theme-artifact.js",
   "themes.js", "variants.js", "versions.js", "modes/data-first.js",
-  "modes/evidence-first.js", "modes/index.js"
+  "modes/evidence-first.js", "modes/index.js", "version-manifest.js"
 ];
 
 export async function installProjectEditorRuntime(projectDir) {
