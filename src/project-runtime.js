@@ -10,7 +10,7 @@ const sourcePackageRoot = path.dirname(sourceRoot);
 const runtimeFiles = [
   "artifact-contract.js", "chart-data.js", "design-package.js", "drafts.js", "editor-server.js", "editor-session.js",
   "editor-review.js", "editor-session-worker.js", "editor-shell.js", "editorial-model.js", "finalize.js", "io.js",
-  "publish.js", "renderer.js", "report-model.js", "theme-artifact.js",
+  "project-runtime.js", "publish.js", "renderer.js", "report-model.js", "theme-artifact.js", "v5-final-verification.js", "v5-stage-boundary.js",
   "themes.js", "variants.js", "versions.js", "modes/data-first.js",
   "modes/evidence-first.js", "modes/index.js", "version-manifest.js"
 ];

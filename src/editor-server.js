@@ -20,6 +20,7 @@ import { listThemes } from "./themes.js";
 import { normalizeVariantRecord, updateVariantTheme } from "./variants.js";
 import { deleteVersion, restoreVersion } from "./versions.js";
 import { confirmEditorReview, getEditorReviewState } from "./editor-review.js";
+import { requireV5FinalVerification } from "./v5-final-verification.js";
 
 export async function startEditorServer({
   projectDir,
@@ -33,6 +34,8 @@ export async function startEditorServer({
   onReveal = null,
   onActiveVersion = null
 }) {
+  const finalManifest = await readJsonMaybe(path.join(projectDir, "variants", variantId, "design", "package", "manifest.json"));
+  if (finalManifest?.packageVersion === "5.3.0") await requireV5FinalVerification(projectDir, variantId);
   const host = "127.0.0.1";
   const token = requestedToken ?? randomBytes(32).toString("base64url");
   const artifactPath = path.join(projectDir, "variants", variantId, "artifact.html");
@@ -211,6 +214,10 @@ export async function startEditorServer({
     url: "http://" + host + ":" + address.port,
     close: () => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   };
+}
+
+async function readJsonMaybe(filePath) {
+  try { return JSON.parse(await readFile(filePath, "utf8")); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
 
 async function projectState(projectDir, variantId) {

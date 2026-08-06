@@ -7,6 +7,7 @@ import { markAwaitingEditorReview } from "./editor-review.js";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { auditV5FinalSite } from "./v5-audit.js";
+import { requireV5FinalVerification } from "./v5-final-verification.js";
 import {
   assertAuditPreservedHuashuOutput,
   requireFrozenHuashuOutput,
@@ -20,6 +21,7 @@ export async function instrumentV5Variant(projectDir, variantId) {
   const huashuReceipt = siteManifest.packageVersion === "5.3.0"
     ? await requireFrozenHuashuOutput(projectDir, variantId, "final")
     : null;
+  if (siteManifest.packageVersion === "5.3.0") await requireV5FinalVerification(projectDir, variantId);
   await auditV5FinalSite(projectDir, variantId);
   const [sourceHtml, bindings, sourceMap, factLedger, variant] = await Promise.all([
     readFile(path.join(siteDir, "index.html"), "utf8"),

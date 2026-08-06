@@ -553,6 +553,30 @@ test("V5.3 candidate review exposes one compact executable 1440x900 sample per c
   assert.deepEqual((await readdir(path.join(site.directory, "screenshots"))).sort(), ["desktop.png"]);
 });
 
+test("V5.3 candidate confirmation rejects a candidate replaced after review preparation", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true, version: "5.3.0" });
+  const site = await writeV511Site(root, project, variant.variantId, {
+    candidateId: "frozen", marker: "frozen", structure: "lab"
+  });
+  await importV5DesignCandidate(project, variant.variantId, site.directory);
+  const review = await prepareV5CandidateReviewSet(project, variant.variantId);
+  assert.deepEqual(Object.keys(review.candidates[0]).sort(), ["candidateId", "interaction", "narrative", "screenshot", "visualization"]);
+
+  const stored = path.join(project, "variants", variant.variantId, "design", "candidates", "frozen");
+  await writeFile(path.join(stored, "screenshots", "desktop.png"), reviewPng("replacement"));
+  await refreshManifest(stored);
+  await assert.rejects(() => confirmV5DesignCandidate(project, variant.variantId, "frozen", {
+    receipt: {
+      schemaVersion: 1,
+      reviewSetSha256: review.reviewSetSha256,
+      candidateId: "frozen",
+      selectedBy: "user",
+      verbatimUserSelection: "I choose frozen.",
+      recordedAt: "2026-08-06T10:00:00.000Z"
+    }
+  }), /candidate output changed|immutable receipt|review set integrity/i);
+});
+
 test("V5.3 rejects missing sample selectors, fake screenshots, and full candidate packages mislabeled as samples", async (t) => {
   const missing = await fixture(t, { reference: true, version: "5.3.0" });
   const missingSite = await writeV511Site(missing.root, missing.project, missing.variant.variantId, {
@@ -588,4 +612,35 @@ test("V5.3 rejects missing sample selectors, fake screenshots, and full candidat
   await writeFile(path.join(fullSite.directory, "screenshots", "mobile.png"), reviewPng("mobile"));
   await refreshManifest(fullSite.directory);
   await assert.rejects(() => importV5DesignCandidate(full.project, full.variant.variantId, fullSite.directory), /exactly one desktop screenshot/i);
+
+  const expanded = await fixture(t, { reference: true, version: "5.3.0" });
+  const expandedSite = await writeV511Site(expanded.root, expanded.project, expanded.variant.variantId, {
+    candidateId: "expanded", marker: "expanded", structure: "lab"
+  });
+  const expandedIndex = path.join(expandedSite.directory, "index.html");
+  await writeFile(expandedIndex, (await readFile(expandedIndex, "utf8")).replace(
+    "</body>",
+    '<section data-content-id="outside-scope"><h2>Complete report module outside the compact viewport</h2></section></body>'
+  ), "utf8");
+  const expandedProcessPath = path.join(expandedSite.directory, "design-process.json");
+  const expandedProcess = JSON.parse(await readFile(expandedProcessPath, "utf8"));
+  expandedProcess.sampleScope.firstViewportSelector = '[data-role="lab"]';
+  const expandedProcessText = JSON.stringify(expandedProcess);
+  await writeFile(expandedProcessPath, expandedProcessText, "utf8");
+  const expandedBindingsPath = path.join(expandedSite.directory, "content-bindings.json");
+  const expandedBindings = JSON.parse(await readFile(expandedBindingsPath, "utf8"));
+  expandedBindings.bindings.push({ contentId: "outside-scope", factIds: [], sourceRefs: expandedBindings.coverage.overviewSourceRefs, tier: "detail", editableKind: "block" });
+  const expandedBindingText = JSON.stringify(expandedBindings);
+  await writeFile(expandedBindingsPath, expandedBindingText, "utf8");
+  const expandedManifestPath = path.join(expandedSite.directory, "manifest.json");
+  const expandedManifest = JSON.parse(await readFile(expandedManifestPath, "utf8"));
+  expandedManifest.contentBindingsSha256 = createHash("sha256").update(expandedBindingText).digest("hex");
+  expandedManifest.designProcessSha256 = createHash("sha256").update(expandedProcessText).digest("hex");
+  expandedManifest.sampleScope = expandedProcess.sampleScope;
+  await writeFile(expandedManifestPath, JSON.stringify(expandedManifest), "utf8");
+  await refreshManifest(expandedSite.directory);
+  await assert.rejects(
+    () => importV5DesignCandidate(expanded.project, expanded.variant.variantId, expandedSite.directory),
+    /outside.+first viewport|compact sample scope|substantive visible root/i
+  );
 });

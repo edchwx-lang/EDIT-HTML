@@ -15,7 +15,7 @@ import {
   V521_PACKAGE_VERSION,
   V53_PACKAGE_VERSION
 } from "./v5-quality-gate.js";
-import { freezeHuashuOutput, requireHuashuInputManifest } from "./v5-stage-boundary.js";
+import { freezeHuashuOutput, requireFrozenHuashuOutput, requireHuashuInputManifest } from "./v5-stage-boundary.js";
 
 const THREE_THEMES = new Set(["precision-blueprint", "warm-paper-terracotta", "sandstone-archive"]);
 const REQUIRED_FILES = [
@@ -91,6 +91,9 @@ export async function prepareV5CandidateReviewSet(projectDir, variantId) {
   }
   const candidates = await listV5DesignCandidates(projectDir, variantId);
   enforceCandidateCount(variant, candidates);
+  const candidateReceipt = variant.packageVersion === V53_PACKAGE_VERSION
+    ? await freezeHuashuOutput(projectDir, variantId, "candidate")
+    : null;
   const audits = await Promise.all(candidates.map((candidate) => auditV511CandidateForReview(projectDir, candidate)));
   const setAudit = auditV511CandidateSet(audits, { requireThree: variant.referenceMode === "none" });
   if (setAudit.errors.length) throw new Error("V5.1.1 candidate review audit failed: " + setAudit.errors.join("; "));
@@ -100,6 +103,12 @@ export async function prepareV5CandidateReviewSet(projectDir, variantId) {
     variantId,
     preparedAt: new Date().toISOString(),
     state: "awaiting-user-selection",
+    ...(candidateReceipt ? { huashuCandidateReceiptSha256: candidateReceipt.receiptSha256 } : {}),
+    candidateIntegrity: audits.map((audit) => ({
+      candidateId: audit.candidateId,
+      payloadSha256: audit.payloadSha256,
+      desktopScreenshotSha256: audit.screenshot.sha256
+    })),
     reviewInstruction: variant.packageVersion === V53_PACKAGE_VERSION
       ? "Show exactly the one 1440x900 desktop screenshot for each candidate and confirm only after receiving a user selection."
       : "Show the actual desktop and mobile screenshots to the user and confirm only after receiving a user selection.",
@@ -209,7 +218,8 @@ export async function getV5FinalStatus(projectDir, variantId) {
     state: variant.pipelineState,
     designSelection: variant.designSelection ?? null,
     finalSiteSha256: variant.finalSiteSha256 ?? null,
-    huashuFinalReceiptSha256: variant.huashuFinalReceiptSha256 ?? null
+    huashuFinalReceiptSha256: variant.huashuFinalReceiptSha256 ?? null,
+    finalVerificationReceiptSha256: variant.finalVerificationReceiptSha256 ?? null
   };
 }
 
@@ -446,11 +456,30 @@ async function validateSelectionReceipt(projectDir, variantId, candidateId, opti
   if (!Number.isFinite(Date.parse(receipt.recordedAt))) throw new Error("selection receipt requires recordedAt");
   const reviewSetPath = path.join(projectDir, "variants", variantId, "design", "candidate-review-set.json");
   const reviewSet = await readJson(reviewSetPath);
+  const { reviewSetSha256: storedReviewSetSha256, ...reviewSetDraft } = reviewSet;
+  if (hashJson(reviewSetDraft) !== storedReviewSetSha256) {
+    throw new Error("candidate review set integrity check failed");
+  }
   if (receipt.reviewSetSha256 !== variant.candidateReviewSetSha256 || receipt.reviewSetSha256 !== reviewSet.reviewSetSha256) {
     throw new Error("selection receipt is stale or does not match the current review set");
   }
   if (!reviewSet.candidates.some((item) => item.candidateId === candidateId)) {
     throw new Error("selection receipt references a candidate outside the current review set");
+  }
+  if (variant.packageVersion === V53_PACKAGE_VERSION) {
+    const frozen = await requireFrozenHuashuOutput(projectDir, variantId, "candidate");
+    if (frozen.receiptSha256 !== reviewSet.huashuCandidateReceiptSha256) {
+      throw new Error("candidate review set integrity does not match the frozen candidate output");
+    }
+  }
+  const currentCandidates = await listV5DesignCandidates(projectDir, variantId);
+  const actualIntegrity = await Promise.all(currentCandidates.map(async (candidate) => ({
+    candidateId: candidate.candidateId,
+    payloadSha256: candidate.payloadSha256,
+    desktopScreenshotSha256: sha256(await readFile(path.join(candidate.siteDir, "screenshots", "desktop.png")))
+  })));
+  if (stableStringify(actualIntegrity) !== stableStringify(reviewSet.candidateIntegrity)) {
+    throw new Error("candidate output changed after the review set was prepared");
   }
   return {
     ...receipt,

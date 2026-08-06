@@ -201,8 +201,11 @@ function validateSampleScope(scope, document, process, errors) {
     errors.push("design-process.json requires sampleScope for a V5.3 candidate");
     return;
   }
+  const matches = {};
   for (const key of ["firstViewportSelector", "focusModuleSelector", "coreInteractionSelector"]) {
-    if (!scope[key] || !hasSelector(document, scope[key])) errors.push(`sampleScope ${key} is not present in index.html`);
+    matches[key] = matchingNodes(document, scope[key]);
+    if (!scope[key] || matches[key].length === 0) errors.push(`sampleScope ${key} is not present in index.html`);
+    else if (matches[key].length !== 1) errors.push(`sampleScope ${key} must match exactly one element in index.html`);
   }
   if (scope.focusModuleSelector && !process.visualizationModules?.some((module) => module.category === "focus" && module.selector === scope.focusModuleSelector)) {
     errors.push("sampleScope focusModuleSelector must identify the representative focus visualization");
@@ -210,6 +213,26 @@ function validateSampleScope(scope, document, process, errors) {
   if (scope.coreInteractionSelector && scope.coreInteractionSelector !== process.coreInteraction?.selector) {
     errors.push("sampleScope coreInteractionSelector must identify the declared core interaction");
   }
+  const viewport = matches.firstViewportSelector?.[0];
+  if (!viewport) return;
+  for (const key of ["focusModuleSelector", "coreInteractionSelector"]) {
+    const node = matches[key]?.[0];
+    if (node && !isWithin(node, viewport)) errors.push(`sampleScope ${key} must be inside the first viewport`);
+  }
+  const body = matchingNodes(document, "body")[0];
+  for (const root of body?.childNodes ?? []) {
+    if (!isSubstantiveVisibleRoot(root)) continue;
+    if (!isWithin(root, viewport)) {
+      errors.push("compact sample scope has a substantive visible root outside the first viewport");
+      break;
+    }
+  }
+  visit(document, (node) => {
+    if (!node.tagName || isWithin(node, viewport) || !isStaticallyVisible(node)) return;
+    if (attr(node, "data-content-id") !== undefined || attr(node, "data-source-ref") !== undefined) {
+      errors.push("source-bound visible content is outside the first viewport compact sample scope");
+    }
+  });
 }
 
 function requireDistinct(items, key, label, errors) {
@@ -279,13 +302,36 @@ function auditRawSourceExposure(document, facts) {
 }
 
 function hasSelector(document, selector) {
+  return matchingNodes(document, selector).length > 0;
+}
+
+function matchingNodes(document, selector) {
   const matcher = selectorMatcher(selector);
-  if (!matcher) return false;
-  let found = false;
+  if (!matcher) return [];
+  const found = [];
   visit(document, (node) => {
-    if (!found && node.tagName && matcher(node)) found = true;
+    if (node.tagName && matcher(node)) found.push(node);
   });
   return found;
+}
+
+function isWithin(node, ancestor) {
+  for (let current = node; current; current = current.parentNode) if (current === ancestor) return true;
+  return false;
+}
+
+function isSubstantiveVisibleRoot(node) {
+  if (!node?.tagName || ["script", "style", "template"].includes(node.tagName)) return false;
+  if (attr(node, "hidden") !== undefined || attr(node, "aria-hidden") === "true") return false;
+  return Boolean(visibleText(node).trim() || attr(node, "data-content-id") !== undefined || attr(node, "data-source-ref") !== undefined);
+}
+
+function isStaticallyVisible(node) {
+  for (let current = node; current; current = current.parentNode) {
+    if (attr(current, "hidden") !== undefined || attr(current, "aria-hidden") === "true") return false;
+    if (/\b(?:display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(attr(current, "style") ?? "")) return false;
+  }
+  return true;
 }
 
 function selectorMatcher(selector) {

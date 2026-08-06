@@ -31,6 +31,7 @@ import {
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
 import { requireFrozenHuashuOutput } from "../src/v5-stage-boundary.js";
+import { verifyV5FinalSite } from "../src/v5-final-verification.js";
 import { startEditorServer } from "../src/editor-server.js";
 
 const execFileAsync = promisify(execFile);
@@ -240,6 +241,11 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
     const storedHashBeforeInstrumentation = await hashV5SitePayload(storedSiteDir);
     const huashuReceipt = await requireFrozenHuashuOutput(projectDir, variant.variantId, "final");
     expect(huashuReceipt.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+    const finalVerification = await timed(timings, "finalVerificationMs", () => verifyV5FinalSite(projectDir, variant.variantId, { page }));
+    expect(finalVerification.payloadSha256).toBe(finalImport.payloadSha256);
+    expect(finalVerification.checks.desktop.noHorizontalOverflow).toBe(true);
+    expect(finalVerification.checks.mobile.noHorizontalOverflow).toBe(true);
+    expect(finalVerification.checks.coreInteraction.exercised).toBe(true);
 
     const artifactPath = await timed(timings, "instrumentationMs", () => instrumentV5Variant(projectDir, variant.variantId));
     const storedHashAfterInstrumentation = await hashV5SitePayload(storedSiteDir);
@@ -258,6 +264,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
       storedPayloadSha256: storedHashBeforeInstrumentation,
       huashuReceiptSha256: huashuReceipt.receiptSha256,
       huashuReceiptOutputSha256: huashuReceipt.outputSha256,
+      finalVerificationReceiptSha256: finalVerification.receiptSha256,
       bodyStructureBeforeSha256: instrumentation.bodyStructureBeforeSha256,
       bodyStructureAfterSha256: instrumentation.bodyStructureAfterSha256,
       artifactSha256: validation.artifactSha256,
@@ -525,11 +532,11 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
   await page.goto(pathToFileURL(path.join(siteDir, "index.html")).href);
   await page.locator("[data-core-interaction]").click();
   await expect(page.locator(".focus-network")).toHaveAttribute("data-state", "selected");
-  await page.screenshot({ path: path.join(siteDir, "screenshots", "desktop.png"), fullPage: true });
+  await page.screenshot({ path: path.join(siteDir, "screenshots", "desktop.png"), fullPage: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: path.join(siteDir, "screenshots", "mobile.png"), fullPage: true });
+  await page.screenshot({ path: path.join(siteDir, "screenshots", "mobile.png"), fullPage: false });
   const payloadSha256 = await hashV5SitePayload(siteDir);
   const storedVariant = await readJson(path.join(path.dirname(root), "project", "variants", variant.variantId, "variant.json"));
   await writeJson(path.join(siteDir, "manifest.json"), {
@@ -556,12 +563,12 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
 
 function candidateBody(direction, focusClass) {
   if (direction.structure === "ledger") {
-    return `<article class="first-viewport" data-role="material-ledger"><header><p>DECISION LEDGER</p><h1>${direction.directionLabel}</h1></header><aside data-content-id="core"><table class="${focusClass}" data-state="idle"><thead><tr><th>Material</th><th>Signal</th></tr></thead><tbody><tr><td>Thermal system</td><td>Priority evidence</td></tr></tbody></table><button type="button" data-core-interaction>Toggle material evidence</button></aside></article><footer>Extended sample boundary</footer>`;
+    return `<article class="first-viewport" data-role="material-ledger"><header><p>DECISION LEDGER</p><h1>${direction.directionLabel}</h1></header><aside data-content-id="core"><table class="${focusClass}" data-state="idle"><thead><tr><th>Material</th><th>Signal</th></tr></thead><tbody><tr><td>Thermal system</td><td>Priority evidence</td></tr></tbody></table><button type="button" data-core-interaction>Toggle material evidence</button></aside></article>`;
   }
   if (direction.structure === "timeline") {
-    return `<div class="first-viewport" data-role="capacity-timeline"><nav><p>CAPACITY EVOLUTION</p><button type="button" data-core-interaction>Drill into the next stage</button></nav><section data-content-id="core"><h1>${direction.directionLabel}</h1><ol class="${focusClass}" data-state="idle"><li><strong>Demand</strong><span>Signal</span></li><li><strong>System</strong><span>Constraint</span></li><li><strong>Material</strong><span>Evidence</span></li></ol></section></div><footer>Extended sample boundary</footer>`;
+    return `<div class="first-viewport" data-role="capacity-timeline"><nav><p>CAPACITY EVOLUTION</p><button type="button" data-core-interaction>Drill into the next stage</button></nav><section data-content-id="core"><h1>${direction.directionLabel}</h1><ol class="${focusClass}" data-state="idle"><li><strong>Demand</strong><span>Signal</span></li><li><strong>System</strong><span>Constraint</span></li><li><strong>Material</strong><span>Evidence</span></li></ol></section></div>`;
   }
-  return `<main class="first-viewport" data-role="network-atlas"><section data-content-id="core"><header><p>AI SERVER EVIDENCE NETWORK</p><h1>${direction.directionLabel}</h1></header><figure class="${focusClass}" data-state="idle"><span>Demand</span><i></i><span>System</span><i></i><span>Material</span></figure><p>One representative focus module connects system evidence to material implications.</p><button type="button" data-core-interaction>Filter key evidence</button></section></main><footer>Extended sample boundary</footer>`;
+  return `<main class="first-viewport" data-role="network-atlas"><section data-content-id="core"><header><p>AI SERVER EVIDENCE NETWORK</p><h1>${direction.directionLabel}</h1></header><figure class="${focusClass}" data-state="idle"><span>Demand</span><i></i><span>System</span><i></i><span>Material</span></figure><p>One representative focus module connects system evidence to material implications.</p><button type="button" data-core-interaction>Filter key evidence</button></section></main>`;
 }
 
 function candidateCss(structure) {

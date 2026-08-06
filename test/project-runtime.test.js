@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { createV5Project } from "../src/v5-project.js";
 import { refreshProjectEditorRuntime, replaceRuntimeDirectory } from "../src/project-runtime.js";
@@ -54,6 +55,22 @@ test("installed launcher is valid UTF-8 JavaScript", async (t) => {
 
   assert.equal(checked.status, 0, checked.stderr);
   assert.match(await readFile(launcherPath, "utf8"), /编辑器已打开：/);
+});
+
+test("installed runtime can import the real editor session dependency graph", async (t) => {
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-runtime-import-"));
+  const projectDir = path.join(sandbox, "report");
+  const source = path.join(sandbox, "brief.txt");
+  await writeFile(source, "Evidence.", "utf8");
+  await createV5Project(source, projectDir);
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+
+  await refreshProjectEditorRuntime(projectDir);
+  const runtimeModule = pathToFileURL(path.join(projectDir, ".editor-runtime", "src", "editor-session.js"));
+  const loaded = await import(runtimeModule.href + `?test=${Date.now()}`);
+
+  assert.equal(typeof loaded.ensureEditorSession, "function");
+  assert.equal(typeof loaded.stopEditorSession, "function");
 });
 
 test("runtime promotion reports both promotion and rollback failures with recovery paths", async () => {

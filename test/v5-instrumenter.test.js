@@ -165,7 +165,7 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   });
 });
 
-test("V5.3 audit instrumentation requires a prior immutable Huashu final receipt", async (t) => {
+test("V5.3 audit instrumentation requires immutable Huashu and browser verification receipts", async (t) => {
   const { projectDir, variantId, packageDir } = await fixture(t);
   const manifestPath = path.join(packageDir, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -182,12 +182,8 @@ test("V5.3 audit instrumentation requires a prior immutable Huashu final receipt
   await writeFile(path.join(inputDir, "interview.json"), "{}", "utf8");
   await writeFile(path.join(inputDir, "content-brief.json"), "{}", "utf8");
   await writeHuashuInputManifest(projectDir, variantId);
-  const receipt = await freezeHuashuOutput(projectDir, variantId, "final");
-  const artifactPath = await instrumentV5Variant(projectDir, variantId);
-  assert.ok((await readFile(artifactPath, "utf8")).includes("data-report-mode"));
-  const report = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "instrumentation-report.json"), "utf8"));
-  assert.equal(report.huashuReceiptOutputSha256, receipt.outputSha256);
-  assert.equal(report.huashuPreservationBeforeSha256, report.huashuPreservationAfterSha256);
+  await freezeHuashuOutput(projectDir, variantId, "final");
+  await assert.rejects(() => instrumentV5Variant(projectDir, variantId), /browser verification receipt is required/i);
 });
 
 test("V5 validation reads a persisted legacy 5.2.1 project without rewriting its records", async (t) => {

@@ -40,6 +40,7 @@ import {
 } from "../src/v5-design.js";
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
+import { verifyV5FinalSite } from "../src/v5-final-verification.js";
 import { ensureProjectEditorRuntime, refreshProjectEditorRuntime } from "../src/project-runtime.js";
 
 const packageRoot = path.resolve(
@@ -164,6 +165,12 @@ async function main(argv) {
   if (command === "design" && args[0] === "final" && args[1] === "status") {
     const projectDir = requirePositional(args, 2, "project");
     printJson(await getV5FinalStatus(projectDir, requireOption(args, "--variant")));
+    return;
+  }
+  if (command === "design" && args[0] === "final" && args[1] === "verify") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("design final verify is available only for V5 projects");
+    printJson(await verifyV5FinalSite(projectDir, requireOption(args, "--variant")));
     return;
   }
   if (command === "design" && args[0] === "import") {
