@@ -1,12 +1,14 @@
-# V5.3 Audit and Instrumenter Contract
+# V5.3.2 Audit and Instrumenter Contract
 
 ## Read-only audit
 
-`design prepare` writes the immutable allowed-input manifest. It contains only Source Pack files, the confirmed interview, `content-brief.json`, and optional visual references; renderer models, editor runtime, compiled theme output, and publication state are excluded. `design final import` freezes Huashu output and persists owner, command, timestamp, allowed-input hashes, and output hash. Audit commands require this receipt and cannot run in the same command as design generation.
+`design prepare` writes the immutable allowed-input manifest. `design huashu begin` then binds that manifest to the exact `huashu-design` Skill hash and a one-time challenge; `design huashu attest` binds the challenge to the executable output. Candidate and final imports fail closed without this receipt. `design final import` freezes the attested output. Audit commands require the frozen receipt and cannot run in the same command as design generation.
 
 Before artifact creation, the auditor checks candidate lineage, Source Pack hash, interview hash, content binding hash, visible numeric fidelity, units, dates, ranges, qualifications, source references, substantive coverage, registered resources, and offline script safety.
 
-Coverage validation distinguishes presentation from storage: the final site expands every declared focus entity and facet, while a bulk raw-source appendix is rejected unless the user explicitly requested it. Passing source-reference counts alone is not content completeness.
+For V5.3.2 finals, the auditor also checks Huashu's per-image `sourceAssetDecisions`. It does not decide that every source image must appear. It rejects missing decisions, high-value images marked for non-use, original-image claims that do not render the Source Pack bytes, and redraw claims that are not connected to a visible source-bound visualization.
+
+Coverage validation distinguishes presentation from storage: every bound `data-content-id` must be statically visible, the final site expands every declared focus entity and facet, and a bulk raw-source appendix is rejected unless the user explicitly requested it. Passing source-reference counts or binding them to hidden nodes is not content completeness.
 
 The audit writes diagnostics only. It must not modify copy, add missing qualifications, rebuild DOM, replace CSS, rewrite chart behavior, or inject a fallback component. Any failure returns the original Huashu site and diagnostics to Huashu.
 

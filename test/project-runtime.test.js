@@ -34,7 +34,7 @@ test("runtime refresh atomically replaces a stale runtime without changing proje
   assert.equal(refreshed.oldRuntimeHash, "old-runtime-hash");
   assert.equal(refreshed.newRuntimeHash, manifest.sourceSha256);
   assert.notEqual(refreshed.newRuntimeHash, refreshed.oldRuntimeHash);
-  assert.equal(manifest.runtimeVersion, "5.3.0");
+  assert.equal(manifest.runtimeVersion, "5.3.2");
   assert.equal(path.isAbsolute(manifest.sourcePackageRoot), true);
   assert.match(manifest.sourceSha256, /^[a-f0-9]{64}$/);
   await assert.rejects(readFile(path.join(projectDir, ".editor-runtime", "obsolete-runtime-file.js")));

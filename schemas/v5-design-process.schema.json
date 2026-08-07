@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://edit-html-report.local/schemas/v5-design-process.schema.json",
-  "title": "Huashu V5.3 Design Process",
+  "title": "Huashu V5.3.2 Design Process",
   "type": "object",
   "required": ["schemaVersion", "owner", "candidateId", "narrativeArchitecture", "visualizationModules", "coreInteraction"],
   "properties": {
@@ -45,6 +45,22 @@
         "description": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
+    },
+    "sourceAssetDecisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assetPath", "sourceRef", "contentValue", "decision", "rationale"],
+        "properties": {
+          "assetPath": { "type": "string", "pattern": "^assets/[^/]+$" },
+          "sourceRef": { "$ref": "#/$defs/id" },
+          "contentValue": { "enum": ["high", "medium", "low"] },
+          "decision": { "enum": ["use-original", "redraw", "reference-only", "omit"] },
+          "rationale": { "type": "string", "minLength": 8 },
+          "selector": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
     },
     "sampleScope": {
       "type": "object",

@@ -11,11 +11,11 @@ import { createVariant } from "../src/variants.js";
 import { completeTestHuashuDesign } from "./helpers/huashu.js";
 import { confirmEditorReview } from "../src/editor-review.js";
 
-test("Windows reveal command selects the published report with a visible foreground process", () => {
+test("Windows reveal command opens the concrete local publication folder", () => {
   const reportPath = path.resolve("C:", "reports", "report.html");
   assert.deepEqual(buildRevealCommand("win32", reportPath), {
     command: "explorer.exe",
-    args: [`/select,${reportPath}`],
+    args: [path.dirname(reportPath)],
     options: { detached: false, stdio: "ignore", windowsHide: false }
   });
 });
@@ -55,7 +55,12 @@ test("revealPath reports a request only after the Windows process spawns", async
   });
 
   assert.deepEqual(request, buildRevealCommand("win32", reportPath));
-  assert.deepEqual(result, { requested: true, targetPath: reportPath, command: "explorer.exe" });
+  assert.deepEqual(result, {
+    requested: true,
+    targetPath: reportPath,
+    directoryPath: path.dirname(reportPath),
+    command: "explorer.exe"
+  });
 });
 
 test("revealPath rejects an OS process error instead of reporting a request", async (t) => {

@@ -172,10 +172,10 @@ test("CLI doctor reports version authority and project runtime diagnostics", asy
 
   assert.equal(result.status, 0, result.stderr);
   const doctor = JSON.parse(result.stdout);
-  assert.equal(doctor.toolVersion, "5.3.0");
-  assert.equal(doctor.pipelineVersion, "5.3.0");
-  assert.equal(doctor.artifactContractVersion, "5.3.0");
-  assert.equal(doctor.editorRuntimeVersion, "5.3.0");
+  assert.equal(doctor.toolVersion, "5.3.2");
+  assert.equal(doctor.pipelineVersion, "5.3.2");
+  assert.equal(doctor.artifactContractVersion, "5.3.2");
+  assert.equal(doctor.editorRuntimeVersion, "5.3.2");
   assert.equal(doctor.executablePath, path.resolve(cli));
   assert.equal(doctor.packageRoot, root);
   assert.equal(doctor.runtimeStatus, "current");
@@ -322,7 +322,7 @@ test("CLI editor open refreshes a stale runtime without altering variants, versi
   });
 
   assert.equal(opened.status, 0, opened.stderr);
-  assert.equal(JSON.parse(await readFile(manifestPath, "utf8")).runtimeVersion, "5.3.0");
+  assert.equal(JSON.parse(await readFile(manifestPath, "utf8")).runtimeVersion, "5.3.2");
   const after = JSON.parse(await readFile(projectPath, "utf8"));
   assert.deepEqual(after.variants, before.variants);
   assert.deepEqual(after.versions, before.versions);

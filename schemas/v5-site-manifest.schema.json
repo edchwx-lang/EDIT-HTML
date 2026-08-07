@@ -6,7 +6,7 @@
   "required": ["schemaVersion", "packageVersion", "kind", "candidateId", "directionId", "directionLabel", "previewThemeId", "entrypoint", "sourcePackSha256", "interviewSha256", "contentBindingsSha256", "payloadSha256", "outputSha256", "screenshotSourceSha256", "designProcessSha256"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "packageVersion": { "const": "5.3.0" },
+    "packageVersion": { "enum": ["5.3.0", "5.3.1", "5.3.2"] },
     "kind": { "enum": ["candidate", "final"] },
     "candidateId": { "$ref": "#/$defs/id" },
     "directionId": { "$ref": "#/$defs/id" },
@@ -39,7 +39,7 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "kind": { "const": "candidate" }, "packageVersion": { "const": "5.3.0" } }, "required": ["kind", "packageVersion"] },
+      "if": { "properties": { "kind": { "const": "candidate" }, "packageVersion": { "enum": ["5.3.0", "5.3.1", "5.3.2"] } }, "required": ["kind", "packageVersion"] },
       "then": { "required": ["sampleScope"] }
     }
   ],

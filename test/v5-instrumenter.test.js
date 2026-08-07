@@ -160,8 +160,8 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   assert.equal(validation.designOwner, "huashu-design");
   assert.deepEqual(validation.editorBoundary, {
     kind: "html-backed",
-    contractVersion: "5.3.0",
-    runtimeVersion: "5.3.0"
+    contractVersion: "5.3.2",
+    runtimeVersion: "5.3.2"
   });
 });
 
@@ -232,6 +232,24 @@ test("a V5 artifact can be saved without a separate editor confirmation", async 
 
   assert.equal(version.variantId, variantId);
   assert.equal("reviewConfirmation" in version, false);
+});
+
+test("a V5 HTML-backed serializable chart saves without the legacy chart-mark contract", async (t) => {
+  const { projectDir, variantId } = await fixture(t);
+  await instrumentV5Variant(projectDir, variantId);
+  const artifactPath = path.join(projectDir, "variants", variantId, "artifact.html");
+  const artifact = await readFile(artifactPath, "utf8");
+  const sourceRef = artifact.match(/data-source-ref="([^"]+)"/)[1];
+  const withChart = artifact.replace("</body>",
+    `<section data-chart-id="decision-bars" data-source-ref="${sourceRef}"><div style="background:var(--report-accent)">189</div></section>` +
+    '<script type="application/json" data-chart-data-for="decision-bars">{"labels":["市场"],"values":[189]}</script></body>');
+  assert.doesNotMatch(withChart, /data-chart-mark/);
+  await writeFile(artifactPath, withChart, "utf8");
+
+  const version = await finalizeVariant(projectDir, variantId, { message: "V5.3.2 serializable chart" });
+
+  assert.equal(version.variantId, variantId);
+  assert.match(await readFile(path.join(projectDir, "versions", version.versionId, "artifact.html"), "utf8"), /data-chart-id="decision-bars"/);
 });
 
 async function hashPayload(root) {

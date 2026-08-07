@@ -4,11 +4,15 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("published skill documents the V5.3.0 Huashu-owned production boundary", async () => {
-  const skill = await readFile(new URL("skills/edit-html-report/SKILL.md", root), "utf8");
-  const agent = await readFile(new URL("skills/edit-html-report/agents/openai.yaml", root), "utf8");
+test("published skill documents the V5.3.2 attested Huashu-owned production boundary", async () => {
+  const skill = await readFile(new URL("skills/EDIT-HTML/SKILL.md", root), "utf8");
+  const agent = await readFile(new URL("skills/EDIT-HTML/agents/openai.yaml", root), "utf8");
 
-  assert.match(skill, /Edit HTML Report V5\.3\.0/);
+  assert.match(skill, /EDIT-HTML V5\.3\.2/);
+  assert.match(skill, /design huashu begin/);
+  assert.match(skill, /design huashu attest/);
+  assert.match(skill, /owner: huashu-design.+not evidence/is);
+  assert.match(skill, /desktop-full\.png/);
   assert.match(skill, /purpose/);
   assert.match(skill, /contentWeight/);
   assert.match(skill, /at most three|最多三问/i);
@@ -21,13 +25,15 @@ test("published skill documents the V5.3.0 Huashu-owned production boundary", as
   assert.match(skill, /Instrumenter/);
   assert.match(skill, /clickable editor URL/i);
   assert.match(skill, /raw-source appendix/i);
+  assert.match(skill, /sourceAssetDecisions/);
+  assert.match(skill, /not an all-images-must-be-used rule/i);
   assert.match(skill, /audit.+must not.+modify|审计.+不得.+修改/is);
   assert.doesNotMatch(skill, /content import/);
   assert.doesNotMatch(skill, /presentation-plan/);
   assert.doesNotMatch(skill, /data-first.*evidence-first|evidence-first.*data-first/is);
   assert.doesNotMatch(skill, /confirm the design and theme|确认设计与配色/i);
 
-  assert.match(agent, /V5\.3\.0/);
+  assert.match(agent, /V5\.3\.2/);
   assert.match(agent, /Huashu/i);
   assert.doesNotMatch(agent, /V4\.[0-9]/);
 });
@@ -41,7 +47,7 @@ test("V5 references expose source, interview, actual-site and migration contract
     "migration.md",
   ];
   const documents = await Promise.all(
-    files.map((file) => readFile(new URL(`skills/edit-html-report/references/${file}`, root), "utf8")),
+    files.map((file) => readFile(new URL(`skills/EDIT-HTML/references/${file}`, root), "utf8")),
   );
   const combined = documents.join("\n");
 

@@ -1,4 +1,4 @@
-# V5.3 Huashu Content Interview and Sample Selection
+# V5.3.2 Huashu Content Interview and Sample Selection
 
 ## Content interview before design
 
@@ -20,4 +20,4 @@ All candidates share the same material-driven content plan. Each is real executa
 
 Three samples must differ materially in narrative architecture, DOM structure, visualization strategy, and core interaction; color-only or shared-template variants fail. Each V5.3 candidate includes matching `sampleScope.firstViewportSelector`, `focusModuleSelector`, and `coreInteractionSelector` in its manifest and design process.
 
-After candidate import, run `design candidate review prepare`. It exposes only candidate ID, one absolute `1440x900` desktop screenshot path, and one-sentence narrative, visualization, and interaction summaries. Capture uses `fullPage: false`; mobile and full-page checks wait until final-site completion. Confirmation is blocked until the review set hash and actual screenshots have been shown and the user replies with a choice. The selected final site must still pass complete desktop and mobile Playwright checks before editor handoff.
+Before candidate generation, `design huashu begin` binds the exact Huashu Skill and immutable input receipt to a one-time challenge. Every candidate is sealed with `design huashu attest`; `owner` metadata without this receipt is rejected. After candidate import, run `design candidate review prepare`. It exposes candidates in the fixed order `precision-blueprint`, `warm-paper-terracotta`, `sandstone-archive`, with one absolute `1440x900` desktop screenshot path and one-sentence narrative, visualization, and interaction summaries. Capture uses `fullPage: false`, and its pixels must contain the declared theme canvas and accent colors. Confirmation is blocked until the review set hash and actual screenshots have been shown and the user replies with a choice.

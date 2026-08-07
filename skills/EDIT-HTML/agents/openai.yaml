@@ -1,0 +1,4 @@
+interface:
+  display_name: "EDIT-HTML V5.3.2"
+  short_description: "Extract facts, let Huashu own content and design, then audit and edit"
+  default_prompt: "Use $EDIT-HTML V5.3.2 to extract a Source Pack, ask the required content questions, begin the dedicated Huashu stage with the exact huashu-design Skill, require an execution receipt before candidate and final import, prepare one theme-rendered 1440x900 screenshot for each compact sample in the fixed theme order, require Huashu to judge every source image without imposing an image quota, reject hidden coverage, preserve full-page final evidence, wait for user selection, and hand the V5.3.2 editor a verified artifact."

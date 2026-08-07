@@ -108,6 +108,7 @@ test("editor root renders mode-aware controls, contextual actions, and history d
   assert.match(html, /data-action="undo">撤销<\/button>/);
   assert.doesNotMatch(html, /data-action="redo"/);
   assert.match(html, /data-action="save"[^>]*>保存版本<\/button>/);
+  assert.match(html, /保存失败：/);
   assert.match(html, /data-theme-id="warm-paper-terracotta"/);
   assert.match(html, /data-theme-id="signal-orange"/);
   assert.match(html, /浅色配色/);

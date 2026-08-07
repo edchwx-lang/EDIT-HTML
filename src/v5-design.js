@@ -1,23 +1,30 @@
 import { createHash } from "node:crypto";
 import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { parse } from "parse5";
 
 import { writeJsonAtomic } from "./io.js";
 import {
   auditV511CandidateForReview,
   auditV511CandidateSet,
   auditV511FinalSite,
+  assertFinalFullPageScreenshots,
+  assertStandalonePreviewTheme,
   isSupportedV5SitePackageVersion,
   requiresV511Gates,
   validateV511DesignProcess,
   V511_PACKAGE_VERSION,
   V52_PACKAGE_VERSION,
   V521_PACKAGE_VERSION,
-  V53_PACKAGE_VERSION
+  V53_PACKAGE_VERSION,
+  V531_PACKAGE_VERSION,
+  V532_PACKAGE_VERSION
 } from "./v5-quality-gate.js";
 import { freezeHuashuOutput, requireFrozenHuashuOutput, requireHuashuInputManifest } from "./v5-stage-boundary.js";
+import { isHuashuReceiptFile, requireHuashuDesignAttestation } from "./v5-huashu-attestation.js";
 
-const THREE_THEMES = new Set(["precision-blueprint", "warm-paper-terracotta", "sandstone-archive"]);
+const THEME_ORDER = ["precision-blueprint", "warm-paper-terracotta", "sandstone-archive"];
+const THREE_THEMES = new Set(THEME_ORDER);
 const REQUIRED_FILES = [
   "index.html", "content-bindings.json", "design-rationale.md", "manifest.json",
   "screenshots/desktop.png", "screenshots/mobile.png"
@@ -25,7 +32,7 @@ const REQUIRED_FILES = [
 
 export async function hashV5SitePayload(siteDir) {
   const files = (await listFiles(siteDir))
-    .filter((name) => name !== "manifest.json")
+    .filter((name) => name !== "manifest.json" && !isHuashuReceiptFile(name))
     .sort();
   const hash = createHash("sha256");
   for (const name of files) {
@@ -35,9 +42,12 @@ export async function hashV5SitePayload(siteDir) {
 }
 
 export async function importV5DesignCandidate(projectDir, variantId, sourceDir) {
+  const variant = await readVariant(projectDir, variantId);
+  if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)) {
+    await requireHuashuDesignAttestation(projectDir, variantId, "candidate", sourceDir);
+  }
   const validation = await validateV5Site(projectDir, variantId, sourceDir, "candidate");
   const existing = await listV5DesignCandidates(projectDir, variantId);
-  const variant = await readVariant(projectDir, variantId);
   if (existing.some((item) => item.candidateId !== validation.manifest.candidateId && item.directionId === validation.manifest.directionId)) {
     throw new Error("V5 candidates require distinct directionId values");
   }
@@ -77,11 +87,14 @@ export async function listV5DesignCandidates(projectDir, variantId) {
     throw error;
   }
   const result = [];
-  for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of entries.filter((item) => item.isDirectory())) {
     const validation = await validateV5Site(projectDir, variantId, path.join(root, entry.name), "candidate");
     result.push(candidateSummary(validation));
   }
-  return result;
+  return result.sort((left, right) => {
+    const themeOrder = THEME_ORDER.indexOf(left.previewThemeId) - THEME_ORDER.indexOf(right.previewThemeId);
+    return themeOrder || left.candidateId.localeCompare(right.candidateId);
+  });
 }
 
 export async function prepareV5CandidateReviewSet(projectDir, variantId) {
@@ -91,7 +104,7 @@ export async function prepareV5CandidateReviewSet(projectDir, variantId) {
   }
   const candidates = await listV5DesignCandidates(projectDir, variantId);
   enforceCandidateCount(variant, candidates);
-  const candidateReceipt = variant.packageVersion === V53_PACKAGE_VERSION
+  const candidateReceipt = [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)
     ? await freezeHuashuOutput(projectDir, variantId, "candidate")
     : null;
   const audits = await Promise.all(candidates.map((candidate) => auditV511CandidateForReview(projectDir, candidate)));
@@ -109,10 +122,10 @@ export async function prepareV5CandidateReviewSet(projectDir, variantId) {
       payloadSha256: audit.payloadSha256,
       desktopScreenshotSha256: audit.screenshot.sha256
     })),
-    reviewInstruction: variant.packageVersion === V53_PACKAGE_VERSION
+    reviewInstruction: [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)
       ? "Show exactly the one 1440x900 desktop screenshot for each candidate and confirm only after receiving a user selection."
       : "Show the actual desktop and mobile screenshots to the user and confirm only after receiving a user selection.",
-    candidates: variant.packageVersion === V53_PACKAGE_VERSION
+    candidates: [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)
       ? audits.map((audit) => ({
           candidateId: audit.candidateId,
           screenshot: path.resolve(audit.screenshot.path),
@@ -172,6 +185,10 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   const variant = await readVariant(projectDir, variantId);
   if (!variant.designSelection) throw new Error("final site requires a selected candidate");
   if (variant.packageVersion === V53_PACKAGE_VERSION) await requireHuashuInputManifest(projectDir, variantId);
+  if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)) {
+    await requireHuashuInputManifest(projectDir, variantId);
+    await requireHuashuDesignAttestation(projectDir, variantId, "final", sourceDir);
+  }
   const validation = await validateV5Site(projectDir, variantId, sourceDir, "final");
   if (
     validation.manifest.parentCandidateId !== variant.designSelection.candidateId ||
@@ -181,6 +198,9 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   }
   if (validation.contentPlanSha256 !== variant.designSelection.contentPlanSha256) {
     throw new Error("final site content plan does not match the selected candidate");
+  }
+  if (validation.manifest.previewThemeId !== variant.designSelection.previewThemeId) {
+    throw new Error("final site preview theme does not match the selected candidate");
   }
   if (requiresV511Gates(variant)) {
     await auditV511FinalSite(
@@ -199,7 +219,7 @@ export async function importV5FinalSite(projectDir, variantId, sourceDir) {
   await writeJsonAtomic(storedManifestPath, storedManifest);
   await rm(destination, { recursive: true, force: true });
   await rename(staging, destination);
-  const huashuReceipt = requiresV511Gates(variant) && variant.packageVersion === V53_PACKAGE_VERSION
+  const huashuReceipt = requiresV511Gates(variant) && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)
     ? await freezeHuashuOutput(projectDir, variantId, "final")
     : null;
   await updateVariant(projectDir, variantId, (record) => ({
@@ -225,10 +245,11 @@ export async function getV5FinalStatus(projectDir, variantId) {
 
 async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   const provisionalManifest = await readJson(path.join(siteDir, "manifest.json"));
-  const compactCandidate = expectedKind === "candidate" && provisionalManifest.packageVersion === V53_PACKAGE_VERSION;
+  const compactCandidate = expectedKind === "candidate" && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(provisionalManifest.packageVersion);
   const requiredFiles = compactCandidate
     ? REQUIRED_FILES.filter((name) => name !== "screenshots/mobile.png")
-    : REQUIRED_FILES;
+    : [...REQUIRED_FILES, ...(expectedKind === "final" && [V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(provisionalManifest.packageVersion)
+      ? ["screenshots/desktop-full.png", "screenshots/mobile-full.png"] : [])];
   for (const name of requiredFiles) await readFile(path.join(siteDir, ...name.split("/")));
   for (const directory of ["styles", "scripts", "assets", "screenshots"]) {
     const stat = await readdir(path.join(siteDir, directory));
@@ -264,13 +285,17 @@ async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   if (manifest.payloadSha256 !== payloadSha256 || manifest.outputSha256 !== payloadSha256) throw new Error("site payload SHA-256 mismatch");
   if (manifest.screenshotSourceSha256 !== payloadSha256) throw new Error("screenshots must declare the executable site payload they render");
   let designProcessSha256 = null;
-  if ([V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(manifest.packageVersion)) {
+  if ([V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(manifest.packageVersion)) {
     const processResult = await validateV511DesignProcess(siteDir, html, expectedKind, manifest.packageVersion);
     designProcessSha256 = processResult.designProcessSha256;
     if (manifest.designProcessSha256 !== designProcessSha256) throw new Error("design-process SHA-256 mismatch");
     if (compactCandidate && stableStringify(manifest.sampleScope) !== stableStringify(processResult.process.sampleScope)) {
       throw new Error("manifest sampleScope must match design-process.json");
     }
+  }
+  if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(manifest.packageVersion)) {
+    assertStandalonePreviewTheme(html, manifest.previewThemeId);
+    if (expectedKind === "final") await assertFinalFullPageScreenshots(siteDir);
   }
   await validateLocalRuntime(html, siteDir);
   return {
@@ -293,6 +318,7 @@ function validateBindings(bindings, html, expectedKind, knownSourceRefs) {
   }
   const ids = new Set();
   const bindingsById = new Map();
+  const document = parse(html);
   for (const binding of bindings.bindings) {
     assertSafeId(binding.contentId, "contentId");
     if (ids.has(binding.contentId)) throw new Error(`duplicate contentId "${binding.contentId}"`);
@@ -301,10 +327,33 @@ function validateBindings(bindings, html, expectedKind, knownSourceRefs) {
     if (!Array.isArray(binding.factIds) || !Array.isArray(binding.sourceRefs)) throw new Error(`binding "${binding.contentId}" requires factIds and sourceRefs`);
     if (!new Set(["main", "detail", "appendix"]).has(binding.tier)) throw new Error(`binding "${binding.contentId}" has invalid tier`);
     if (!new Set(["text", "block", "image", "chart"]).has(binding.editableKind)) throw new Error(`binding "${binding.contentId}" has invalid editableKind`);
-    const pattern = new RegExp(`\\bdata-content-id\\s*=\\s*["']${escapeRegExp(binding.contentId)}["']`, "i");
-    if (!pattern.test(html)) throw new Error(`binding "${binding.contentId}" is not present in index.html`);
+    const nodes = findContentNodes(document, binding.contentId);
+    if (!nodes.length) throw new Error(`binding "${binding.contentId}" is not present in index.html`);
+    if (!nodes.some(isStaticallyVisibleNode)) throw new Error(`binding "${binding.contentId}" is hidden and cannot prove accessible source coverage`);
   }
   validateContentCoverage(bindings.coverage, expectedKind, bindingsById, knownSourceRefs);
+}
+
+function findContentNodes(document, contentId) {
+  const result = [];
+  visitNodes(document, (node) => {
+    if (node.attrs?.some((item) => item.name === "data-content-id" && item.value === contentId)) result.push(node);
+  });
+  return result;
+}
+
+function isStaticallyVisibleNode(node) {
+  for (let current = node; current; current = current.parentNode) {
+    const attributes = new Map((current.attrs ?? []).map((item) => [item.name, item.value]));
+    if (attributes.has("hidden") || attributes.get("aria-hidden") === "true") return false;
+    if (/\b(?:display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(attributes.get("style") ?? "")) return false;
+  }
+  return true;
+}
+
+function visitNodes(node, callback) {
+  callback(node);
+  for (const child of node.childNodes ?? []) visitNodes(child, callback);
 }
 
 function validateContentCoverage(coverage, expectedKind, bindingsById, knownSourceRefs) {
@@ -466,7 +515,7 @@ async function validateSelectionReceipt(projectDir, variantId, candidateId, opti
   if (!reviewSet.candidates.some((item) => item.candidateId === candidateId)) {
     throw new Error("selection receipt references a candidate outside the current review set");
   }
-  if (variant.packageVersion === V53_PACKAGE_VERSION) {
+  if ([V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant.packageVersion)) {
     const frozen = await requireFrozenHuashuOutput(projectDir, variantId, "candidate");
     if (frozen.receiptSha256 !== reviewSet.huashuCandidateReceiptSha256) {
       throw new Error("candidate review set integrity does not match the frozen candidate output");

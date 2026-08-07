@@ -41,6 +41,7 @@ import {
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
 import { verifyV5FinalSite } from "../src/v5-final-verification.js";
+import { attestHuashuDesignOutput, beginHuashuDesign } from "../src/v5-huashu-attestation.js";
 import { ensureProjectEditorRuntime, refreshProjectEditorRuntime } from "../src/project-runtime.js";
 
 const packageRoot = path.resolve(
@@ -171,6 +172,25 @@ async function main(argv) {
     const projectDir = requirePositional(args, 2, "project");
     if (!(await isV5Project(projectDir))) throw new Error("design final verify is available only for V5 projects");
     printJson(await verifyV5FinalSite(projectDir, requireOption(args, "--variant")));
+    return;
+  }
+  if (command === "design" && args[0] === "huashu" && args[1] === "begin") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("Huashu execution receipts are available only for V5 projects");
+    printJson(await beginHuashuDesign(projectDir, requireOption(args, "--variant"), requireOption(args, "--kind"), {
+      skillPath: requireOption(args, "--skill")
+    }));
+    return;
+  }
+  if (command === "design" && args[0] === "huashu" && args[1] === "attest") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("Huashu execution receipts are available only for V5 projects");
+    printJson(await attestHuashuDesignOutput(
+      projectDir,
+      requireOption(args, "--variant"),
+      requireOption(args, "--kind"),
+      requireOption(args, "--from")
+    ));
     return;
   }
   if (command === "design" && args[0] === "import") {

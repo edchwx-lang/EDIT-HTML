@@ -1,11 +1,7 @@
 import { isVisualizationEligible } from "./chart-data.js";
 
 export function validateModeArtifact({ html, mode, report }) {
-  const declaredMode = attributeValues(html, "data-report-mode")[0];
-  if (declaredMode !== mode) {
-    throw new Error(`artifact must declare data-report-mode="${mode}"`);
-  }
-
+  validateArtifactMode(html, mode);
   validateVisibleChartMarks(html);
   if (mode !== "data-first" || !report) return;
   const chartIds = new Set(attributeValues(html, "data-chart-id"));
@@ -17,6 +13,13 @@ export function validateModeArtifact({ html, mode, report }) {
   }
   if (chartIds.size && (!/class=["'][^"']*chart-tooltip/i.test(html) || !/class=["'][^"']*chart-selection-band/i.test(html))) {
     throw new Error("data-first charts require an interactive tooltip and selection band");
+  }
+}
+
+export function validateArtifactMode(html, mode) {
+  const declaredMode = attributeValues(html, "data-report-mode")[0];
+  if (declaredMode !== mode) {
+    throw new Error(`artifact must declare data-report-mode="${mode}"`);
   }
 }
 

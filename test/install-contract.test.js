@@ -14,9 +14,9 @@ test("installation contract compares shim, package, Skill, runtime, and source h
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-install-contract-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const installedRoot = path.join(sandbox, "prefix", "node_modules", "edit-html-report");
-  const skillRoot = path.join(sandbox, "skills", "edit-html-report");
+  const skillRoot = path.join(sandbox, "skills", "EDIT-HTML");
   await copyPackagePayload(root, installedRoot);
-  await cp(path.join(root, "skills", "edit-html-report"), skillRoot, { recursive: true });
+  await cp(path.join(root, "skills", "EDIT-HTML"), skillRoot, { recursive: true });
   const shimPath = path.join(sandbox, "prefix", "edit-html-report.cmd");
   await writeFile(shimPath, `@ECHO off\r\nnode "${path.join(installedRoot, "bin", "edit-html-report.js")}" %*\r\n`, "utf8");
 
@@ -26,10 +26,10 @@ test("installation contract compares shim, package, Skill, runtime, and source h
     skillRoot,
     shimPath,
     doctor: async () => ({
-      toolVersion: "5.3.0",
-      pipelineVersion: "5.3.0",
-      artifactContractVersion: "5.3.0",
-      editorRuntimeVersion: "5.3.0",
+      toolVersion: "5.3.2",
+      pipelineVersion: "5.3.2",
+      artifactContractVersion: "5.3.2",
+      editorRuntimeVersion: "5.3.2",
       executablePath: path.join(installedRoot, "bin", "edit-html-report.js"),
       packageRoot: installedRoot,
       warnings: []
@@ -54,11 +54,11 @@ test("installation contract fails when package, Skill, or version authority disa
   const installedRoot = path.join(sandbox, "installed");
   const skillRoot = path.join(sandbox, "skill");
   await copyPackagePayload(root, installedRoot);
-  await cp(path.join(root, "skills", "edit-html-report"), skillRoot, { recursive: true });
+  await cp(path.join(root, "skills", "EDIT-HTML"), skillRoot, { recursive: true });
   const packageJson = JSON.parse(await readFile(path.join(installedRoot, "package.json"), "utf8"));
   packageJson.version = "5.2.1";
   await writeFile(path.join(installedRoot, "package.json"), JSON.stringify(packageJson), "utf8");
-  await writeFile(path.join(skillRoot, "SKILL.md"), "---\nname: edit-html-report\nversion: 5.2.1\n---\n", "utf8");
+  await writeFile(path.join(skillRoot, "SKILL.md"), "---\nname: EDIT-HTML\nversion: 5.2.1\n---\n", "utf8");
   const shimPath = path.join(sandbox, "edit-html-report.cmd");
   await writeFile(shimPath, `node "${path.join(installedRoot, "bin", "edit-html-report.js")}" %*\n`, "utf8");
 
@@ -110,14 +110,14 @@ test("local installer tests before updating temporary npm and Skill targets", as
   const calls = (await readFile(npmLog, "utf8")).trim().split(/\r?\n/);
   assert.deepEqual(calls, ["test", `install --global ${root} --prefix ${prefix}`]);
   assert.match(installed.stdout, new RegExp(escapeRegExp(path.resolve(root))));
-  assert.match(await readFile(path.join(skillRoot, "edit-html-report", "SKILL.md"), "utf8"), /^# Edit HTML Report V5\.3\.0$/m);
+  assert.match(await readFile(path.join(skillRoot, "EDIT-HTML", "SKILL.md"), "utf8"), /^# EDIT-HTML V5\.3\.2$/m);
 });
 
 test("a failed npm test leaves temporary package and Skill targets untouched", async (t) => {
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-install-test-failure-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const skillRoot = path.join(sandbox, "skills");
-  const existingSkill = path.join(skillRoot, "edit-html-report");
+  const existingSkill = path.join(skillRoot, "EDIT-HTML");
   const markerPath = path.join(existingSkill, "marker.txt");
   const npmLog = path.join(sandbox, "npm.log");
   const mockNpm = path.join(sandbox, "mock-npm-fail.ps1");

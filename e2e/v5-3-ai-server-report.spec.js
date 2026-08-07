@@ -33,6 +33,8 @@ import { validateV5Variant } from "../src/v5-validate.js";
 import { requireFrozenHuashuOutput } from "../src/v5-stage-boundary.js";
 import { verifyV5FinalSite } from "../src/v5-final-verification.js";
 import { startEditorServer } from "../src/editor-server.js";
+import { attestHuashuDesignOutput, beginHuashuDesign } from "../src/v5-huashu-attestation.js";
+import { getTheme } from "../src/themes.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,7 +42,7 @@ const cliPath = path.join(packageRoot, "bin", "edit-html-report.js");
 const acceptanceSource = "C:\\Users\\edchw\\Documents\\edit-ppt\\AI服务器报告-v520-verify-20260805\\source\\AI服务器报告.docx";
 const versionFields = ["toolVersion", "pipelineVersion", "artifactContractVersion", "editorRuntimeVersion"];
 
-test("V5.3 accepts the AI server report through design, audit, editor, and local publication", async ({ page }, testInfo) => {
+test("V5.3.2 accepts the AI server report through design, audit, editor, and local publication", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const acceptanceRoot = path.join(os.tmpdir(), "edit-html-v53-ai-server-acceptance");
   const sourceCopy = path.join(acceptanceRoot, "source", "AI服务器报告.docx");
@@ -82,7 +84,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
     });
     expect(doctor.ok, doctor.warnings.join("; ")).toBe(true);
     expect(doctor.runtimeStatus).toBe("current");
-    for (const field of versionFields) expect(doctor[field]).toBe("5.3.0");
+    for (const field of versionFields) expect(doctor[field]).toBe("5.3.2");
     expect(JSON.stringify(doctor)).not.toContain("4.0.0");
     evidence.versions = Object.fromEntries(versionFields.map((field) => [field, doctor[field]]));
     evidence.runtimeStatus = doctor.runtimeStatus;
@@ -133,6 +135,9 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
       outputSha256: prepared.inputReceipt.outputSha256,
       files: inputFiles
     };
+    const huashuSkillPath = path.join(acceptanceRoot, "huashu-design-SKILL.md");
+    await writeFile(huashuSkillPath, "---\nname: huashu-design\n---\n# Huashu acceptance fixture\n", "utf8");
+    await beginHuashuDesign(projectDir, variant.variantId, "candidate", { skillPath: huashuSkillPath });
 
     const ledger = await readJson(path.join(projectDir, "source-pack", "fact-ledger.json"));
     const sourceMap = await readJson(path.join(projectDir, "source-pack", "source-map.json"));
@@ -186,6 +191,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
         firstFact,
         coverage: sharedCoverage
       }));
+      await attestHuashuDesignOutput(projectDir, variant.variantId, "candidate", siteDir);
       const imported = await importV5DesignCandidate(projectDir, variant.variantId, siteDir);
       candidateEvidence.push({
         candidateId: direction.candidateId,
@@ -223,6 +229,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
     expect(selection.candidateId).toBe(selectedCandidateId);
     evidence.selection = selection;
 
+    await beginHuashuDesign(projectDir, variant.variantId, "final", { skillPath: huashuSkillPath });
     const finalSourceDir = await timed(timings, "finalSiteAuthoringMs", () => writeFinalSite({
       page,
       root: packageSources,
@@ -234,6 +241,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
       firstSource,
       coverage: coveragePlan(firstSource, "hero", "material-detail")
     }));
+    await attestHuashuDesignOutput(projectDir, variant.variantId, "final", finalSourceDir);
     const finalImport = await timed(timings, "finalSiteImportMs", () => importV5FinalSite(projectDir, variant.variantId, finalSourceDir));
     expect(finalImport.manifest.parentCandidateId).toBe(selectedCandidateId);
     expect(finalImport.manifest.parentCandidateSha256).toBe(selection.candidateSha256);
@@ -346,6 +354,7 @@ test("V5.3 accepts the AI server report through design, audit, editor, and local
     await expect.poll(() => frame.locator("html").evaluate(() => window.scrollY)).toBe(themeScroll);
 
     await page.locator('[data-action="edit"]').click();
+    await expect(frame.locator("h1[data-edit-id]")).not.toHaveAttribute("contenteditable", "true");
     const saveScroll = await frame.locator("html").evaluate(() => window.scrollY);
     const saveResponse = page.waitForResponse((response) => response.url().endsWith("/api/versions") && response.request().method() === "POST");
     await page.locator('[data-action="save"]').click();
@@ -420,7 +429,7 @@ async function writeCandidateSite({ page, root, direction, project, variant, fir
   await createSiteDirectories(siteDir);
   const focusClass = `focus-${direction.candidateId}`;
   const body = candidateBody(direction, focusClass);
-  await writeFile(path.join(siteDir, "index.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles/site.css"></head><body>${body}<script src="scripts/site.js"></script></body></html>`, "utf8");
+  await writeFile(path.join(siteDir, "index.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${previewThemeStyle(direction.themeId)}<link rel="stylesheet" href="styles/site.css"></head><body>${body}<script src="scripts/site.js"></script></body></html>`, "utf8");
   await writeFile(path.join(siteDir, "styles", "site.css"), candidateCss(direction.structure), "utf8");
   await writeFile(path.join(siteDir, "scripts", "site.js"), `document.querySelector('[data-core-interaction]').addEventListener('click',()=>{const node=document.querySelector('.${focusClass}');node.dataset.state=node.dataset.state==='selected'?'idle':'selected';document.documentElement.dataset.interaction='${direction.interactionType}'})`, "utf8");
   const bindings = {
@@ -473,7 +482,7 @@ async function writeCandidateSite({ page, root, direction, project, variant, fir
   const payloadSha256 = await hashV5SitePayload(siteDir);
   await writeJson(path.join(siteDir, "manifest.json"), {
     schemaVersion: 1,
-    packageVersion: "5.3.0",
+    packageVersion: "5.3.2",
     kind: "candidate",
     candidateId: direction.candidateId,
     directionId: direction.candidateId,
@@ -496,7 +505,7 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
   const siteDir = path.join(root, "network-atlas-final");
   await createSiteDirectories(siteDir);
   await writeFile(path.join(siteDir, "assets", "network.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360"><rect x="2" y="2" width="796" height="356" fill="none" stroke="currentColor" stroke-width="4"/><path d="M70 280L210 190L350 230L510 120L710 70" fill="none" stroke="currentColor" stroke-width="10"/></svg>', "utf8");
-  await writeFile(path.join(siteDir, "index.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles/site.css"></head><body><main class="report-shell"><header class="report-hero" data-content-id="hero"><p class="eyebrow">AI SERVER MATERIAL NETWORK</p><h1>AI 服务器产业链与关键材料</h1><p class="report-summary">从需求、系统、材料和供应链证据理解关键机会。</p></header><section class="overview-chart" data-content-id="chart"><h2>核心证据概览</h2><div class="bar-row" data-chart-mark style="background:var(--report-chart-1)"><span>需求</span><b>基准</b></div><div class="bar-row"><span>供应</span><b>约束</b></div><span class="chart-tooltip"></span><span class="chart-selection-band"></span></section><section class="material-detail" data-content-id="material-detail"><h2>关键材料详情</h2><p>围绕材料性能、供应能力与验证进度组织可追溯证据。</p><img data-content-id="material-image" src="assets/network.svg" alt="AI server material network"></section><section class="focus-network" data-content-id="source-coverage" data-state="idle"><h2>完整材料覆盖</h2><p>全部实质性来源单元均通过内容绑定纳入主报告与详情层。</p><button type="button" data-core-interaction>筛选关键证据</button></section></main><script type="application/json" data-chart-data-for="chart">{"columns":["Signal","Index"],"rows":[["Demand",42],["Supply",37]]}</script><script src="scripts/site.js"></script></body></html>`, "utf8");
+  await writeFile(path.join(siteDir, "index.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${previewThemeStyle("precision-blueprint")}<link rel="stylesheet" href="styles/site.css"></head><body><main class="report-shell"><header class="report-hero" data-content-id="hero"><p class="eyebrow">AI SERVER MATERIAL NETWORK</p><h1>AI 服务器产业链与关键材料</h1><p class="report-summary">从需求、系统、材料和供应链证据理解关键机会。</p></header><section class="overview-chart" data-content-id="chart"><h2>核心证据概览</h2><div class="bar-row" data-chart-mark style="background:var(--report-chart-1)"><span>需求</span><b>基准</b></div><div class="bar-row"><span>供应</span><b>约束</b></div><span class="chart-tooltip"></span><span class="chart-selection-band"></span></section><section class="material-detail" data-content-id="material-detail"><h2>关键材料详情</h2><p>围绕材料性能、供应能力与验证进度组织可追溯证据。</p><img data-content-id="material-image" src="assets/network.svg" alt="AI server material network"></section><section class="focus-network" data-content-id="source-coverage" data-state="idle"><h2>完整材料覆盖</h2><p>全部实质性来源单元均通过内容绑定纳入主报告与详情层。</p><button type="button" data-core-interaction>筛选关键证据</button></section></main><script type="application/json" data-chart-data-for="chart">{"columns":["Signal","Index"],"rows":[["Demand",42],["Supply",37]]}</script><script src="scripts/site.js"></script></body></html>`, "utf8");
   await writeFile(path.join(siteDir, "styles", "site.css"), `:root{--ink:var(--report-text,black);--paper:var(--report-canvas,white);--surface:var(--report-surface,white);--accent:var(--report-accent,steelblue);--line:var(--report-border,silver)}*{box-sizing:border-box}html,body{margin:0;max-width:100%;overflow-x:hidden}body{background:var(--paper);color:var(--ink);font-family:Arial,sans-serif}.report-shell{width:min(1180px,calc(100% - 48px));margin:auto;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;padding:56px 0 120px}.report-hero{grid-column:1/-1;border-bottom:2px solid var(--line);padding:32px 0}.eyebrow{letter-spacing:.14em;color:var(--accent)}h1{font-size:clamp(42px,6vw,78px);line-height:.96;max-width:900px;margin:12px 0 24px}.report-summary{font-size:22px;max-width:720px}.overview-chart{grid-column:1/6;background:var(--surface);border:1px solid var(--line);padding:28px}.bar-row{display:flex;justify-content:space-between;border-bottom:8px solid var(--accent);padding:18px 0}.material-detail{grid-column:6/-1;background:var(--surface);border:1px solid var(--line);padding:28px}.material-detail img{display:block;width:100%;max-height:300px;object-fit:contain;color:var(--accent)}.focus-network{grid-column:1/-1;border:1px solid var(--line);padding:32px;min-height:300px}.focus-network[data-state=selected]{outline:6px solid var(--accent)}button{padding:12px 18px;border:1px solid var(--accent);background:var(--surface);color:var(--ink)}@media(max-width:700px){.report-shell{width:min(100% - 28px,1180px);grid-template-columns:1fr;padding-top:24px}.report-hero,.overview-chart,.material-detail,.focus-network{grid-column:1}h1{font-size:42px}}`, "utf8");
   await writeFile(path.join(siteDir, "scripts", "site.js"), `const focus=document.querySelector('.focus-network');document.querySelector('[data-core-interaction]').addEventListener('click',()=>{focus.dataset.state=focus.dataset.state==='selected'?'idle':'selected'});window.addEventListener('edit-html-report:chart-data',event=>{document.documentElement.dataset.chartUpdated=event.detail.chartId})`, "utf8");
   const bindings = {
@@ -521,7 +530,8 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
       { id: "overview", title: "Evidence overview", category: "overview", type: "data-table", selector: ".overview-chart", sourceRefs: [firstSource] },
       { id: "focus", title: "Network evidence", category: "focus", type: "chart", selector: ".focus-network", sourceRefs: [firstSource] }
     ],
-    coreInteraction: { type: "filter", selector: "[data-core-interaction]", event: "click", description: "Filters the representative evidence state" }
+    coreInteraction: { type: "filter", selector: "[data-core-interaction]", event: "click", description: "Filters the representative evidence state" },
+    sourceAssetDecisions: await omittedSourceAssetDecisions(path.join(path.dirname(root), "project"))
   };
   const bindingText = JSON.stringify(bindings, null, 2) + "\n";
   const processText = JSON.stringify(process, null, 2) + "\n";
@@ -533,15 +543,17 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
   await page.locator("[data-core-interaction]").click();
   await expect(page.locator(".focus-network")).toHaveAttribute("data-state", "selected");
   await page.screenshot({ path: path.join(siteDir, "screenshots", "desktop.png"), fullPage: false });
+  await page.screenshot({ path: path.join(siteDir, "screenshots", "desktop-full.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: path.join(siteDir, "screenshots", "mobile.png"), fullPage: false });
+  await page.screenshot({ path: path.join(siteDir, "screenshots", "mobile-full.png"), fullPage: true });
   const payloadSha256 = await hashV5SitePayload(siteDir);
   const storedVariant = await readJson(path.join(path.dirname(root), "project", "variants", variant.variantId, "variant.json"));
   await writeJson(path.join(siteDir, "manifest.json"), {
     schemaVersion: 1,
-    packageVersion: "5.3.0",
+    packageVersion: "5.3.2",
     kind: "final",
     candidateId: selection.candidateId,
     directionId: selection.directionId,
@@ -561,6 +573,22 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
   return siteDir;
 }
 
+async function omittedSourceAssetDecisions(projectDir) {
+  const contactSheet = await readFile(path.join(projectDir, "source-pack", "asset-contact-sheet.html"), "utf8");
+  return [...contactSheet.matchAll(/<figure\b([^>]*)>([\s\S]*?)<\/figure>/gi)].flatMap((match) => {
+    const assetPath = match[2].match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1];
+    const sourceRef = match[1].match(/\bdata-source-id=["']([^"']+)["']/i)?.[1];
+    if (!assetPath || !sourceRef) return [];
+    return [{
+      assetPath: assetPath.replaceAll("\\", "/"),
+      sourceRef,
+      contentValue: "low",
+      decision: "omit",
+      rationale: "This fixture's evidence network already represents the material point more clearly than this source image."
+    }];
+  });
+}
+
 function candidateBody(direction, focusClass) {
   if (direction.structure === "ledger") {
     return `<article class="first-viewport" data-role="material-ledger"><header><p>DECISION LEDGER</p><h1>${direction.directionLabel}</h1></header><aside data-content-id="core"><table class="${focusClass}" data-state="idle"><thead><tr><th>Material</th><th>Signal</th></tr></thead><tbody><tr><td>Thermal system</td><td>Priority evidence</td></tr></tbody></table><button type="button" data-core-interaction>Toggle material evidence</button></aside></article>`;
@@ -569,6 +597,11 @@ function candidateBody(direction, focusClass) {
     return `<div class="first-viewport" data-role="capacity-timeline"><nav><p>CAPACITY EVOLUTION</p><button type="button" data-core-interaction>Drill into the next stage</button></nav><section data-content-id="core"><h1>${direction.directionLabel}</h1><ol class="${focusClass}" data-state="idle"><li><strong>Demand</strong><span>Signal</span></li><li><strong>System</strong><span>Constraint</span></li><li><strong>Material</strong><span>Evidence</span></li></ol></section></div>`;
   }
   return `<main class="first-viewport" data-role="network-atlas"><section data-content-id="core"><header><p>AI SERVER EVIDENCE NETWORK</p><h1>${direction.directionLabel}</h1></header><figure class="${focusClass}" data-state="idle"><span>Demand</span><i></i><span>System</span><i></i><span>Material</span></figure><p>One representative focus module connects system evidence to material implications.</p><button type="button" data-core-interaction>Filter key evidence</button></section></main>`;
+}
+
+function previewThemeStyle(themeId) {
+  const { tokens } = getTheme(themeId);
+  return `<style data-preview-theme="${themeId}">:root{--report-canvas:${tokens.canvas};--report-surface:${tokens.surface};--report-text:${tokens.text};--report-text-muted:${tokens.textMuted};--report-border:${tokens.border};--report-accent:${tokens.accent}}</style>`;
 }
 
 function candidateCss(structure) {

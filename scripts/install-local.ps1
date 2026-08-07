@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 $resolvedSourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path
 $packagePath = Join-Path $resolvedSourceRoot "package.json"
-$skillSource = Join-Path $resolvedSourceRoot "skills\edit-html-report"
+$skillSource = Join-Path $resolvedSourceRoot "skills\EDIT-HTML"
 $verificationScript = Join-Path $resolvedSourceRoot "scripts\verify-installation.mjs"
 
 if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
@@ -54,9 +54,9 @@ if (-not $GlobalPackageRoot) {
 $GlobalPackageRoot = (Resolve-Path -LiteralPath $GlobalPackageRoot).Path
 
 New-Item -ItemType Directory -Path $SkillRoot -Force | Out-Null
-$skillDestination = Join-Path $SkillRoot "edit-html-report"
-$skillStaging = Join-Path $SkillRoot (".edit-html-report-install-" + [Guid]::NewGuid().ToString("N"))
-$skillBackup = Join-Path $SkillRoot (".edit-html-report-previous-" + [Guid]::NewGuid().ToString("N"))
+$skillDestination = Join-Path $SkillRoot "EDIT-HTML"
+$skillStaging = Join-Path $SkillRoot (".EDIT-HTML-install-" + [Guid]::NewGuid().ToString("N"))
+$skillBackup = Join-Path $SkillRoot (".EDIT-HTML-previous-" + [Guid]::NewGuid().ToString("N"))
 Copy-Item -LiteralPath $skillSource -Destination $skillStaging -Recurse
 $movedPrevious = $false
 try {

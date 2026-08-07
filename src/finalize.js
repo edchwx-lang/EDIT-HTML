@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { validateModeArtifact } from "./artifact-contract.js";
+import { validateArtifactMode, validateModeArtifact } from "./artifact-contract.js";
 import { writeJsonAtomic, writeTextAtomic } from "./io.js";
 import { compileThemeIntoArtifact } from "./theme-artifact.js";
 import { normalizeVariantRecord } from "./variants.js";
@@ -25,7 +25,7 @@ export async function finalizeVariant(
   }
   const variant = normalizeVariantRecord(storedVariant);
   const huashuManifest = await readJsonMaybe(path.join(projectDir, "variants", variantId, "design", "package", "manifest.json"));
-  if (huashuManifest?.packageVersion === "5.3.0") {
+  if (["5.3.0", "5.3.1", "5.3.2"].includes(huashuManifest?.packageVersion)) {
     await requireFrozenHuashuOutput(projectDir, variantId, "final");
     await requireV5FinalVerification(projectDir, variantId);
   }
@@ -62,13 +62,15 @@ export async function finalizeVariant(
     new Set(project.sourceFiles.map((source) => source.name))
   );
   validateOfflineResources(artifactHtml);
-  validateModeArtifact({
-    html: artifactHtml,
-    mode: variant.mode,
-    analysis,
-    report: reportModel,
-    presentation: presentationPlan
-  });
+  const htmlBackedV5 = project.schemaVersion === 5 || variant.schemaVersion === 5 || reportModel?.editorialStatus === "huashu-v5-html";
+  if (htmlBackedV5) validateArtifactMode(artifactHtml, variant.mode);
+  else validateModeArtifact({
+      html: artifactHtml,
+      mode: variant.mode,
+      analysis,
+      report: reportModel,
+      presentation: presentationPlan
+    });
   const compiledArtifact = compileThemeIntoArtifact(
     artifactHtml,
     variant.themeId

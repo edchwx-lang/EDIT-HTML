@@ -14,7 +14,7 @@ export async function diagnoseInstallation({ packageRoot, executablePath, comman
   const absoluteExecutablePath = path.resolve(executablePath);
   const checks = {
     node20: Number.parseInt(process.versions.node.split(".")[0], 10) >= 20,
-    bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "edit-html-report", "SKILL.md"))
+    bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "EDIT-HTML", "SKILL.md"))
   };
   const warnings = [];
   if (!commandSourceBelongsToPackage(commandSourcePath, absolutePackageRoot)) {

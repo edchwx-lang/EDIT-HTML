@@ -1,6 +1,6 @@
 # Editor, Versions, and Publications
 
-V5.2.3 edits the instrumented Huashu artifact directly. V4 model-backed projects keep their revisioned model path.
+V5.3.2 edits the instrumented Huashu artifact directly. V4 model-backed projects keep their revisioned model path.
 
 ## Conversation handoff
 
@@ -15,6 +15,8 @@ The editor has view and edit states. `编辑` changes to `完成`; `完成` exit
 Ordinary V5 edits and palette changes update the live iframe document in place. Required reloads for undo, restore, or rollback must preserve viewport and selected context instead of returning to the cover. Do not expose a Redo toolbar button.
 
 There is no separate design/theme confirmation control. `保存版本` is available when the editor loads. Editing, theme changes, undo/redo, or rerendering makes the artifact dirty; saving creates a new immutable version and clears dirty state.
+
+V5 HTML-backed saving validates the V5 artifact contract and serializable chart payloads; it does not impose the legacy model-renderer `data-chart-mark` styling contract on Huashu DOM. A failed save must show its server diagnostic in the editor status area.
 
 Draft operations are revisioned structured patches. A stale `baseRevision` receives 409. Undo/redo persists across browser reopen. Replaced assets are copied or embedded into project-owned data.
 

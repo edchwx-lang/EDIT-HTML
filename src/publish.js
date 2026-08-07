@@ -186,7 +186,7 @@ export function buildRevealCommand(platform, targetPath) {
   if (platform === "win32") {
     return {
       command: "explorer.exe",
-      args: [`/select,${targetPath}`],
+      args: [path.dirname(targetPath)],
       options: { detached: false, stdio: "ignore", windowsHide: false }
     };
   }
@@ -211,7 +211,7 @@ export async function revealPath(targetFile, { platform = process.platform, spaw
     child.once("error", reject);
     child.once("spawn", () => {
       if (typeof child.unref === "function") child.unref();
-      resolve({ requested: true, targetPath, command: request.command });
+      resolve({ requested: true, targetPath, directoryPath: path.dirname(targetPath), command: request.command });
     });
   });
 }

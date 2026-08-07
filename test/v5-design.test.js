@@ -17,6 +17,7 @@ import {
   listV5DesignCandidates,
   prepareV5CandidateReviewSet
 } from "../src/v5-design.js";
+import { attestHuashuDesignOutput, beginHuashuDesign } from "../src/v5-huashu-attestation.js";
 
 async function setProjectVersion(project, variantId, version) {
   const projectPath = path.join(project, "project.json");
@@ -43,7 +44,7 @@ async function fixture(t, { reference = false, version = "5.1.0" } = {}) {
   await createV5Project(source, project);
   const variant = await createV5Variant(project, {});
   if (version !== "5.2.1") await setProjectVersion(project, variant.variantId, version);
-  const receiptGated = ["5.1.1", "5.2.0", "5.2.1", "5.3.0"].includes(version);
+  const receiptGated = ["5.1.1", "5.2.0", "5.2.1", "5.3.0", "5.3.1", "5.3.2"].includes(version);
   const interview = {
     schemaVersion: receiptGated ? 3 : 2,
     variantId: variant.variantId,
@@ -155,12 +156,19 @@ function tinyPng(marker) {
   return Buffer.concat([base, Buffer.from(String(marker))]);
 }
 
-function reviewPng(marker) {
+function reviewPng(marker, themeId = "precision-blueprint") {
   const canvas = createCanvas(1440, 900);
   const context = canvas.getContext("2d");
-  context.fillStyle = marker.length % 2 ? "#204060" : "#806040";
+  const colors = {
+    "precision-blueprint": ["#F2F5F7", "#075F9B"],
+    "warm-paper-terracotta": ["#F5F0E8", "#CC785C"],
+    "sandstone-archive": ["#EDE8E0", "#8A8178"]
+  }[themeId] ?? ["#F2F5F7", "#075F9B"];
+  context.fillStyle = colors[0];
   context.fillRect(0, 0, 1440, 900);
-  context.fillStyle = "#ffffff";
+  context.fillStyle = colors[1];
+  context.fillRect(70, 70, 360, 100);
+  context.fillStyle = "#191919";
   context.font = "48px sans-serif";
   context.fillText(marker, 80, 120);
   return canvas.toBuffer("image/png");
@@ -195,7 +203,13 @@ async function writeV511Site(root, project, variantId, {
     briefing: `<article data-role="briefing"><h1>${marker}</h1><aside data-content-id="market"><table class="overview-${marker}"><tr><td>189</td><td>market</td></tr></table><details class="focus-${marker}" open><summary>Focus</summary><p>Representative material facet.</p></details><button class="interact-${marker}" type="button">Switch</button></aside></article>`,
     lab: `<main data-role="lab"><nav><button class="interact-${marker}" type="button">Inspect</button></nav><section data-content-id="market"><ul class="overview-${marker}"><li>189 market signal</li></ul><div class="focus-${marker}"><span>Focus entity</span><span>Facet evidence</span></div></section></main>`
   };
-  await writeFile(path.join(directory, "index.html"), `<!doctype html><html><head><link rel="stylesheet" href="styles/site.css"></head><body>${bodyByStructure[structure]}</body><script src="scripts/site.js"></script></html>`, "utf8");
+  const previewStyles = {
+    "precision-blueprint": "--report-canvas:#F2F5F7;--report-surface:#FFFFFF;--report-text:#10283F;--report-text-muted:#526678;--report-border:#B8C6D1;--report-accent:#075F9B",
+    "warm-paper-terracotta": "--report-canvas:#F5F0E8;--report-surface:#FFFDFC;--report-text:#191919;--report-text-muted:#6F675F;--report-border:#D8CEC1;--report-accent:#CC785C",
+    "sandstone-archive": "--report-canvas:#EDE8E0;--report-surface:#F7F3ED;--report-text:#1A1A1A;--report-text-muted:#5A5A5A;--report-border:#B8B0A4;--report-accent:#8A8178"
+  }[previewThemeId];
+  const previewStyle = ["5.3.1", "5.3.2"].includes(variant.packageVersion) ? `<style data-preview-theme="${previewThemeId}">:root{${previewStyles}}</style>` : "";
+  await writeFile(path.join(directory, "index.html"), `<!doctype html><html><head>${previewStyle}<link rel="stylesheet" href="styles/site.css"></head><body>${bodyByStructure[structure]}</body><script src="scripts/site.js"></script></html>`, "utf8");
   await writeFile(path.join(directory, "styles", "site.css"), `body{color:var(--report-text);background:var(--report-canvas)}.${marker}{border-color:var(--report-border)}`, "utf8");
   await writeFile(path.join(directory, "scripts", "site.js"), "document.documentElement.dataset.ready='true'", "utf8");
   const bindings = {
@@ -230,7 +244,7 @@ async function writeV511Site(root, project, variantId, {
       { id: "focus", title: "Focus evidence", category: "focus", type: focusType, selector: `.focus-${marker}`, sourceRefs: [sourceId] }
     ],
     coreInteraction: { type: interactionType, selector: `.interact-${marker}`, event: "click", description: "Switches the representative focus state" }
-    ,...(variant.packageVersion === "5.3.0" && kind === "candidate" ? {
+    ,...(["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate" ? {
       sampleScope: {
         firstViewportSelector: "body",
         focusModuleSelector: `.focus-${marker}`,
@@ -243,8 +257,8 @@ async function writeV511Site(root, project, variantId, {
   await writeFile(path.join(directory, "screenshots", "desktop.png"), tinyPng("desktop-" + marker));
   await writeFile(path.join(directory, "screenshots", "mobile.png"), tinyPng("mobile-" + marker));
   const projectJson = JSON.parse(await readFile(path.join(project, "project.json"), "utf8"));
-  if (variant.packageVersion === "5.3.0" && kind === "candidate") {
-    await writeFile(path.join(directory, "screenshots", "desktop.png"), reviewPng(marker));
+  if (["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate") {
+    await writeFile(path.join(directory, "screenshots", "desktop.png"), reviewPng(marker, previewThemeId));
     await rm(path.join(directory, "screenshots", "mobile.png"));
   }
   const payloadSha256 = await hashV5SitePayload(directory);
@@ -264,7 +278,7 @@ async function writeV511Site(root, project, variantId, {
     outputSha256: payloadSha256,
     screenshotSourceSha256: payloadSha256,
     designProcessSha256: createHash("sha256").update(designProcessText).digest("hex"),
-    ...(variant.packageVersion === "5.3.0" && kind === "candidate" ? {
+    ...(["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate" ? {
       sampleScope: {
         firstViewportSelector: "body",
         focusModuleSelector: `.focus-${marker}`,
@@ -642,5 +656,82 @@ test("V5.3 rejects missing sample selectors, fake screenshots, and full candidat
   await assert.rejects(
     () => importV5DesignCandidate(expanded.project, expanded.variant.variantId, expandedSite.directory),
     /outside.+first viewport|compact sample scope|substantive visible root/i
+  );
+});
+
+test("V5.3.1 candidate import requires a Huashu execution receipt bound to the exact skill", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true, version: "5.3.1" });
+  const site = await writeV511Site(root, project, variant.variantId, {
+    candidateId: "attested", marker: "attested", structure: "lab"
+  });
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, site.directory),
+    /Huashu execution receipt|dedicated Huashu gate/i
+  );
+
+  const skillPath = path.join(root, "huashu-design-SKILL.md");
+  await writeFile(skillPath, "---\nname: huashu-design\n---\n# Test Huashu\n", "utf8");
+  await beginHuashuDesign(project, variant.variantId, "candidate", { skillPath });
+  await attestHuashuDesignOutput(project, variant.variantId, "candidate", site.directory);
+  await importV5DesignCandidate(project, variant.variantId, site.directory);
+  assert.equal((await listV5DesignCandidates(project, variant.variantId))[0].candidateId, "attested");
+
+  await writeFile(path.join(site.directory, "scripts", "site.js"), "document.body.dataset.tampered='true'", "utf8");
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, site.directory),
+    /execution receipt does not match outputSha256/i
+  );
+});
+
+test("source coverage cannot be manufactured with hidden binding nodes", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true, version: "5.1.1" });
+  const site = await writeV511Site(root, project, variant.variantId, {
+    candidateId: "hidden-coverage", marker: "hidden-coverage", structure: "lab"
+  });
+  const indexPath = path.join(site.directory, "index.html");
+  await writeFile(indexPath, (await readFile(indexPath, "utf8")).replace('data-content-id="market"', 'data-content-id="market" hidden aria-hidden="true"'), "utf8");
+  await refreshManifest(site.directory);
+  await assert.rejects(
+    () => importV5DesignCandidate(project, variant.variantId, site.directory),
+    /hidden.+cannot prove accessible source coverage/i
+  );
+});
+
+test("candidate review order follows the three approved light themes instead of candidate ids", async (t) => {
+  const { root, project, variant } = await fixture(t, { version: "5.3.0" });
+  for (const item of [
+    { candidateId: "aaa-warm", previewThemeId: "warm-paper-terracotta", structure: "briefing", narrativeId: "warm-story", focusType: "timeline", interactionType: "disclose" },
+    { candidateId: "zzz-blue", previewThemeId: "precision-blueprint", structure: "radar", narrativeId: "blue-story", focusType: "matrix", interactionType: "filter" },
+    { candidateId: "mmm-sand", previewThemeId: "sandstone-archive", structure: "lab", narrativeId: "sand-story", focusType: "comparison", interactionType: "inspect" }
+  ]) {
+    const site = await writeV511Site(root, project, variant.variantId, { ...item, marker: item.candidateId });
+    await importV5DesignCandidate(project, variant.variantId, site.directory);
+  }
+  assert.deepEqual((await listV5DesignCandidates(project, variant.variantId)).map((item) => item.previewThemeId), [
+    "precision-blueprint", "warm-paper-terracotta", "sandstone-archive"
+  ]);
+});
+
+test("V5.3.1 review rejects a screenshot that does not render its declared light theme", async (t) => {
+  const { root, project, variant } = await fixture(t, { reference: true, version: "5.3.1" });
+  const site = await writeV511Site(root, project, variant.variantId, {
+    candidateId: "warm-proof", marker: "warm-proof", previewThemeId: "warm-paper-terracotta", structure: "briefing"
+  });
+  const canvas = createCanvas(1440, 900);
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#FFFFFF";
+  context.fillRect(0, 0, 1440, 900);
+  context.fillStyle = "steelblue";
+  context.fillRect(80, 80, 360, 100);
+  await writeFile(path.join(site.directory, "screenshots", "desktop.png"), canvas.toBuffer("image/png"));
+  await refreshManifest(site.directory);
+  const skillPath = path.join(root, "huashu-design-SKILL.md");
+  await writeFile(skillPath, "---\nname: huashu-design\n---\n# Test Huashu\n", "utf8");
+  await beginHuashuDesign(project, variant.variantId, "candidate", { skillPath });
+  await attestHuashuDesignOutput(project, variant.variantId, "candidate", site.directory);
+  await importV5DesignCandidate(project, variant.variantId, site.directory);
+  await assert.rejects(
+    () => prepareV5CandidateReviewSet(project, variant.variantId),
+    /does not visibly render warm-paper-terracotta/i
   );
 });

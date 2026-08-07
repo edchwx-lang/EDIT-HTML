@@ -141,7 +141,7 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
     instructions: "Huashu owns editorial structure and all executable HTML design. Use the interview and source pack; never invent facts. Produce real runnable samples whose screenshots are rendered from their index.html."
   };
   await writeJsonAtomic(path.join(inputDir, "manifest.json"), manifest);
-  const inputReceipt = variant.packageVersion === TOOL_VERSION
+  const inputReceipt = ["5.3.0", "5.3.1", TOOL_VERSION].includes(variant.packageVersion)
     ? await writeHuashuInputManifest(projectDir, variantId)
     : null;
   await updateVariant(projectDir, variantId, (record) => ({

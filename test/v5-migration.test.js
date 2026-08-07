@@ -28,9 +28,9 @@ test("V5.2.1 dry-run reports metadata/runtime changes with zero writes", async (
   assert.equal(inspected.runtime.status, "missing");
   assert.deepEqual(inspected.metadataChanges, {
     migratedFrom: { packageVersion: "5.2.1", pipelineVersion: "5.2.1" },
-    toolVersion: "5.3.0",
+    toolVersion: "5.3.2",
     artifactContractVersion: "5.2.1",
-    editorRuntimeVersion: "5.3.0"
+    editorRuntimeVersion: "5.3.2"
   });
   assert.equal(dryRun.dryRun, true);
   assert.deepEqual(await hashTree(projectDir), before);
@@ -53,10 +53,10 @@ test("V5.2.1 migration preserves all content/design/HTML and refreshes runtime",
   });
   assert.equal(project.packageVersion, "5.2.1");
   assert.equal(project.pipelineVersion, "5.2.1");
-  assert.equal(project.toolVersion, "5.3.0");
+  assert.equal(project.toolVersion, "5.3.2");
   assert.equal(project.artifactContractVersion, "5.2.1");
-  assert.equal(project.editorRuntimeVersion, "5.3.0");
-  assert.equal(runtime.runtimeVersion, "5.3.0");
+  assert.equal(project.editorRuntimeVersion, "5.3.2");
+  assert.equal(runtime.runtimeVersion, "5.3.2");
   assert.deepEqual(await hashProtectedFixtureFiles(projectDir), protectedBefore);
 });
 

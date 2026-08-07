@@ -62,6 +62,8 @@ test("publish center keeps domain provider choices hidden until domain publish i
   await page.locator('[data-action="publish"]').click();
   await page.locator("[data-domain-provider]").first().waitFor({ state: "attached" });
 
+  assert.equal(await page.locator("[data-version-reveal-local]").first().textContent(), "本地文件夹打开");
+  assert.equal(await page.getByText("资源管理器打开").count(), 0);
   assert.equal(await page.locator("[data-domain-provider]").count(), 3);
   assert.equal(await page.locator("[data-domain-provider]:visible").count(), 0);
 

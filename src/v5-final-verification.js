@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeJsonAtomic } from "./io.js";
 import { requireFrozenHuashuOutput } from "./v5-stage-boundary.js";
+import { isHuashuReceiptFile } from "./v5-huashu-attestation.js";
 
 export const FINAL_VIEWPORTS = Object.freeze({
   desktop: Object.freeze({ width: 1440, height: 900 }),
@@ -18,7 +19,7 @@ export async function verifyV5FinalSite(projectDir, variantId, { page: suppliedP
     readJson(path.join(siteDir, "manifest.json")),
     readJson(path.join(siteDir, "design-process.json"))
   ]);
-  if (manifest.packageVersion !== "5.3.0" || manifest.kind !== "final") {
+  if (!["5.3.0", "5.3.1", "5.3.2"].includes(manifest.packageVersion) || manifest.kind !== "final") {
     throw new Error("final browser verification requires a V5.3 final package");
   }
   await requireFrozenHuashuOutput(projectDir, variantId, "final");
@@ -172,7 +173,7 @@ async function bindReceiptToVariant(projectDir, variantId, receiptSha256) {
 }
 
 async function hashSitePayload(root) {
-  const files = (await listFiles(root)).filter((name) => name !== "manifest.json").sort();
+  const files = (await listFiles(root)).filter((name) => name !== "manifest.json" && !isHuashuReceiptFile(name)).sort();
   const hash = createHash("sha256");
   for (const name of files) hash.update(name).update("\0").update(await readFile(path.join(root, ...name.split("/")))).update("\0");
   return hash.digest("hex");

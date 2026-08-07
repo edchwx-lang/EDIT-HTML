@@ -18,10 +18,10 @@ export async function instrumentV5Variant(projectDir, variantId) {
   const variantDir = path.join(projectDir, "variants", variantId);
   const siteDir = path.join(variantDir, "design", "package");
   const siteManifest = await readJson(path.join(siteDir, "manifest.json"));
-  const huashuReceipt = siteManifest.packageVersion === "5.3.0"
+  const huashuReceipt = ["5.3.0", "5.3.1", "5.3.2"].includes(siteManifest.packageVersion)
     ? await requireFrozenHuashuOutput(projectDir, variantId, "final")
     : null;
-  if (siteManifest.packageVersion === "5.3.0") await requireV5FinalVerification(projectDir, variantId);
+  if (["5.3.0", "5.3.1", "5.3.2"].includes(siteManifest.packageVersion)) await requireV5FinalVerification(projectDir, variantId);
   await auditV5FinalSite(projectDir, variantId);
   const [sourceHtml, bindings, sourceMap, factLedger, variant] = await Promise.all([
     readFile(path.join(siteDir, "index.html"), "utf8"),

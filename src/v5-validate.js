@@ -21,7 +21,7 @@ export async function validateV5Variant(projectDir, variantId) {
     readJson(path.join(variantDir, "design", "package", "manifest.json"))
   ]);
   if (project.schemaVersion !== 5 || variant.schemaVersion !== 5) throw new Error("V5 validation requires schema version 5");
-  if (manifest.packageVersion === "5.3.0") {
+  if (["5.3.0", "5.3.1", "5.3.2"].includes(manifest.packageVersion)) {
     await requireFrozenHuashuOutput(projectDir, variantId, "final");
     await requireV5FinalVerification(projectDir, variantId);
   }

@@ -16,11 +16,11 @@ test("V5 create emits a source pack without pre-design content decisions", async
   const project = await createV5Project(source, projectDir);
 
   assert.equal(project.schemaVersion, 5);
-  assert.equal(project.packageVersion, "5.3.0");
-  assert.equal(project.toolVersion, "5.3.0");
-  assert.equal(project.pipelineVersion, "5.3.0");
-  assert.equal(project.artifactContractVersion, "5.3.0");
-  assert.equal(project.editorRuntimeVersion, "5.3.0");
+  assert.equal(project.packageVersion, "5.3.2");
+  assert.equal(project.toolVersion, "5.3.2");
+  assert.equal(project.pipelineVersion, "5.3.2");
+  assert.equal(project.artifactContractVersion, "5.3.2");
+  assert.equal(project.editorRuntimeVersion, "5.3.2");
   for (const name of [
     "manifest.json",
     "readable-source.md",
@@ -52,11 +52,11 @@ test("V5 variants start at interview and contain no report or presentation model
   const variant = await createV5Variant(projectDir, {});
 
   assert.equal(variant.schemaVersion, 5);
-  assert.equal(variant.packageVersion, "5.3.0");
-  assert.equal(variant.toolVersion, "5.3.0");
-  assert.equal(variant.pipelineVersion, "5.3.0");
-  assert.equal(variant.artifactContractVersion, "5.3.0");
-  assert.equal(variant.editorRuntimeVersion, "5.3.0");
+  assert.equal(variant.packageVersion, "5.3.2");
+  assert.equal(variant.toolVersion, "5.3.2");
+  assert.equal(variant.pipelineVersion, "5.3.2");
+  assert.equal(variant.artifactContractVersion, "5.3.2");
+  assert.equal(variant.editorRuntimeVersion, "5.3.2");
   assert.equal(variant.pipelineState, "awaiting-interview");
   assert.equal(variant.modeSelection, "compatibility-only");
   const variantDir = path.join(projectDir, "variants", variant.variantId);

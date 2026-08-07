@@ -2,6 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -19,7 +20,7 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
     readSkillVersion(path.join(resolvedSkillRoot, "SKILL.md")),
     hashPackagePayload(resolvedSourceRoot),
     hashPackagePayload(resolvedPackageRoot),
-    hashDirectory(path.join(resolvedSourceRoot, "skills", "edit-html-report")),
+    hashDirectory(path.join(resolvedSourceRoot, "skills", "EDIT-HTML")),
     hashDirectory(resolvedSkillRoot)
   ]);
   const expectedVersion = sourcePackage.version;
@@ -39,23 +40,28 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
     sourceVersions.toolVersion,
     sourceVersions.pipelineVersion,
     sourceVersions.artifactContractVersion,
-    sourceVersions.editorRuntimeVersion,
     installedVersions.toolVersion,
     installedVersions.pipelineVersion,
-    installedVersions.artifactContractVersion,
-    installedVersions.editorRuntimeVersion
+    installedVersions.artifactContractVersion
   ].every((version) => version === expectedVersion);
+  const expectedRuntimeVersion = sourceVersions.editorRuntimeVersion;
   const checks = {
     shim: samePath(shimTarget, expectedExecutable),
     packageVersion: versionsAgree,
     skillVersion: skillVersion === expectedVersion,
-    runtimeVersion: runtime.runtimeVersion === expectedVersion &&
-      sourceRuntime.runtimeVersion === expectedVersion &&
+    runtimeVersion: installedVersions.editorRuntimeVersion === expectedRuntimeVersion &&
+      runtime.runtimeVersion === expectedRuntimeVersion &&
+      sourceRuntime.runtimeVersion === expectedRuntimeVersion &&
       runtime.sourceSha256 === sourceRuntime.sourceSha256 &&
       samePath(runtime.sourcePackageRoot, resolvedPackageRoot),
     sourceHash: sourceHash === installedHash,
     skillHash: sourceSkillHash === installedSkillHash,
-    doctor: doctorMatches(doctorResult, resolvedPackageRoot, expectedExecutable, expectedVersion)
+    doctor: doctorMatches(doctorResult, resolvedPackageRoot, expectedExecutable, {
+      toolVersion: expectedVersion,
+      pipelineVersion: sourceVersions.pipelineVersion,
+      artifactContractVersion: sourceVersions.artifactContractVersion,
+      editorRuntimeVersion: expectedRuntimeVersion
+    })
   };
   const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   if (failed.length) throw new Error(`installation verification failed: ${failed.join(", ")}`);
@@ -124,7 +130,7 @@ async function readVersionManifest(filePath) {
 async function readSkillVersion(skillPath) {
   const contents = await readFile(skillPath, "utf8");
   return contents.match(/^version:\s*["']?([^\s"']+)/m)?.[1] ??
-    contents.match(/^#\s+Edit HTML Report V([^\s]+)/m)?.[1] ?? null;
+    contents.match(/^#\s+(?:EDIT-HTML|Edit HTML Report) V([^\s]+)/m)?.[1] ?? null;
 }
 
 async function resolveShimTarget(shimPath) {
@@ -148,19 +154,26 @@ function runDoctorJson(executablePath, shimPath) {
   return JSON.parse(result.stdout);
 }
 
-function doctorMatches(doctor, packageRoot, executablePath, version) {
+function doctorMatches(doctor, packageRoot, executablePath, versions) {
   return doctor.ok !== false &&
     samePath(doctor.packageRoot, packageRoot) &&
     samePath(doctor.executablePath, executablePath) &&
-    [doctor.toolVersion, doctor.pipelineVersion, doctor.artifactContractVersion, doctor.editorRuntimeVersion]
-      .every((value) => value === version) &&
+    doctor.toolVersion === versions.toolVersion &&
+    doctor.pipelineVersion === versions.pipelineVersion &&
+    doctor.artifactContractVersion === versions.artifactContractVersion &&
+    doctor.editorRuntimeVersion === versions.editorRuntimeVersion &&
     (doctor.warnings?.length ?? 0) === 0;
 }
 
 function samePath(left, right) {
   if (!left || !right) return false;
   const normalize = (value) => {
-    const resolved = path.resolve(value);
+    let resolved = path.resolve(value);
+    try {
+      resolved = realpathSync.native(resolved);
+    } catch {
+      // Keep path-only comparison for diagnostic fixtures that do not exist on disk.
+    }
     return process.platform === "win32" ? resolved.toLowerCase() : resolved;
   };
   return normalize(left) === normalize(right);

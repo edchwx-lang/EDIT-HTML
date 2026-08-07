@@ -2,21 +2,24 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "parse5";
-import { loadImage } from "@napi-rs/canvas";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { SUPPORTED_ARTIFACT_CONTRACT_VERSIONS } from "./version-manifest.js";
+import { getTheme } from "./themes.js";
 
 export const V511_PACKAGE_VERSION = "5.1.1";
 export const V52_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.0");
 export const V521_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.2.1");
 export const V53_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.0");
+export const V531_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.1");
+export const V532_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.2");
 
 const MEANINGFUL_VISUAL_TYPES = new Set(["chart", "matrix", "timeline", "comparison", "flow", "data-table", "annotated-image"]);
 const REQUIRED_VISUAL_CATEGORIES = new Set(["overview", "focus"]);
 
 export function requiresV511Gates(variant) {
   const workflowVersion = variant?.packageVersion ?? variant?.artifactContractVersion;
-  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(workflowVersion) ||
-    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION].includes(variant?.pipelineVersion);
+  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(workflowVersion) ||
+    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant?.pipelineVersion);
 }
 
 export function isSupportedV5SitePackageVersion(version) {
@@ -34,7 +37,7 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind, pac
   const narrative = process.narrativeArchitecture;
   if (!narrative?.id || !narrative?.description) errors.push("design-process.json requires narrativeArchitecture id and description");
   const modules = process.visualizationModules;
-  const compactCandidate = expectedKind === "candidate" && packageVersion === V53_PACKAGE_VERSION;
+  const compactCandidate = expectedKind === "candidate" && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(packageVersion);
   if (!Array.isArray(modules) || modules.length < (compactCandidate ? 1 : 2)) {
     errors.push(`design-process.json requires at least ${compactCandidate ? "one" : "two"} meaningful visualization module${compactCandidate ? "" : "s"}`);
   } else {
@@ -66,7 +69,7 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind, pac
 
 export async function auditV511CandidateForReview(projectDir, candidate) {
   const html = await readFile(path.join(candidate.siteDir, "index.html"), "utf8");
-  const compactCandidate = candidate.packageVersion === V53_PACKAGE_VERSION;
+  const compactCandidate = [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(candidate.packageVersion);
   const [ledger, processResult, desktop] = await Promise.all([
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json")),
     validateV511DesignProcess(candidate.siteDir, html, "candidate", candidate.packageVersion),
@@ -86,6 +89,9 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
     }
     if (compactCandidate && (desktopInfo.width !== 1440 || desktopInfo.height !== 900)) {
       errors.push(`${candidate.candidateId} candidate screenshot must be exactly 1440x900`);
+    }
+    if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(candidate.packageVersion)) {
+      errors.push(...await auditPreviewThemeScreenshot(desktop, candidate.previewThemeId, candidate.candidateId));
     }
   }
   let mobile = null;
@@ -138,13 +144,14 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
 }
 
 export async function auditV511FinalSite(projectDir, finalSiteDir, selectedCandidateDir) {
-  const [html, selectedHtml, selectedManifest, ledger] = await Promise.all([
+  const [html, selectedHtml, finalManifest, selectedManifest, ledger] = await Promise.all([
     readFile(path.join(finalSiteDir, "index.html"), "utf8"),
     readFile(path.join(selectedCandidateDir, "index.html"), "utf8"),
+    readJson(path.join(finalSiteDir, "manifest.json")),
     readJson(path.join(selectedCandidateDir, "manifest.json")),
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json"))
   ]);
-  const finalProcess = await validateV511DesignProcess(finalSiteDir, html, "final");
+  const finalProcess = await validateV511DesignProcess(finalSiteDir, html, "final", finalManifest.packageVersion);
   const selectedProcess = await validateV511DesignProcess(selectedCandidateDir, selectedHtml, "candidate", selectedManifest.packageVersion);
   const errors = [];
   if (finalProcess.process.coreInteraction.type !== selectedProcess.process.coreInteraction.type) {
@@ -157,8 +164,76 @@ export async function auditV511FinalSite(projectDir, finalSiteDir, selectedCandi
   }
   const rawAudit = auditRawSourceExposure(parse(html), ledger.facts ?? []);
   errors.push(...rawAudit.errors);
+  if (finalManifest.packageVersion === V532_PACKAGE_VERSION) {
+    errors.push(...await validateSourceAssetDecisions(projectDir, finalSiteDir, html, finalProcess.process));
+  }
   if (errors.length) throw new Error(errors.join("; "));
   return { designProcessSha256: finalProcess.designProcessSha256, warnings: rawAudit.warnings };
+}
+
+export async function validateSourceAssetDecisions(projectDir, siteDir, html, process) {
+  const sourceAssets = await readSourceAssets(projectDir);
+  const decisions = process.sourceAssetDecisions;
+  const errors = [];
+  if (!Array.isArray(decisions)) {
+    return ["V5.3.2 final design-process.json requires sourceAssetDecisions, including an empty array when the source has no images"];
+  }
+  const expected = new Map(sourceAssets.map((asset) => [asset.assetPath, asset]));
+  const seen = new Set();
+  const document = parse(html);
+  for (const decision of decisions) {
+    const assetPath = String(decision?.assetPath ?? "").replaceAll("\\", "/");
+    const asset = expected.get(assetPath);
+    if (!asset) {
+      errors.push(`sourceAssetDecisions references unknown source asset ${assetPath || "(missing)"}`);
+      continue;
+    }
+    if (seen.has(assetPath)) {
+      errors.push(`sourceAssetDecisions contains duplicate source asset ${assetPath}`);
+      continue;
+    }
+    seen.add(assetPath);
+    if (decision.sourceRef !== asset.sourceRef) errors.push(`${assetPath} must use sourceRef ${asset.sourceRef}`);
+    if (!["high", "medium", "low"].includes(decision.contentValue)) errors.push(`${assetPath} requires contentValue high, medium, or low`);
+    if (!["use-original", "redraw", "reference-only", "omit"].includes(decision.decision)) errors.push(`${assetPath} has invalid source asset decision`);
+    if (String(decision.rationale ?? "").trim().length < 8) errors.push(`${assetPath} requires a material-specific rationale`);
+    if (decision.contentValue === "high" && !["use-original", "redraw"].includes(decision.decision)) {
+      errors.push(`${assetPath} is high-value source evidence and must be used or redrawn`);
+    }
+    if (["use-original", "redraw"].includes(decision.decision)) {
+      const nodes = matchingNodes(document, decision.selector);
+      if (nodes.length !== 1) {
+        errors.push(`${assetPath} ${decision.decision} selector must match exactly one visible element`);
+        continue;
+      }
+      if (!isStaticallyVisible(nodes[0])) errors.push(`${assetPath} selected source asset treatment must be visible`);
+      if (decision.decision === "use-original") {
+        const images = [];
+        visit(nodes[0], (node) => { if (node.tagName === "img") images.push(node); });
+        const sourceHash = await fileSha256(path.join(projectDir, "source-pack", ...assetPath.split("/")));
+        let matched = false;
+        for (const image of images) {
+          const src = attr(image, "src");
+          if (!src || /^(?:data:|https?:|#)/i.test(src)) continue;
+          try {
+            if (await fileSha256(path.resolve(siteDir, ...src.split("/"))) === sourceHash) matched = true;
+          } catch {}
+        }
+        if (!matched) errors.push(`${assetPath} use-original selector must render a byte-identical Source Pack image`);
+      } else {
+        const module = process.visualizationModules?.find((item) => item.selector === decision.selector);
+        if (!module?.sourceRefs?.includes(asset.sourceRef)) {
+          errors.push(`${assetPath} redraw must bind its visualization module to ${asset.sourceRef}`);
+        }
+      }
+    } else if (decision.selector) {
+      errors.push(`${assetPath} ${decision.decision} must not declare a visible selector`);
+    }
+  }
+  for (const assetPath of expected.keys()) {
+    if (!seen.has(assetPath)) errors.push(`sourceAssetDecisions is missing ${assetPath}`);
+  }
+  return errors;
 }
 
 export function auditV511CandidateSet(candidateAudits, { requireThree }) {
@@ -233,6 +308,73 @@ function validateSampleScope(scope, document, process, errors) {
       errors.push("source-bound visible content is outside the first viewport compact sample scope");
     }
   });
+}
+
+export function assertStandalonePreviewTheme(html, themeId) {
+  const theme = getTheme(themeId);
+  const escaped = themeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const style = String(html).match(new RegExp(`<style\\b[^>]*data-preview-theme=["']${escaped}["'][^>]*>([\\s\\S]*?)<\\/style>`, "i"))?.[1] ?? "";
+  if (!style) throw new Error(`site must include a standalone preview theme style for ${themeId}`);
+  for (const [token, cssName] of [
+    ["canvas", "canvas"], ["surface", "surface"], ["text", "text"],
+    ["textMuted", "text-muted"], ["border", "border"], ["accent", "accent"]
+  ]) {
+    const expected = theme.tokens[token];
+    const pattern = new RegExp(`--report-${cssName}\\s*:\\s*${expected.replace("#", "#?")}\\b`, "i");
+    if (!pattern.test(style)) throw new Error(`standalone preview theme ${themeId} is missing --report-${cssName}: ${expected}`);
+  }
+  return true;
+}
+
+export async function assertFinalFullPageScreenshots(siteDir) {
+  for (const [name, width, minHeight] of [["desktop-full.png", 1440, 900], ["mobile-full.png", 390, 844]]) {
+    let image;
+    try {
+      image = await loadImage(await readFile(path.join(siteDir, "screenshots", name)));
+    } catch {
+      throw new Error(`V5.3.1+ final package requires a decodable screenshots/${name}`);
+    }
+    if (image.width !== width || image.height < minHeight) {
+      throw new Error(`screenshots/${name} must be a full-page PNG with width ${width} and height at least ${minHeight}`);
+    }
+  }
+  return true;
+}
+
+async function auditPreviewThemeScreenshot(bytes, themeId, candidateId) {
+  const image = await loadImage(bytes);
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0);
+  const pixels = context.getImageData(0, 0, image.width, image.height).data;
+  const theme = getTheme(themeId);
+  const canvasRgb = hexRgb(theme.tokens.canvas);
+  const accentRgb = hexRgb(theme.tokens.accent);
+  let samples = 0;
+  let canvasHits = 0;
+  let accentHits = 0;
+  for (let y = 0; y < image.height; y += 8) {
+    for (let x = 0; x < image.width; x += 8) {
+      const offset = (y * image.width + x) * 4;
+      const pixel = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+      samples += 1;
+      if (colorDistance(pixel, canvasRgb) <= 12) canvasHits += 1;
+      if (colorDistance(pixel, accentRgb) <= 12) accentHits += 1;
+    }
+  }
+  const errors = [];
+  if (canvasHits / samples < 0.01) errors.push(`${candidateId} screenshot does not visibly render ${themeId} canvas color`);
+  if (accentHits / samples < 0.001) errors.push(`${candidateId} screenshot does not visibly render ${themeId} accent color`);
+  return errors;
+}
+
+function hexRgb(value) {
+  const normalized = value.slice(1);
+  return [0, 2, 4].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16));
+}
+
+function colorDistance(left, right) {
+  return Math.sqrt(left.reduce((sum, value, index) => sum + (value - right[index]) ** 2, 0));
 }
 
 function requireDistinct(items, key, label, errors) {
@@ -387,6 +529,34 @@ function jaccard(left, right) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function readSourceAssets(projectDir) {
+  const contactSheetPath = path.join(projectDir, "source-pack", "asset-contact-sheet.html");
+  let contactSheet;
+  try {
+    contactSheet = parse(await readFile(contactSheetPath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+  const assets = [];
+  visit(contactSheet, (node) => {
+    if (node.tagName !== "figure") return;
+    const sourceRef = attr(node, "data-source-id");
+    let assetPath = null;
+    visit(node, (child) => {
+      if (!assetPath && child.tagName === "img") assetPath = attr(child, "src") ?? null;
+    });
+    if (sourceRef && assetPath && !/^(?:data:|https?:|#)/i.test(assetPath)) {
+      assets.push({ sourceRef, assetPath: assetPath.replaceAll("\\", "/") });
+    }
+  });
+  return assets;
+}
+
+async function fileSha256(filePath) {
+  return createHash("sha256").update(await readFile(filePath)).digest("hex");
 }
 
 function sha256(value) {

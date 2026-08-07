@@ -58,7 +58,7 @@ test("V4 editor edits the model, exposes contextual chart tools, versions, and p
     await expect(page.locator("[data-publish-list] .publication-list article")).toHaveCount(1);
     await expect(page.locator("[data-publish-list] .publication-list")).toContainText("本地发布");
     await page.locator("[data-version-reveal-local]").click();
-    await expect(page.locator("[data-status]")).toHaveText("已请求资源管理器定位 report.html");
+    await expect(page.locator("[data-status]")).toContainText("publications");
   } finally {
     await editor.close();
     await rm(sandbox, { recursive: true, force: true });
