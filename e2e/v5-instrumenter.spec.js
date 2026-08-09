@@ -65,6 +65,7 @@ test("V5.3 visible editor uses HTML patches without a confirmation gate", async 
     await page.getByRole("button", { name: "编辑" }).click();
 
     const heading = frame.locator("h1[data-edit-id]");
+    await expect(heading).toHaveAttribute("contenteditable", "true");
     await heading.fill("Updated market outlook");
     await heading.blur();
     await expect(page.locator("[data-status]")).toHaveText("草稿已保存");
