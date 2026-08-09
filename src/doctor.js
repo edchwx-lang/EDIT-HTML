@@ -97,7 +97,8 @@ function expandShimTarget(target, shimPath) {
 
 async function commandSourceBelongsToPackage(commandSourcePath, packageRoot) {
   if (!commandSourcePath) return true;
-  return await samePath(path.dirname(path.dirname(commandSourcePath)), packageRoot);
+  return await samePath(path.dirname(path.dirname(commandSourcePath)), packageRoot)
+    || await pathBelongsToRoot(commandSourcePath, packageRoot);
 }
 
 async function resolvedPath(filePath) {
@@ -147,4 +148,13 @@ async function normalizePathForComparison(value) {
     return resolved.replace(/^\/private\/var\//, "/var/");
   }
   return resolved;
+}
+
+async function pathBelongsToRoot(filePath, rootPath) {
+  const [normalizedFile, normalizedRoot] = await Promise.all([
+    normalizePathForComparison(filePath),
+    normalizePathForComparison(rootPath)
+  ]);
+  const relative = path.relative(normalizedRoot, normalizedFile);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
