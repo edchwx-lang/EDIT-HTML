@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -502,6 +503,11 @@ async function writeNpmCmdShim(shimDir, entryPath) {
 
 function normalizePathForComparison(value) {
   let resolved = path.resolve(value);
+  try {
+    resolved = process.platform === "win32" ? realpathSync.native(resolved) : resolved;
+  } catch {
+    // Fall back to the resolved path when the fixture has not been created.
+  }
   if (process.platform === "win32") resolved = resolved.toLowerCase();
   if (process.platform === "darwin" && resolved.startsWith("/private/var/")) {
     resolved = resolved.replace(/^\/private\/var\//, "/var/");

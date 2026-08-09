@@ -1,4 +1,5 @@
 import { access, readFile, realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { getProjectRuntimeManifest, getSourceRuntimeManifest, runtimeManifestIsCurrent } from "./project-runtime.js";
@@ -135,7 +136,9 @@ async function samePath(left, right) {
 async function normalizePathForComparison(value) {
   let resolved = path.resolve(value);
   try {
-    resolved = await realpath(resolved);
+    resolved = process.platform === "win32"
+      ? realpathSync.native(resolved)
+      : await realpath(resolved);
   } catch {
     // Compare the resolved path when the target does not exist.
   }
