@@ -256,6 +256,10 @@ test("CLI doctor warns when PATH resolves an edit-html-report shim from another 
 });
 
 test("CLI doctor does not warn for a current-checkout npm CMD shim ahead of an extensionless decoy", async (t) => {
+  if (process.platform !== "win32") {
+    t.skip("npm CMD shim precedence is Windows-specific");
+    return;
+  }
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-cmd-current-"));
   const shimDir = path.join(sandbox, "shim");
   await mkdir(shimDir, { recursive: true });
@@ -274,6 +278,10 @@ test("CLI doctor does not warn for a current-checkout npm CMD shim ahead of an e
 });
 
 test("CLI doctor warns for another-checkout npm CMD shim ahead of an extensionless decoy", async (t) => {
+  if (process.platform !== "win32") {
+    t.skip("npm CMD shim precedence is Windows-specific");
+    return;
+  }
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-report-doctor-cmd-other-"));
   const shimDir = path.join(sandbox, "shim");
   const otherEntry = path.join(shimDir, "node_modules", "edit-html-report", "bin", "edit-html-report.js");
