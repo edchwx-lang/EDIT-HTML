@@ -30,6 +30,7 @@ test("V4 editor edits the model, exposes contextual chart tools, versions, and p
     const model = JSON.parse(await readFile(path.join(projectDir, "variants", variant.variantId, "report-model.json"), "utf8"));
     const paragraph = model.nodes.flatMap((node) => node.children ?? []).find((node) => node.type === "paragraph");
     const editable = frame.locator(`[data-edit-id="${paragraph.nodeId}"]`);
+    await expect(editable).toHaveAttribute("contenteditable", "true");
     await editable.fill("市场规模达到 88 亿元。");
     await editable.blur();
     await expect(page.locator("[data-status]")).toHaveText("草稿已保存");
