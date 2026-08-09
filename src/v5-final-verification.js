@@ -19,8 +19,8 @@ export async function verifyV5FinalSite(projectDir, variantId, { page: suppliedP
     readJson(path.join(siteDir, "manifest.json")),
     readJson(path.join(siteDir, "design-process.json"))
   ]);
-  if (!["5.3.0", "5.3.1", "5.3.2"].includes(manifest.packageVersion) || manifest.kind !== "final") {
-    throw new Error("final browser verification requires a V5.3 final package");
+  if (!["5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(manifest.packageVersion) || manifest.kind !== "final") {
+    throw new Error("final browser verification requires a V5.3+ final package");
   }
   await requireFrozenHuashuOutput(projectDir, variantId, "final");
   const payloadSha256 = await hashSitePayload(siteDir);
@@ -100,7 +100,7 @@ export async function verifyV5FinalSite(projectDir, variantId, { page: suppliedP
 export async function requireV5FinalVerification(projectDir, variantId) {
   const receiptPath = verificationReceiptPath(projectDir, variantId);
   const receipt = await readJsonMaybe(receiptPath);
-  if (!receipt) throw new Error("V5.3 final browser verification receipt is required before render, validation, or editor handoff");
+  if (!receipt) throw new Error("V5.3+ final browser verification receipt is required before render, validation, or editor handoff");
   const { receiptSha256, ...draft } = receipt;
   if (hashJson(draft) !== receiptSha256) throw new Error("final verification receipt integrity check failed");
   const variant = await readJson(path.join(projectDir, "variants", variantId, "variant.json"));

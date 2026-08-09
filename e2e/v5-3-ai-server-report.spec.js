@@ -42,7 +42,7 @@ const cliPath = path.join(packageRoot, "bin", "edit-html-report.js");
 const acceptanceSource = "C:\\Users\\edchw\\Documents\\edit-ppt\\AI服务器报告-v520-verify-20260805\\source\\AI服务器报告.docx";
 const versionFields = ["toolVersion", "pipelineVersion", "artifactContractVersion", "editorRuntimeVersion"];
 
-test("V5.3.2 accepts the AI server report through design, audit, editor, and local publication", async ({ page }, testInfo) => {
+test("V5.4.0 accepts the AI server report through design, audit, editor, and local publication", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const acceptanceRoot = path.join(os.tmpdir(), "edit-html-v53-ai-server-acceptance");
   const sourceCopy = path.join(acceptanceRoot, "source", "AI服务器报告.docx");
@@ -84,7 +84,7 @@ test("V5.3.2 accepts the AI server report through design, audit, editor, and loc
     });
     expect(doctor.ok, doctor.warnings.join("; ")).toBe(true);
     expect(doctor.runtimeStatus).toBe("current");
-    for (const field of versionFields) expect(doctor[field]).toBe("5.3.2");
+    for (const field of versionFields) expect(doctor[field]).toBe("5.4.0");
     expect(JSON.stringify(doctor)).not.toContain("4.0.0");
     evidence.versions = Object.fromEntries(versionFields.map((field) => [field, doctor[field]]));
     evidence.runtimeStatus = doctor.runtimeStatus;
@@ -482,7 +482,7 @@ async function writeCandidateSite({ page, root, direction, project, variant, fir
   const payloadSha256 = await hashV5SitePayload(siteDir);
   await writeJson(path.join(siteDir, "manifest.json"), {
     schemaVersion: 1,
-    packageVersion: "5.3.2",
+    packageVersion: "5.4.0",
     kind: "candidate",
     candidateId: direction.candidateId,
     directionId: direction.candidateId,
@@ -553,7 +553,7 @@ async function writeFinalSite({ page, root, project, variant, selection, allSour
   const storedVariant = await readJson(path.join(path.dirname(root), "project", "variants", variant.variantId, "variant.json"));
   await writeJson(path.join(siteDir, "manifest.json"), {
     schemaVersion: 1,
-    packageVersion: "5.3.2",
+    packageVersion: "5.4.0",
     kind: "final",
     candidateId: selection.candidateId,
     directionId: selection.directionId,

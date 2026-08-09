@@ -1,6 +1,6 @@
-# V5.3.2 Huashu Actual-Site Contract
+# V5.4.0 Huashu Actual-Site Contract
 
-Invoke `$huashu-design` with every prepared Source Pack file, the confirmed interview, and `content-brief.json`. Start and seal both candidate and final stages with the V5.3.2 Huashu execution receipt commands. Huashu owns content hierarchy and the entire executable experience; a self-declared owner field is insufficient.
+Invoke `$huashu-design` with every prepared Source Pack file, the confirmed interview, and `content-brief.json`. Start and seal both candidate and final stages with the V5.4.0 Huashu execution receipt commands. Huashu owns content hierarchy and the entire executable experience; a self-declared owner field is insufficient.
 
 ## Candidate
 

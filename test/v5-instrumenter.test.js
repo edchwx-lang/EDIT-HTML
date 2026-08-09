@@ -160,8 +160,8 @@ test("V5 Instrumenter preserves Huashu DOM classes and only adds editor/offline 
   assert.equal(validation.designOwner, "huashu-design");
   assert.deepEqual(validation.editorBoundary, {
     kind: "html-backed",
-    contractVersion: "5.3.2",
-    runtimeVersion: "5.3.2"
+    contractVersion: "5.4.0",
+    runtimeVersion: "5.4.0"
   });
 });
 
@@ -246,7 +246,7 @@ test("a V5 HTML-backed serializable chart saves without the legacy chart-mark co
   assert.doesNotMatch(withChart, /data-chart-mark/);
   await writeFile(artifactPath, withChart, "utf8");
 
-  const version = await finalizeVariant(projectDir, variantId, { message: "V5.3.2 serializable chart" });
+  const version = await finalizeVariant(projectDir, variantId, { message: "V5.4.0 serializable chart" });
 
   assert.equal(version.variantId, variantId);
   assert.match(await readFile(path.join(projectDir, "versions", version.versionId, "artifact.html"), "utf8"), /data-chart-id="decision-bars"/);

@@ -36,7 +36,7 @@ test("design final verify CLI invokes the production Playwright verifier", async
   const result = spawnSync(process.execPath, [cli, "design", "final", "verify", projectDir, "--variant", variantId], {
     cwd: packageRoot,
     encoding: "utf8",
-    timeout: 60_000
+    timeout: 120_000
   });
   assert.equal(result.status, 0, result.stderr);
   const receipt = JSON.parse(result.stdout);

@@ -1,4 +1,4 @@
-# V5.3.2 Audit and Instrumenter Contract
+# V5.4.0 Audit and Instrumenter Contract
 
 ## Read-only audit
 
@@ -6,7 +6,7 @@
 
 Before artifact creation, the auditor checks candidate lineage, Source Pack hash, interview hash, content binding hash, visible numeric fidelity, units, dates, ranges, qualifications, source references, substantive coverage, registered resources, and offline script safety.
 
-For V5.3.2 finals, the auditor also checks Huashu's per-image `sourceAssetDecisions`. It does not decide that every source image must appear. It rejects missing decisions, high-value images marked for non-use, original-image claims that do not render the Source Pack bytes, and redraw claims that are not connected to a visible source-bound visualization.
+For V5.4.0 finals, the auditor also checks Huashu's per-image `sourceAssetDecisions`. It does not decide that every source image must appear. It rejects missing decisions, high-value images marked for non-use, original-image claims that do not render the Source Pack bytes, and redraw claims that are not connected to a visible source-bound visualization.
 
 Coverage validation distinguishes presentation from storage: every bound `data-content-id` must be statically visible, the final site expands every declared focus entity and facet, and a bulk raw-source appendix is rejected unless the user explicitly requested it. Passing source-reference counts or binding them to hidden nodes is not content completeness.
 

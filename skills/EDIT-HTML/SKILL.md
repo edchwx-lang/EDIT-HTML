@@ -1,12 +1,12 @@
 ---
 name: EDIT-HTML
-version: 5.3.2
+version: 5.4.0
 description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT into a source-closed, Huashu-designed, editable and versioned offline HTML report; gathering content priorities; comparing executable design samples; auditing provenance; opening the visible editor; restoring versions; or publishing artifacts.
 ---
 
-# EDIT-HTML V5.3.2
+# EDIT-HTML V5.4.0
 
-V5.3.2 keeps the attested Huashu design gate, adds explicit source-image judgment, and fixes the HTML-backed editor save path:
+V5.4.0 is a compatibility hardening release on top of V5.3.2. It keeps the attested Huashu design gate, explicit source-image judgment, and HTML-backed editor save path unchanged while improving cross-agent and Windows/macOS execution:
 
 ```text
 EDIT-HTML extracts facts and assets
@@ -14,16 +14,20 @@ EDIT-HTML extracts facts and assets
 -> Huashu owns content strategy and the complete website
 -> EDIT-HTML audits and instruments without redesigning
 -> artifact.html
--> the V5.3.2 HTML editor/version/publication system
+-> the V5.4.0 HTML editor/version/publication system
 ```
 
 Huashu owns everything between the Source Pack and finished website. Never create an editorial report model, display mode, page order, component plan, chart plan, primitive tree, layout grammar, or fixed-renderer input before invoking Huashu.
 
 ## Installation authority
 
-From the intended merged V5.3 repository, run only `npm run install:local`. The installer prints and validates the explicit source root, runs `npm test` before changing the global npm package or Codex Skill, rejects a 4.0.0 checkout, and verifies the shim, package, Skill, runtime, source hashes, and `doctor --json` result after installation.
+From the intended merged V5.4 repository, run only `npm run install:local`. The installer prints and validates the explicit source root, runs `npm test` before changing the global npm package or Codex Skill, rejects a 4.0.0 checkout, and verifies the shim, package, Skill, runtime, source hashes, and `doctor --json` result after installation.
 
-The merged V5.3 branch is the installation authority. Archive an older worktree only after every dirty change is committed and merged. Never delete uncommitted files as repository cleanup.
+The merged V5.4 branch is the installation authority. Archive an older worktree only after every dirty change is committed and merged. Never delete uncommitted files as repository cleanup.
+
+## Agent compatibility
+
+The workflow is agent-neutral only when the agent can satisfy the same execution contract. Codex, Claude Code, Workbuddy, or another local coding agent must be able to run shell commands, read and write the local project, preserve receipt files, open or report the authenticated local editor URL, and access the real `huashu-design/SKILL.md` used by `design huashu begin`. Do not replace this with an agent-authored design step or a simulated receipt.
 
 ## Run the workflow
 
@@ -55,7 +59,7 @@ The merged V5.3 branch is the installation authority. Archive an older worktree 
 - `content-bindings.json` proves traceability and coverage only; it never tells Huashu how to design.
 - Every visible number and substantive claim binds to Source Pack facts and source locations.
 - Huashu owns the actual DOM, CSS, local JavaScript, chart behavior, interaction semantics, responsiveness, and visual language.
-- `owner: huashu-design` is not evidence. V5.3.2 candidate and final imports require a dedicated Huashu execution receipt; a package created outside that begin/attest boundary is rejected.
+- `owner: huashu-design` is not evidence. V5.4.0 candidate and final imports require a dedicated Huashu execution receipt; a package created outside that begin/attest boundary is rejected.
 - Source images are not mandatory by count. Huashu decides their content value and treatment; the audit checks that every decision is explicit and executed consistently, without replacing design judgment with a blanket image quota.
 - Audit failures stop output and return diagnostics; audit must not modify the site.
 - Candidate confirmation requires a current review set and a user selection receipt; general agent autonomy cannot override this gate.

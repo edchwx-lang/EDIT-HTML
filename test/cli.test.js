@@ -172,12 +172,12 @@ test("CLI doctor reports version authority and project runtime diagnostics", asy
 
   assert.equal(result.status, 0, result.stderr);
   const doctor = JSON.parse(result.stdout);
-  assert.equal(doctor.toolVersion, "5.3.2");
-  assert.equal(doctor.pipelineVersion, "5.3.2");
-  assert.equal(doctor.artifactContractVersion, "5.3.2");
-  assert.equal(doctor.editorRuntimeVersion, "5.3.2");
-  assert.equal(doctor.executablePath, path.resolve(cli));
-  assert.equal(doctor.packageRoot, root);
+  assert.equal(doctor.toolVersion, "5.4.0");
+  assert.equal(doctor.pipelineVersion, "5.4.0");
+  assert.equal(doctor.artifactContractVersion, "5.4.0");
+  assert.equal(doctor.editorRuntimeVersion, "5.4.0");
+  assert.equal(normalizePathForComparison(doctor.executablePath), normalizePathForComparison(cli));
+  assert.equal(normalizePathForComparison(doctor.packageRoot), normalizePathForComparison(root));
   assert.equal(doctor.runtimeStatus, "current");
   assert.equal(doctor.warnings.includes("resolved edit-html-report command points to another checkout"), false);
 });
@@ -227,7 +227,7 @@ test("doctor warns when the resolved command shim points to another checkout", a
   const otherCheckout = await diagnoseInstallation({ packageRoot: root, executablePath: cli, commandSourcePath: resolved });
   const currentCheckout = await diagnoseInstallation({ packageRoot: root, executablePath: cli, commandSourcePath: cli });
 
-  assert.equal(resolved, path.resolve(otherEntry));
+  assert.equal(normalizePathForComparison(resolved), normalizePathForComparison(otherEntry));
   assert.ok(otherCheckout.warnings.includes("resolved edit-html-report command points to another checkout"));
   assert.equal(currentCheckout.warnings.includes("resolved edit-html-report command points to another checkout"), false);
 });
@@ -322,7 +322,7 @@ test("CLI editor open refreshes a stale runtime without altering variants, versi
   });
 
   assert.equal(opened.status, 0, opened.stderr);
-  assert.equal(JSON.parse(await readFile(manifestPath, "utf8")).runtimeVersion, "5.3.2");
+  assert.equal(JSON.parse(await readFile(manifestPath, "utf8")).runtimeVersion, "5.4.0");
   const after = JSON.parse(await readFile(projectPath, "utf8"));
   assert.deepEqual(after.variants, before.variants);
   assert.deepEqual(after.versions, before.versions);
@@ -490,4 +490,13 @@ async function writeNpmCmdShim(shimDir, entryPath) {
     `@ECHO off\r\nSET dp0=%~dp0\r\nnode "%dp0%\\${relativeEntry}" %*\r\n`,
     "utf8"
   );
+}
+
+function normalizePathForComparison(value) {
+  let resolved = path.resolve(value);
+  if (process.platform === "win32") resolved = resolved.toLowerCase();
+  if (process.platform === "darwin" && resolved.startsWith("/private/var/")) {
+    resolved = resolved.replace(/^\/private\/var\//, "/var/");
+  }
+  return resolved;
 }

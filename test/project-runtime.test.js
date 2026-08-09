@@ -34,7 +34,7 @@ test("runtime refresh atomically replaces a stale runtime without changing proje
   assert.equal(refreshed.oldRuntimeHash, "old-runtime-hash");
   assert.equal(refreshed.newRuntimeHash, manifest.sourceSha256);
   assert.notEqual(refreshed.newRuntimeHash, refreshed.oldRuntimeHash);
-  assert.equal(manifest.runtimeVersion, "5.3.2");
+  assert.equal(manifest.runtimeVersion, "5.4.0");
   assert.equal(path.isAbsolute(manifest.sourcePackageRoot), true);
   assert.match(manifest.sourceSha256, /^[a-f0-9]{64}$/);
   await assert.rejects(readFile(path.join(projectDir, ".editor-runtime", "obsolete-runtime-file.js")));
@@ -79,7 +79,7 @@ test("runtime promotion reports both promotion and rollback failures with recove
   let renameCount = 0;
 
   await assert.rejects(
-    () => replaceRuntimeDirectory("C:\\project", "C:\\project\\staging", {
+    () => replaceRuntimeDirectory(path.join(sandboxProjectRoot(), "project"), path.join(sandboxProjectRoot(), "project", "staging"), {
       rename: async () => {
         renameCount += 1;
         if (renameCount === 2) throw promotionError;
@@ -90,10 +90,14 @@ test("runtime promotion reports both promotion and rollback failures with recove
     (error) => {
       assert.equal(error instanceof AggregateError, true);
       assert.deepEqual(error.errors, [promotionError, rollbackError]);
-      assert.equal(error.recovery.runtimeRoot, path.resolve("C:\\project", ".editor-runtime"));
+      assert.equal(error.recovery.runtimeRoot, path.join(sandboxProjectRoot(), "project", ".editor-runtime"));
       assert.match(error.recovery.backupRoot, /\.previous$/);
-      assert.equal(error.recovery.stagingRoot, path.resolve("C:\\project\\staging"));
+      assert.equal(error.recovery.stagingRoot, path.join(sandboxProjectRoot(), "project", "staging"));
       return true;
     }
   );
 });
+
+function sandboxProjectRoot() {
+  return path.join(os.tmpdir(), "edit-html-report-runtime-promotion");
+}

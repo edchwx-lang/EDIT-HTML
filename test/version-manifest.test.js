@@ -16,11 +16,12 @@ import { listThemes } from "../src/themes.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("V5.3.2 patches source-image judgment and the HTML-backed editor save path", async () => {
-  assert.equal(TOOL_VERSION, "5.3.2");
-  assert.equal(PIPELINE_VERSION, "5.3.2");
-  assert.equal(ARTIFACT_CONTRACT_VERSION, "5.3.2");
-  assert.equal(EDITOR_RUNTIME_VERSION, "5.3.2");
+test("V5.4.0 keeps V5.3.2 behavior and hardens cross-agent and cross-OS compatibility", async () => {
+  assert.equal(TOOL_VERSION, "5.4.0");
+  assert.equal(PIPELINE_VERSION, "5.4.0");
+  assert.equal(ARTIFACT_CONTRACT_VERSION, "5.4.0");
+  assert.equal(EDITOR_RUNTIME_VERSION, "5.4.0");
+  assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.4.0"), true);
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.3.2"), true);
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.3.0"), true);
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.2.1"), true);

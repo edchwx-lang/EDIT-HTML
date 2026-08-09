@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://edit-html-report.local/schemas/v5-design-process.schema.json",
-  "title": "Huashu V5.3.2 Design Process",
+  "title": "Huashu V5.4.0 Design Process",
   "type": "object",
   "required": ["schemaVersion", "owner", "candidateId", "narrativeArchitecture", "visualizationModules", "coreInteraction"],
   "properties": {

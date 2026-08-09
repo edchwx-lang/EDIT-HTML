@@ -2,7 +2,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$SourceRoot,
-  [string]$SkillRoot = (Join-Path $env:USERPROFILE ".codex\skills"),
+  [string]$SkillRoot,
   [string]$NpmCommand = "npm",
   [string]$NodeCommand = "node",
   [string]$GlobalPrefix,
@@ -12,6 +12,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $resolvedSourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path
+$profileRoot = if ($env:USERPROFILE) { $env:USERPROFILE } elseif ($env:HOME) { $env:HOME } else { $null }
+if (-not $SkillRoot) {
+  if (-not $profileRoot) {
+    throw "Unable to resolve default SkillRoot because neither USERPROFILE nor HOME is set"
+  }
+  $SkillRoot = Join-Path (Join-Path $profileRoot ".codex") "skills"
+}
 $packagePath = Join-Path $resolvedSourceRoot "package.json"
 $skillSource = Join-Path $resolvedSourceRoot "skills\EDIT-HTML"
 $verificationScript = Join-Path $resolvedSourceRoot "scripts\verify-installation.mjs"

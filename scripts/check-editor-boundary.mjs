@@ -8,11 +8,15 @@ export async function verifyEditorBoundary(root) {
   const mismatches = [];
   for (const [relative, expected] of Object.entries(lock.files)) {
     const actual = createHash("sha256")
-      .update(await readFile(path.join(root, relative)))
+      .update(normalizeTextBytes(await readFile(path.join(root, relative))))
       .digest("hex");
     if (actual !== expected) mismatches.push(`${relative}: expected ${expected}, got ${actual}`);
   }
   return { ok: mismatches.length === 0, checked: Object.keys(lock.files).length, mismatches };
+}
+
+function normalizeTextBytes(bytes) {
+  return Buffer.from(bytes.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

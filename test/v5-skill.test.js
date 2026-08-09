@@ -4,11 +4,11 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("published skill documents the V5.3.2 attested Huashu-owned production boundary", async () => {
+test("published skill documents the V5.4.0 attested Huashu-owned production boundary", async () => {
   const skill = await readFile(new URL("skills/EDIT-HTML/SKILL.md", root), "utf8");
   const agent = await readFile(new URL("skills/EDIT-HTML/agents/openai.yaml", root), "utf8");
 
-  assert.match(skill, /EDIT-HTML V5\.3\.2/);
+  assert.match(skill, /EDIT-HTML V5\.4\.0/);
   assert.match(skill, /design huashu begin/);
   assert.match(skill, /design huashu attest/);
   assert.match(skill, /owner: huashu-design.+not evidence/is);
@@ -33,7 +33,7 @@ test("published skill documents the V5.3.2 attested Huashu-owned production boun
   assert.doesNotMatch(skill, /data-first.*evidence-first|evidence-first.*data-first/is);
   assert.doesNotMatch(skill, /confirm the design and theme|确认设计与配色/i);
 
-  assert.match(agent, /V5\.3\.2/);
+  assert.match(agent, /V5\.4\.0/);
   assert.match(agent, /Huashu/i);
   assert.doesNotMatch(agent, /V4\.[0-9]/);
 });

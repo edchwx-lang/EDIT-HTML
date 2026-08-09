@@ -44,7 +44,7 @@ async function fixture(t, { reference = false, version = "5.1.0" } = {}) {
   await createV5Project(source, project);
   const variant = await createV5Variant(project, {});
   if (version !== "5.2.1") await setProjectVersion(project, variant.variantId, version);
-  const receiptGated = ["5.1.1", "5.2.0", "5.2.1", "5.3.0", "5.3.1", "5.3.2"].includes(version);
+  const receiptGated = ["5.1.1", "5.2.0", "5.2.1", "5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(version);
   const interview = {
     schemaVersion: receiptGated ? 3 : 2,
     variantId: variant.variantId,
@@ -208,7 +208,7 @@ async function writeV511Site(root, project, variantId, {
     "warm-paper-terracotta": "--report-canvas:#F5F0E8;--report-surface:#FFFDFC;--report-text:#191919;--report-text-muted:#6F675F;--report-border:#D8CEC1;--report-accent:#CC785C",
     "sandstone-archive": "--report-canvas:#EDE8E0;--report-surface:#F7F3ED;--report-text:#1A1A1A;--report-text-muted:#5A5A5A;--report-border:#B8B0A4;--report-accent:#8A8178"
   }[previewThemeId];
-  const previewStyle = ["5.3.1", "5.3.2"].includes(variant.packageVersion) ? `<style data-preview-theme="${previewThemeId}">:root{${previewStyles}}</style>` : "";
+  const previewStyle = ["5.3.1", "5.3.2", "5.4.0"].includes(variant.packageVersion) ? `<style data-preview-theme="${previewThemeId}">:root{${previewStyles}}</style>` : "";
   await writeFile(path.join(directory, "index.html"), `<!doctype html><html><head>${previewStyle}<link rel="stylesheet" href="styles/site.css"></head><body>${bodyByStructure[structure]}</body><script src="scripts/site.js"></script></html>`, "utf8");
   await writeFile(path.join(directory, "styles", "site.css"), `body{color:var(--report-text);background:var(--report-canvas)}.${marker}{border-color:var(--report-border)}`, "utf8");
   await writeFile(path.join(directory, "scripts", "site.js"), "document.documentElement.dataset.ready='true'", "utf8");
@@ -244,7 +244,7 @@ async function writeV511Site(root, project, variantId, {
       { id: "focus", title: "Focus evidence", category: "focus", type: focusType, selector: `.focus-${marker}`, sourceRefs: [sourceId] }
     ],
     coreInteraction: { type: interactionType, selector: `.interact-${marker}`, event: "click", description: "Switches the representative focus state" }
-    ,...(["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate" ? {
+    ,...(["5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(variant.packageVersion) && kind === "candidate" ? {
       sampleScope: {
         firstViewportSelector: "body",
         focusModuleSelector: `.focus-${marker}`,
@@ -257,7 +257,7 @@ async function writeV511Site(root, project, variantId, {
   await writeFile(path.join(directory, "screenshots", "desktop.png"), tinyPng("desktop-" + marker));
   await writeFile(path.join(directory, "screenshots", "mobile.png"), tinyPng("mobile-" + marker));
   const projectJson = JSON.parse(await readFile(path.join(project, "project.json"), "utf8"));
-  if (["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate") {
+  if (["5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(variant.packageVersion) && kind === "candidate") {
     await writeFile(path.join(directory, "screenshots", "desktop.png"), reviewPng(marker, previewThemeId));
     await rm(path.join(directory, "screenshots", "mobile.png"));
   }
@@ -278,7 +278,7 @@ async function writeV511Site(root, project, variantId, {
     outputSha256: payloadSha256,
     screenshotSourceSha256: payloadSha256,
     designProcessSha256: createHash("sha256").update(designProcessText).digest("hex"),
-    ...(["5.3.0", "5.3.1", "5.3.2"].includes(variant.packageVersion) && kind === "candidate" ? {
+    ...(["5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(variant.packageVersion) && kind === "candidate" ? {
       sampleScope: {
         firstViewportSelector: "body",
         focusModuleSelector: `.focus-${marker}`,

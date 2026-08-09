@@ -23,9 +23,9 @@ test("V5 publishes source, interview, executable site, and content-binding schem
   assert.equal(interview.properties.answers.properties.structurePreference, undefined);
   assert.ok(interview.required.includes("decisionEvidence"));
   const sourcePack = JSON.parse(await readFile(path.join(root, "schemas", "v5-source-pack.schema.json"), "utf8"));
-  assert.deepEqual(sourcePack.properties.packageVersion.enum, ["5.3.0", "5.3.1", "5.3.2"]);
+  assert.deepEqual(sourcePack.properties.packageVersion.enum, ["5.3.0", "5.3.1", "5.3.2", "5.4.0"]);
   const siteManifest = JSON.parse(await readFile(path.join(root, "schemas", "v5-site-manifest.schema.json"), "utf8"));
-  assert.deepEqual(siteManifest.properties.packageVersion.enum, ["5.3.0", "5.3.1", "5.3.2"]);
+  assert.deepEqual(siteManifest.properties.packageVersion.enum, ["5.3.0", "5.3.1", "5.3.2", "5.4.0"]);
   assert.ok(siteManifest.required.includes("designProcessSha256"));
   const designProcess = JSON.parse(await readFile(path.join(root, "schemas", "v5-design-process.schema.json"), "utf8"));
   assert.ok(designProcess.properties.sourceAssetDecisions);

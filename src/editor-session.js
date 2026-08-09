@@ -60,7 +60,7 @@ export async function stopEditorSession(projectDir, { runtimeSha256 = undefined,
     ? await readRuntimeSha256(absoluteProjectDir)
     : runtimeSha256;
   if (!await sessionBelongsToProject(session, absoluteProjectDir, expectedRuntimeSha256)) {
-    await rm(sessionPath(absoluteProjectDir), { force: true });
+    await removeSessionFile(absoluteProjectDir);
     return { stopped: false, reason: "unverified-session" };
   }
   try {
@@ -75,13 +75,13 @@ export async function stopEditorSession(projectDir, { runtimeSha256 = undefined,
   const deadline = Date.now() + shutdownTimeoutMs;
   while (Date.now() < deadline) {
     if (await healthEndpointIsUnavailable(session)) {
-      await rm(sessionPath(absoluteProjectDir), { force: true });
+      await removeSessionFile(absoluteProjectDir);
       return { stopped: true, sessionId: session.sessionId };
     }
     await delay(50);
   }
   if (await healthEndpointIsUnavailable(session)) {
-    await rm(sessionPath(absoluteProjectDir), { force: true });
+    await removeSessionFile(absoluteProjectDir);
     return { stopped: true, sessionId: session.sessionId };
   }
   return { stopped: false, reason: "shutdown-timeout" };
@@ -147,7 +147,7 @@ async function discardSession(projectDir, session, runtimeSha256, shutdownTimeou
   if (session && await sessionBelongsToProject(session, projectDir, runtimeSha256)) {
     return stopEditorSession(projectDir, { runtimeSha256, shutdownTimeoutMs });
   } else {
-    await rm(sessionPath(projectDir), { force: true });
+    await removeSessionFile(projectDir);
     return { stopped: false, reason: "unverified-session" };
   }
 }
@@ -160,11 +160,31 @@ function sessionPath(projectDir) {
   return path.join(projectDir, ".runtime", "editor-session.json");
 }
 
+async function removeSessionFile(projectDir) {
+  const filePath = sessionPath(projectDir);
+  let lastError = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rm(filePath, { force: true });
+      return;
+    } catch (error) {
+      if (!["EPERM", "EBUSY", "ENOTEMPTY"].includes(error.code)) throw error;
+      lastError = error;
+      await delay(75);
+    }
+  }
+  throw lastError;
+}
+
 function samePath(left, right) {
   if (!left || !right) return false;
   const normalize = (value) => {
     const resolved = path.resolve(value);
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+    if (process.platform === "win32") return resolved.toLowerCase();
+    if (process.platform === "darwin" && resolved.startsWith("/private/var/")) {
+      return resolved.replace(/^\/private\/var\//, "/var/");
+    }
+    return resolved;
   };
   return normalize(left) === normalize(right);
 }

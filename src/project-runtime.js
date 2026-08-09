@@ -73,7 +73,7 @@ export function runtimeManifestIsCurrent(installed, expected) {
   return Boolean(installed) &&
     installed.runtimeVersion === expected.runtimeVersion &&
     installed.sourceSha256 === expected.sourceSha256 &&
-    samePath(installed.sourcePackageRoot, expected.sourcePackageRoot);
+    samePathSync(installed.sourcePackageRoot, expected.sourcePackageRoot);
 }
 
 async function writeRuntime(runtimeRoot, manifest) {
@@ -158,11 +158,15 @@ async function sourceRuntimeSha256() {
   return hash.digest("hex");
 }
 
-function samePath(left, right) {
+function samePathSync(left, right) {
   if (!left || !right) return false;
   const normalize = (value) => {
     const resolved = path.resolve(value);
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+    if (process.platform === "win32") return resolved.toLowerCase();
+    if (process.platform === "darwin" && resolved.startsWith("/private/var/")) {
+      return resolved.replace(/^\/private\/var\//, "/var/");
+    }
+    return resolved;
   };
   return normalize(left) === normalize(right);
 }

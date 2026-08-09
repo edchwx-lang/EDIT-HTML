@@ -12,14 +12,15 @@ export const V521_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].fi
 export const V53_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.0");
 export const V531_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.1");
 export const V532_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.3.2");
+export const V54_PACKAGE_VERSION = [...SUPPORTED_ARTIFACT_CONTRACT_VERSIONS].find((version) => version === "5.4.0");
 
 const MEANINGFUL_VISUAL_TYPES = new Set(["chart", "matrix", "timeline", "comparison", "flow", "data-table", "annotated-image"]);
 const REQUIRED_VISUAL_CATEGORIES = new Set(["overview", "focus"]);
 
 export function requiresV511Gates(variant) {
   const workflowVersion = variant?.packageVersion ?? variant?.artifactContractVersion;
-  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(workflowVersion) ||
-    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(variant?.pipelineVersion);
+  return [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(workflowVersion) ||
+    [V511_PACKAGE_VERSION, V52_PACKAGE_VERSION, V521_PACKAGE_VERSION, V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(variant?.pipelineVersion);
 }
 
 export function isSupportedV5SitePackageVersion(version) {
@@ -37,7 +38,7 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind, pac
   const narrative = process.narrativeArchitecture;
   if (!narrative?.id || !narrative?.description) errors.push("design-process.json requires narrativeArchitecture id and description");
   const modules = process.visualizationModules;
-  const compactCandidate = expectedKind === "candidate" && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(packageVersion);
+  const compactCandidate = expectedKind === "candidate" && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(packageVersion);
   if (!Array.isArray(modules) || modules.length < (compactCandidate ? 1 : 2)) {
     errors.push(`design-process.json requires at least ${compactCandidate ? "one" : "two"} meaningful visualization module${compactCandidate ? "" : "s"}`);
   } else {
@@ -69,7 +70,7 @@ export async function validateV511DesignProcess(siteDir, html, expectedKind, pac
 
 export async function auditV511CandidateForReview(projectDir, candidate) {
   const html = await readFile(path.join(candidate.siteDir, "index.html"), "utf8");
-  const compactCandidate = [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(candidate.packageVersion);
+  const compactCandidate = [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(candidate.packageVersion);
   const [ledger, processResult, desktop] = await Promise.all([
     readJson(path.join(projectDir, "source-pack", "fact-ledger.json")),
     validateV511DesignProcess(candidate.siteDir, html, "candidate", candidate.packageVersion),
@@ -90,7 +91,7 @@ export async function auditV511CandidateForReview(projectDir, candidate) {
     if (compactCandidate && (desktopInfo.width !== 1440 || desktopInfo.height !== 900)) {
       errors.push(`${candidate.candidateId} candidate screenshot must be exactly 1440x900`);
     }
-    if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION].includes(candidate.packageVersion)) {
+    if ([V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(candidate.packageVersion)) {
       errors.push(...await auditPreviewThemeScreenshot(desktop, candidate.previewThemeId, candidate.candidateId));
     }
   }
@@ -164,7 +165,7 @@ export async function auditV511FinalSite(projectDir, finalSiteDir, selectedCandi
   }
   const rawAudit = auditRawSourceExposure(parse(html), ledger.facts ?? []);
   errors.push(...rawAudit.errors);
-  if (finalManifest.packageVersion === V532_PACKAGE_VERSION) {
+  if ([V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(finalManifest.packageVersion)) {
     errors.push(...await validateSourceAssetDecisions(projectDir, finalSiteDir, html, finalProcess.process));
   }
   if (errors.length) throw new Error(errors.join("; "));

@@ -25,7 +25,7 @@ export async function finalizeVariant(
   }
   const variant = normalizeVariantRecord(storedVariant);
   const huashuManifest = await readJsonMaybe(path.join(projectDir, "variants", variantId, "design", "package", "manifest.json"));
-  if (["5.3.0", "5.3.1", "5.3.2"].includes(huashuManifest?.packageVersion)) {
+  if (["5.3.0", "5.3.1", "5.3.2", "5.4.0"].includes(huashuManifest?.packageVersion)) {
     await requireFrozenHuashuOutput(projectDir, variantId, "final");
     await requireV5FinalVerification(projectDir, variantId);
   }

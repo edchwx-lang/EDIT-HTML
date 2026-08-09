@@ -1,6 +1,6 @@
 # Editor, Versions, and Publications
 
-V5.3.2 edits the instrumented Huashu artifact directly. V4 model-backed projects keep their revisioned model path.
+V5.4.0 edits the instrumented Huashu artifact directly. V4 model-backed projects keep their revisioned model path.
 
 ## Conversation handoff
 

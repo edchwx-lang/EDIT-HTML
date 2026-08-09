@@ -17,7 +17,7 @@ export async function diagnoseInstallation({ packageRoot, executablePath, comman
     bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "EDIT-HTML", "SKILL.md"))
   };
   const warnings = [];
-  if (!commandSourceBelongsToPackage(commandSourcePath, absolutePackageRoot)) {
+  if (!await commandSourceBelongsToPackage(commandSourcePath, absolutePackageRoot)) {
     warnings.push("resolved edit-html-report command points to another checkout");
   }
 
@@ -94,9 +94,9 @@ function expandShimTarget(target, shimPath) {
     .replace(/%~?dp0%?/gi, shimDirectory);
 }
 
-function commandSourceBelongsToPackage(commandSourcePath, packageRoot) {
+async function commandSourceBelongsToPackage(commandSourcePath, packageRoot) {
   if (!commandSourcePath) return true;
-  return samePath(path.dirname(path.dirname(commandSourcePath)), packageRoot);
+  return await samePath(path.dirname(path.dirname(commandSourcePath)), packageRoot);
 }
 
 async function resolvedPath(filePath) {
@@ -124,10 +124,24 @@ async function exists(filePath) {
   }
 }
 
-function samePath(left, right) {
-  const normalize = (value) => {
-    const resolved = path.resolve(value);
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-  };
-  return normalize(left) === normalize(right);
+async function samePath(left, right) {
+  const [normalizedLeft, normalizedRight] = await Promise.all([
+    normalizePathForComparison(left),
+    normalizePathForComparison(right)
+  ]);
+  return normalizedLeft === normalizedRight;
+}
+
+async function normalizePathForComparison(value) {
+  let resolved = path.resolve(value);
+  try {
+    resolved = await realpath(resolved);
+  } catch {
+    // Compare the resolved path when the target does not exist.
+  }
+  if (process.platform === "win32") return resolved.toLowerCase();
+  if (process.platform === "darwin" && resolved.startsWith("/private/var/")) {
+    return resolved.replace(/^\/private\/var\//, "/var/");
+  }
+  return resolved;
 }
