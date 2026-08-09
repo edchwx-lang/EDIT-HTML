@@ -494,9 +494,10 @@ test("CLI preserves V4 artifacts but rejects V4 regeneration", async (t) => {
 
 async function writeNpmCmdShim(shimDir, entryPath) {
   const relativeEntry = path.relative(shimDir, entryPath).split(path.sep).join("\\");
+  const shimTarget = path.isAbsolute(relativeEntry) ? entryPath : `%dp0%\\${relativeEntry}`;
   await writeFile(
     path.join(shimDir, "edit-html-report.cmd"),
-    `@ECHO off\r\nSET dp0=%~dp0\r\nnode "%dp0%\\${relativeEntry}" %*\r\n`,
+    `@ECHO off\r\nSET dp0=%~dp0\r\nnode "${shimTarget}" %*\r\n`,
     "utf8"
   );
 }
