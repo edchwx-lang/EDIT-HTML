@@ -1,61 +1,78 @@
 # EDIT-HTML
 
-EDIT-HTML is a source-closed workflow for turning DOCX, PDF, PPTX, Markdown, HTML, or TXT material into a Huashu-designed, editable, versioned offline HTML report.
+[English](README.md) | [中文](README.zh-CN.md)
 
-EDIT-HTML 是一个“材料闭环”的网页报告生产流程：把 DOCX、PDF、PPTX、Markdown、HTML 或 TXT 转成由花叔 Design 负责设计、可编辑、可保存版本、可本地发布的 HTML 报告。
+EDIT-HTML turns research material into a Huashu-designed, source-closed, editable HTML report.
 
-## V5.4.0 focus
+It is built for local agents that need to convert DOCX, PDF, PPTX, Markdown, HTML, or TXT into a polished web report without losing provenance, design control, editability, version history, or publication output.
 
-- Keeps the V5.3.2 production workflow unchanged.
-- Huashu owns the actual website design: layout, DOM, CSS, interaction, visualization, responsiveness, and narrative structure.
-- EDIT-HTML owns extraction, provenance, audit, instrumentation, editor runtime, versioning, and publication.
-- Candidate selection remains explicit: the user must choose A/B/C before final production.
-- Source images are judged, not blindly copied. High-value evidence images should be used or redrawn; low-value or repetitive images may be omitted.
-- The editor saves immutable versions and local publications.
-- V5.4.0 hardens compatibility for Claude Code / Workbuddy style agents and Windows/macOS clean environments.
+## Why this skill exists
 
-## V5.4.0 重点
+Most document-to-web workflows fail in one of two ways:
 
-- 不改变 V5.3.2 的生产流程。
-- 花叔 Design 拥有真实网页设计权：布局、DOM、CSS、交互、可视化、响应式和叙事结构。
-- EDIT-HTML 负责材料提取、溯源、审计、HTML 注入、编辑器运行时、版本保存和发布。
-- 候选方向必须由用户明确选择 A/B/C，不能由模型自动确认。
-- 原图使用需要判断，不按数量搬运。高价值证据图应使用或重绘，低价值、重复或装饰性图片可省略。
-- 编辑器保存的是不可变版本，本地发布会生成独立 publication 文件夹。
-- V5.4.0 加固 Claude Code / Workbuddy 类 agent 以及 Windows/macOS clean 环境兼容性。
+- they preserve facts but produce generic model-designed pages;
+- or they produce attractive pages while losing source traceability and edit/publish safety.
 
-## Workflow / 流程
+EDIT-HTML separates those responsibilities:
+
+- Huashu owns the actual design: narrative structure, layout, DOM, CSS, interaction, visualization, responsive behavior, and design taste.
+- EDIT-HTML owns extraction, receipts, provenance, audit gates, instrumentation, editor runtime, immutable versions, and publication.
+
+The result is a report that can be inspected, edited, saved, restored, and published after generation.
+
+## Main workflow
 
 ```mermaid
 flowchart TD
-  A["Source material<br/>原始材料"] --> B["Source Pack<br/>文本、图片、来源、事实表"]
-  B --> C["Content interview<br/>用途、重点、必要澄清"]
-  C --> D["Huashu candidates<br/>A / B / C 三个可执行样例"]
-  D --> E["User selection<br/>用户选择方向"]
-  E --> F["Huashu final website<br/>完整网页设计"]
-  F --> G["EDIT-HTML audit<br/>事实、覆盖、图片决策、边界"]
-  G --> H["artifact.html<br/>可编辑 HTML"]
-  H --> I["Editor<br/>编辑、保存版本、发布"]
-  I --> J["Local publication folder<br/>publications/<id>/report.html"]
+  A["Source file<br/>DOCX / PDF / PPTX / MD / HTML / TXT"] --> B["Source Pack<br/>facts, assets, source map, warnings"]
+  B --> C["Content interview<br/>purpose + content weight + required clarification"]
+  C --> D["Huashu candidate gate<br/>3 executable samples"]
+  D --> E["User selects A / B / C"]
+  E --> F["Huashu final site<br/>complete HTML website"]
+  F --> G["EDIT-HTML audit<br/>coverage, provenance, image decisions, runtime safety"]
+  G --> H["Instrumentation<br/>editable text, blocks, images, charts"]
+  H --> I["Visible editor<br/>edit, theme switch, save version"]
+  I --> J["Publication<br/>local folder or deployment provider"]
 ```
 
-Example from the “报告中转站” test material:
+The important rule is simple: Huashu designs the website; EDIT-HTML verifies and instruments it without redesigning it.
 
-```mermaid
-flowchart LR
-  W["Word report<br/>全球顶尖科学家正在向哪儿搬家？"] --> S["Source Pack"]
-  S --> H["Huashu-designed web report"]
-  H --> P["Local publication<br/>report.html"]
+## What makes EDIT-HTML different
 
-  subgraph Evidence["Evidence blocks / 证据模块"]
-    B["北京 450 人"]
-    L["伦敦 573 人"]
-    C["城市流动与科研人才迁移"]
-  end
+### Huashu-first design gate
 
-  S --> Evidence
-  Evidence --> H
-```
+The workflow does not let the model silently invent the final report layout. Huashu must be invoked before candidate generation and again before final site generation. Candidate and final packages require execution receipts tied to the Huashu skill hash, input receipt, challenge, and output hash.
+
+### Source-closed reporting
+
+Every substantive visible claim is bound back to the Source Pack. Titles, grouping, hierarchy, compression, and explanation may change, but facts, numbers, units, time ranges, qualifications, and relationships may not.
+
+### Explicit image judgment
+
+Source images are not copied blindly. Huashu must decide whether each source image should be used as original evidence, redrawn, referenced only, or omitted. This keeps strong source visuals while avoiding decorative or repetitive image dumping.
+
+### Editable HTML output
+
+The final artifact is not a static screenshot. The editor exposes scoped actions for:
+
+- text editing;
+- block movement, duplication, and deletion;
+- image replacement;
+- serializable chart data editing.
+
+Palette changes update the current iframe in place, and the instrumenter preserves Huashu's DOM hierarchy, geometry, typography, charts, and interactions.
+
+### Versioning and publishing
+
+Saving creates immutable internal versions. Publishing works from saved versions only and produces recoverable publication records:
+
+- local publish creates `publications/<publication-id>/report.html`;
+- domain publish can use deployment providers when credentials are available;
+- the editor can reveal the local publication folder directly.
+
+### Agent and OS compatibility
+
+V5.4 keeps the V5.3.2 production flow while hardening execution across Codex, Claude Code, Workbuddy-style agents, Windows, and macOS. An agent must be able to run local shell commands, preserve receipt files, read/write the project, access the real `huashu-design/SKILL.md`, and report or open the authenticated editor URL.
 
 ## Install
 
@@ -64,9 +81,7 @@ npm install
 npm run install:local
 ```
 
-The npm package and CLI command remain `edit-html-report` for compatibility. The Skill name is `EDIT-HTML`.
-
-为保持兼容，npm 包名和 CLI 命令仍为 `edit-html-report`；Skill 名称为 `EDIT-HTML`。
+The npm package and CLI remain `edit-html-report` for compatibility. The Codex skill name is `EDIT-HTML`.
 
 ## Basic usage
 
@@ -76,27 +91,28 @@ edit-html-report create "input.docx" --out "my-report"
 edit-html-report variant create "my-report"
 ```
 
-Then follow the V5.4.0 Skill workflow:
+Then follow the V5.4 flow:
 
-1. Inspect the Source Pack and warnings.
-2. Ask only content questions: purpose, content weight, and necessary clarification.
-3. Start the Huashu candidate stage.
-4. Show A/B/C screenshots and wait for user selection.
-5. Start the Huashu final stage from the selected candidate.
-6. Import, verify, render, validate, and open the editor.
-7. Save a version, publish locally, and open the local publication folder.
+1. inspect the Source Pack and extraction warnings;
+2. record the content interview;
+3. prepare the Huashu design input;
+4. generate three executable candidates;
+5. show exactly one desktop screenshot per candidate;
+6. wait for the user's A/B/C selection;
+7. generate the final Huashu site from the selected candidate;
+8. import, verify, render, validate, and open the editor;
+9. save a version and publish when ready.
 
-## Agent compatibility
+## Useful commands
 
-Claude Code, Workbuddy, Codex, or another local agent can run the workflow only if it can execute local shell commands, read and write local files, preserve receipt files, access the real `huashu-design/SKILL.md`, and open or report the authenticated local editor URL.
-
-The agent must not replace Huashu with its own design step, simulate a receipt, or skip user A/B/C selection.
-
-## Boundaries / 边界
-
-EDIT-HTML must not redesign Huashu output during audit or instrumentation. Audit failures are diagnostics; they do not authorize silent layout, wording, chart, or interaction rewrites.
-
-EDIT-HTML 在审计和注入阶段不能重写花叔 Design 的设计输出。审计失败只能返回诊断，不能静默修改布局、文案、图表或交互。
+```powershell
+edit-html-report design candidate review prepare "my-report" --variant "<variant-id>"
+edit-html-report design candidate confirm "my-report" --variant "<variant-id>" --candidate "<candidate-id>" --receipt "selection-receipt.json"
+edit-html-report design final verify "my-report" --variant "<variant-id>"
+edit-html-report render "my-report" --variant "<variant-id>"
+edit-html-report validate "my-report" --variant "<variant-id>"
+edit-html-report editor open "my-report" --variant "<variant-id>"
+```
 
 ## Validation
 
@@ -106,3 +122,22 @@ npm test
 npm run test:e2e
 npm pack --dry-run
 ```
+
+## Six switchable palettes
+
+The editor ships with six accessible report palettes. The previews below use the same report structure with different theme tokens.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme/palettes/warm-paper-terracotta.png" alt="Warm Paper Terracotta theme preview"><br><sub>Warm Paper Terracotta</sub></td>
+    <td width="50%"><img src="docs/readme/palettes/precision-blueprint.png" alt="Precision Blueprint theme preview"><br><sub>Precision Blueprint</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme/palettes/sandstone-archive.png" alt="Sandstone Archive theme preview"><br><sub>Sandstone Archive</sub></td>
+    <td width="50%"><img src="docs/readme/palettes/deep-data-blue.png" alt="Deep Data Blue theme preview"><br><sub>Deep Data Blue</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme/palettes/institutional-navy-gold.png" alt="Institutional Navy Gold theme preview"><br><sub>Institutional Navy Gold</sub></td>
+    <td width="50%"><img src="docs/readme/palettes/signal-orange.png" alt="Signal Orange theme preview"><br><sub>Signal Orange</sub></td>
+  </tr>
+</table>
