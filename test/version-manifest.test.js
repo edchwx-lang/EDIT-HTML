@@ -12,11 +12,14 @@ import {
   TOOL_VERSION
 } from "../src/version-manifest.js";
 import { renderEditorShell } from "../src/editor-shell.js";
+import { DESIGN_PIPELINE_VERSION, RELEASE_VERSION } from "../src/release-manifest.js";
 import { listThemes } from "../src/themes.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("V5.4.0 keeps V5.3.2 behavior and hardens cross-agent and cross-OS compatibility", async () => {
+test("V5.4.1 release keeps the V5.4.0 artifact and editor boundary", async () => {
+  assert.equal(RELEASE_VERSION, "5.4.1");
+  assert.equal(DESIGN_PIPELINE_VERSION, "5.4.1");
   assert.equal(TOOL_VERSION, "5.4.0");
   assert.equal(PIPELINE_VERSION, "5.4.0");
   assert.equal(ARTIFACT_CONTRACT_VERSION, "5.4.0");
@@ -25,7 +28,7 @@ test("V5.4.0 keeps V5.3.2 behavior and hardens cross-agent and cross-OS compatib
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.3.2"), true);
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.3.0"), true);
   assert.equal(SUPPORTED_ARTIFACT_CONTRACT_VERSIONS.has("5.2.1"), true);
-  assert.equal(JSON.parse(await readFile(path.join(root, "package.json"), "utf8")).version, TOOL_VERSION);
+  assert.equal(JSON.parse(await readFile(path.join(root, "package.json"), "utf8")).version, RELEASE_VERSION);
 });
 
 test("editor shell displays the authoritative tool version", () => {

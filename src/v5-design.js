@@ -244,7 +244,7 @@ export async function getV5FinalStatus(projectDir, variantId) {
   };
 }
 
-async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
+export async function validateV5Site(projectDir, variantId, siteDir, expectedKind) {
   const provisionalManifest = await readJson(path.join(siteDir, "manifest.json"));
   const compactCandidate = expectedKind === "candidate" && [V53_PACKAGE_VERSION, V531_PACKAGE_VERSION, V532_PACKAGE_VERSION, V54_PACKAGE_VERSION].includes(provisionalManifest.packageVersion);
   const requiredFiles = compactCandidate

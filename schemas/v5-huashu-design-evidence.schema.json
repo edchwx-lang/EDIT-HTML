@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edit-html.local/schemas/v5-huashu-design-evidence.schema.json",
+  "title": "EDIT-HTML V5.4.1 Huashu design evidence",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "contentAuthority", "designAuthority", "interviewSha256", "strategy", "sourceImages", "selfCritique"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "contentAuthority": { "const": "user" },
+    "designAuthority": { "const": "huashu-design" },
+    "interviewSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "strategy": {
+      "type": "object",
+      "required": ["id", "rationale", "domApproach", "visualizationApproach", "interactionApproach"],
+      "properties": {
+        "id": { "enum": ["systematic-analysis", "real-world-benchmark", "authorial"] },
+        "rationale": { "type": "string", "minLength": 12 },
+        "domApproach": { "type": "string", "minLength": 8 },
+        "visualizationApproach": { "type": "string", "minLength": 8 },
+        "interactionApproach": { "type": "string", "minLength": 8 }
+      }
+    },
+    "sourceImages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourceId", "assetPath", "visualDescription", "contentRole", "informationLoss", "value", "treatment", "rationale"],
+        "properties": {
+          "sourceId": { "type": "string", "minLength": 1 },
+          "assetPath": { "type": "string", "minLength": 1 },
+          "visualDescription": { "type": "string", "minLength": 12 },
+          "contentRole": { "enum": ["evidence", "technical-explanation", "regional-case", "context", "decorative"] },
+          "informationLoss": { "enum": ["high", "medium", "low"] },
+          "value": { "enum": ["high", "medium", "low"] },
+          "treatment": { "enum": ["use-original", "redraw", "reference-only", "omit"] },
+          "rationale": { "type": "string", "minLength": 12 },
+          "sourceBinding": { "type": "string" },
+          "candidateValue": { "enum": ["high", "medium", "low"] },
+          "valueChangeRationale": { "type": "string", "minLength": 12 }
+        }
+      }
+    },
+    "selfCritique": {
+      "type": "object",
+      "required": ["score", "strengths", "risks"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "strengths": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "risks": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    }
+  }
+}

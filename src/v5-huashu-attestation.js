@@ -50,6 +50,16 @@ export async function attestHuashuDesignOutput(projectDir, variantId, kind, sour
   assertKind(kind);
   const invocation = await readInvocation(projectDir, variantId, kind);
   const manifest = JSON.parse(await readFile(path.join(sourceDir, "manifest.json"), "utf8"));
+  const variant = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "variant.json"), "utf8"));
+  if (variant.releaseVersion === "5.4.1" && variant.pipelineVersion === "5.4.1") {
+    const preflight = await import("./v5-design-preflight.js");
+    const result = kind === "candidate"
+      ? await preflight.preflightV5CandidateSet(projectDir, variantId, path.dirname(sourceDir))
+      : await preflight.preflightV5FinalSite(projectDir, variantId, sourceDir);
+    if (!result.valid) {
+      throw new Error(`Huashu ${kind} attestation requires a successful V5.4.1 preflight: ${result.errors.map((item) => item.message).join("; ")}`);
+    }
+  }
   if (manifest.kind !== kind) throw new Error(`Huashu ${kind} attestation cannot seal a ${manifest.kind ?? "unknown"} package`);
   const outputSha256 = await hashSitePayload(sourceDir);
   if (manifest.payloadSha256 !== outputSha256 || manifest.outputSha256 !== outputSha256) {

@@ -42,6 +42,7 @@ import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
 import { verifyV5FinalSite } from "../src/v5-final-verification.js";
 import { attestHuashuDesignOutput, beginHuashuDesign } from "../src/v5-huashu-attestation.js";
+import { preflightV5CandidateSet, preflightV5FinalSite } from "../src/v5-design-preflight.js";
 import { ensureProjectEditorRuntime, refreshProjectEditorRuntime } from "../src/project-runtime.js";
 
 const packageRoot = path.resolve(
@@ -121,6 +122,22 @@ async function main(argv) {
     const packageDir = requirePositional(args, 1, "design-package");
     const manifest = JSON.parse(await readFile(path.join(packageDir, "manifest.json"), "utf8"));
     printJson({ packageDir, outputSha256: manifest.packageVersion === "5.0.0" ? await hashV5SitePayload(packageDir) : await hashDesignPackagePayload(packageDir) });
+    return;
+  }
+  if (command === "design" && args[0] === "preflight" && args[1] === "candidate") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("design preflight is available only for V5 projects");
+    const result = await preflightV5CandidateSet(projectDir, requireOption(args, "--variant"), requireOption(args, "--from"));
+    printJson(result);
+    if (!result.valid) process.exitCode = 1;
+    return;
+  }
+  if (command === "design" && args[0] === "preflight" && args[1] === "final") {
+    const projectDir = requirePositional(args, 2, "project");
+    if (!(await isV5Project(projectDir))) throw new Error("design preflight is available only for V5 projects");
+    const result = await preflightV5FinalSite(projectDir, requireOption(args, "--variant"), requireOption(args, "--from"));
+    printJson(result);
+    if (!result.valid) process.exitCode = 1;
     return;
   }
   if (command === "design" && args[0] === "candidate" && args[1] === "import") {

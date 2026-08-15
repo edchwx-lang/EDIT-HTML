@@ -82,7 +82,8 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   const interview = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "interview.json"), "utf8"));
   validateInterview(interview, variantId, { requireEvidence: requiresV511Gates(variant) });
-  const strategySelection = variant.referenceMode === "provided"
+  const v541AutonomousDesign = variant.releaseVersion === "5.4.1" && variant.pipelineVersion === "5.4.1";
+  const strategySelection = !v541AutonomousDesign && variant.referenceMode === "provided"
     ? "one-reference-guided-sample"
     : "three-executable-samples";
   const inputDir = path.join(projectDir, "variants", variantId, "design", "huashu-input");
@@ -135,10 +136,20 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
       : [],
     contentPolicy: "source-closed-expression-free",
     designOwner: "huashu-design",
+    ...(v541AutonomousDesign ? {
+      contentAuthority: "user",
+      designAuthority: "huashu-design",
+      designEvidenceFile: "huashu-design-evidence.json",
+      candidateStrategies: ["systematic-analysis", "real-world-benchmark", "authorial"],
+      designQuestions: "forbidden",
+      preflightPolicy: "errors-block-warnings-report"
+    } : {}),
     forbiddenPreDesignDecisions: [
       "displayIntent", "componentId", "layoutId", "chartType", "presentationPlan", "safePrimitive"
     ],
-    instructions: "Huashu owns editorial structure and all executable HTML design. Use the interview and source pack; never invent facts. Produce real runnable samples whose screenshots are rendered from their index.html."
+    instructions: v541AutonomousDesign
+      ? "The user owns content decisions; Huashu autonomously owns every design decision. Visually inspect every source image, produce three independently designed runnable strategies, and record auditable design evidence. Never ask the user design questions or invent facts."
+      : "Huashu owns editorial structure and all executable HTML design. Use the interview and source pack; never invent facts. Produce real runnable samples whose screenshots are rendered from their index.html."
   };
   await writeJsonAtomic(path.join(inputDir, "manifest.json"), manifest);
   const inputReceipt = ["5.3.0", "5.3.1", TOOL_VERSION].includes(variant.packageVersion)

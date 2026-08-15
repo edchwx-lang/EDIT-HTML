@@ -173,8 +173,9 @@ test("CLI doctor reports version authority and project runtime diagnostics", asy
 
   assert.equal(result.status, 0, result.stderr);
   const doctor = JSON.parse(result.stdout);
-  assert.equal(doctor.toolVersion, "5.4.0");
-  assert.equal(doctor.pipelineVersion, "5.4.0");
+  assert.equal(doctor.releaseVersion, "5.4.1");
+  assert.equal(doctor.toolVersion, "5.4.1");
+  assert.equal(doctor.pipelineVersion, "5.4.1");
   assert.equal(doctor.artifactContractVersion, "5.4.0");
   assert.equal(doctor.editorRuntimeVersion, "5.4.0");
   assert.equal(normalizePathForComparison(doctor.executablePath), normalizePathForComparison(cli));

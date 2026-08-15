@@ -17,8 +17,9 @@ test("V5 create emits a source pack without pre-design content decisions", async
 
   assert.equal(project.schemaVersion, 5);
   assert.equal(project.packageVersion, "5.4.0");
-  assert.equal(project.toolVersion, "5.4.0");
-  assert.equal(project.pipelineVersion, "5.4.0");
+  assert.equal(project.releaseVersion, "5.4.1");
+  assert.equal(project.toolVersion, "5.4.1");
+  assert.equal(project.pipelineVersion, "5.4.1");
   assert.equal(project.artifactContractVersion, "5.4.0");
   assert.equal(project.editorRuntimeVersion, "5.4.0");
   for (const name of [
@@ -53,8 +54,9 @@ test("V5 variants start at interview and contain no report or presentation model
 
   assert.equal(variant.schemaVersion, 5);
   assert.equal(variant.packageVersion, "5.4.0");
-  assert.equal(variant.toolVersion, "5.4.0");
-  assert.equal(variant.pipelineVersion, "5.4.0");
+  assert.equal(variant.releaseVersion, "5.4.1");
+  assert.equal(variant.toolVersion, "5.4.1");
+  assert.equal(variant.pipelineVersion, "5.4.1");
   assert.equal(variant.artifactContractVersion, "5.4.0");
   assert.equal(variant.editorRuntimeVersion, "5.4.0");
   assert.equal(variant.pipelineState, "awaiting-interview");

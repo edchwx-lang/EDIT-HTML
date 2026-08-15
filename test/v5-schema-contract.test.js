@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("V5 publishes source, interview, executable site, and content-binding schemas", async () => {
-  const names = ["v5-source-pack", "v5-interview", "v5-site-manifest", "v5-content-bindings", "v5-design-process", "v5-selection-receipt"];
+  const names = ["v5-source-pack", "v5-interview", "v5-site-manifest", "v5-content-bindings", "v5-design-process", "v5-selection-receipt", "v5-huashu-design-evidence"];
   for (const name of names) {
     const schema = JSON.parse(await readFile(path.join(root, "schemas", name + ".schema.json"), "utf8"));
     assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
