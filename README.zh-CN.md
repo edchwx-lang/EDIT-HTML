@@ -19,31 +19,33 @@ EDIT-HTML 的关键设计是分权：
 
 ```mermaid
 flowchart TD
-  A["原始文件<br/>DOCX / PDF / PPTX / MD / HTML / TXT"] --> B["Source Pack<br/>事实、素材、来源表、警告"]
-  B --> C["内容访谈<br/>用途、内容权重、必要澄清"]
-  C --> D["Huashu 候选设计门禁<br/>3 个可执行样例"]
-  D --> E["用户选择 A / B / C"]
-  E --> F["Huashu 生成完整网页"]
-  F --> G["EDIT-HTML 审计<br/>覆盖、来源、原图决策、运行时安全"]
-  G --> H["HTML 注入<br/>文本、区块、图片、图表可编辑"]
-  H --> I["可见编辑器<br/>编辑、切换配色、保存版本"]
-  I --> J["发布<br/>本地文件夹或部署平台"]
+  A["原始文件<br/>DOCX / PDF / PPTX / MD / HTML / TXT"] --> B["Source Pack<br/>事实、图片、来源映射、警告"]
+  B --> C["内容访谈<br/>purpose + contentWeight + 必要材料澄清"]
+  C --> D["Huashu 视觉检查与设计证据<br/>自主决定全部设计问题"]
+  D --> E["三套隔离候选<br/>系统分析 / 现实标杆 / 作者型"]
+  E --> F["候选 Preflight<br/>只读；错误阻断"]
+  F --> G["用户查看真实截图<br/>选择 A / B / C"]
+  G --> H["Huashu 扩展最终网页"]
+  H --> I["最终 Preflight<br/>静态契约 + 真实浏览器交互"]
+  I --> J["一次签章与 Import"]
+  J --> K["原有 Audit + Instrument<br/>V5.4.0 artifact contract"]
+  K --> L["V5.4.0 编辑器与发布"]
 ```
 
 简化理解：
 
 1. 先把材料拆成 Source Pack。
 2. 只问内容问题，不问用户设计问题。
-3. Huashu 给出 A/B/C 三个可执行设计方向。
-4. 用户选定方向后，Huashu 扩展为完整网页。
-5. EDIT-HTML 只做审计和注入，不重写 Huashu 的设计。
-6. 最终在本地编辑器里修改、保存版本、发布。
+3. Huashu 逐图视觉评估并给出三套独立的 A/B/C 可执行设计方向。
+4. 候选 Preflight 只读检查，用户只在看到真实截图后选择方向。
+5. Huashu 扩展最终网页，最终 Preflight 通过后再一次性签章、导入。
+6. EDIT-HTML 沿用 V5.4.0 审计、注入、编辑器和发布边界，不重写 Huashu 的设计。
 
 ## 特色
 
 ### Huashu 设计原则
 
-V5.4 要求候选页和最终页都经过 Huashu begin / attest 门禁。也就是说，页面不能由普通模型步骤随手设计，也不能用伪造 receipt 跳过设计边界。Huashu 拥有完整网页设计权，EDIT-HTML 不能在审计或注入阶段改版式、改叙事、改图表、改交互。
+V5.4.1 要求候选页和最终页都经过 Huashu begin / preflight / attest 门禁。用户只主导内容，不回答位置、版式、风格、字体、图片使用、交互或 Junior pass 等设计问题；Huashu 自主应用设计原则。Preflight 在不可变签章前返回全部诊断，错误阻断、审美警告不阻断。
 
 ### 来源闭环
 
@@ -58,7 +60,7 @@ V5.4 要求候选页和最终页都经过 Huashu begin / attest 门禁。也就�
 - 仅参考；
 - 省略。
 
-高价值证据图必须被使用或重绘；低价值、重复、装饰性、和当前网页不匹配的图片可以省略。
+判断前必须实际查看图片，不能只读文件名或图注。`huashu-design-evidence.json` 记录视觉描述、内容角色、信息损失、价值、处理方式和逐图独立理由。高价值证据图必须被使用或绑定来源重绘；高信息损失的证据、技术解释和区域案例图不能直接省略。全部判低或最终不用内容图仅提示警告，由 Huashu 决定是否调整。
 
 ### 生成后仍可编辑
 
@@ -107,8 +109,10 @@ edit-html-report variant create "my-report"
 常用后续命令：
 
 ```powershell
+edit-html-report design preflight candidate "my-report" --variant "<variant-id>" --from "candidate-set"
 edit-html-report design candidate review prepare "my-report" --variant "<variant-id>"
 edit-html-report design candidate confirm "my-report" --variant "<variant-id>" --candidate "<candidate-id>" --receipt "selection-receipt.json"
+edit-html-report design preflight final "my-report" --variant "<variant-id>" --from "final-site"
 edit-html-report design final verify "my-report" --variant "<variant-id>"
 edit-html-report render "my-report" --variant "<variant-id>"
 edit-html-report validate "my-report" --variant "<variant-id>"

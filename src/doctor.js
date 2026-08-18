@@ -3,11 +3,10 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { getProjectRuntimeManifest, getSourceRuntimeManifest, runtimeManifestIsCurrent } from "./project-runtime.js";
+import { DESIGN_PIPELINE_VERSION, RELEASE_VERSION } from "./release-manifest.js";
 import {
   ARTIFACT_CONTRACT_VERSION,
-  EDITOR_RUNTIME_VERSION,
-  PIPELINE_VERSION,
-  TOOL_VERSION
+  EDITOR_RUNTIME_VERSION
 } from "./version-manifest.js";
 
 export async function diagnoseInstallation({ packageRoot, executablePath, commandSourcePath = executablePath, projectDir = null }) {
@@ -40,8 +39,9 @@ export async function diagnoseInstallation({ packageRoot, executablePath, comman
   return {
     ok: Object.values(checks).every(Boolean) && warnings.length === 0,
     checks,
-    toolVersion: TOOL_VERSION,
-    pipelineVersion: PIPELINE_VERSION,
+    releaseVersion: RELEASE_VERSION,
+    toolVersion: RELEASE_VERSION,
+    pipelineVersion: DESIGN_PIPELINE_VERSION,
     artifactContractVersion: ARTIFACT_CONTRACT_VERSION,
     editorRuntimeVersion: EDITOR_RUNTIME_VERSION,
     executablePath: absoluteExecutablePath,

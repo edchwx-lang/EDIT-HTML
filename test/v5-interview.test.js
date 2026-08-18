@@ -205,6 +205,11 @@ test("V5.1 design preparation emits a content-only Huashu brief", async (t) => {
 
   const prepared = await prepareV5HuashuInput(project, variant.variantId);
   const brief = JSON.parse(await readFile(path.join(prepared.inputDir, "content-brief.json"), "utf8"));
+  assert.equal(prepared.manifest.contentAuthority, "user");
+  assert.equal(prepared.manifest.designAuthority, "huashu-design");
+  assert.equal(prepared.manifest.designEvidenceFile, "huashu-design-evidence.json");
+  assert.deepEqual(prepared.manifest.candidateStrategies, ["systematic-analysis", "real-world-benchmark", "authorial"]);
+  assert.equal(prepared.manifest.designQuestions, "forbidden");
   assert.equal(brief.schemaVersion, 1);
   assert.equal(brief.owner, "huashu-design");
   assert.equal(brief.purpose.response, "Executive presentation");
@@ -281,10 +286,25 @@ test("V5.1 reads a legacy interview but exposes the current two-question contrac
   }
 });
 
-test("an initial visual reference changes Huashu preparation to one executable sample", async (t) => {
+test("V5.4.1 keeps three Huashu candidates when an initial visual reference is present", async (t) => {
   const { root, project, variant } = await fixture(t);
   const interviewPath = path.join(root, "interview.json");
   await writeFile(interviewPath, JSON.stringify(v51Interview(variant.variantId, {
+    references: [{ kind: "screenshot", value: "reference.png", suppliedAtStart: true }]
+  })), "utf8");
+  await importV5Interview(project, variant.variantId, interviewPath);
+  const prepared = await prepareV5HuashuInput(project, variant.variantId);
+  assert.equal(prepared.strategySelection, "three-executable-samples");
+  assert.deepEqual(prepared.manifest.candidateStrategies, ["systematic-analysis", "real-world-benchmark", "authorial"]);
+});
+
+test("legacy V5.1 reference-guided projects retain their one-sample workflow", async (t) => {
+  const { root, project, variant } = await fixture(t);
+  await downgradeToV510(project, variant.variantId);
+  const interviewPath = path.join(root, "legacy-reference-interview.json");
+  await writeFile(interviewPath, JSON.stringify(v51Interview(variant.variantId, {
+    schemaVersion: 2,
+    decisionEvidence: undefined,
     references: [{ kind: "screenshot", value: "reference.png", suppliedAtStart: true }]
   })), "utf8");
   await importV5Interview(project, variant.variantId, interviewPath);

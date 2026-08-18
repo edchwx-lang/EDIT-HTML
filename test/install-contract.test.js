@@ -26,8 +26,8 @@ test("installation contract compares shim, package, Skill, runtime, and source h
     skillRoot,
     shimPath,
     doctor: async () => ({
-      toolVersion: "5.4.0",
-      pipelineVersion: "5.4.0",
+      toolVersion: "5.4.1",
+      pipelineVersion: "5.4.1",
       artifactContractVersion: "5.4.0",
       editorRuntimeVersion: "5.4.0",
       executablePath: path.join(installedRoot, "bin", "edit-html-report.js"),
@@ -110,7 +110,7 @@ test("local installer tests before updating temporary npm and Skill targets", as
   const calls = (await readFile(npmLog, "utf8")).trim().split(/\r?\n/);
   assert.deepEqual(calls, ["test", `install --global ${root} --prefix ${prefix}`]);
   assert.match(installed.stdout, new RegExp(escapeRegExp(path.resolve(root))));
-  assert.match(await readFile(path.join(skillRoot, "EDIT-HTML", "SKILL.md"), "utf8"), /^# EDIT-HTML V5\.4\.0$/m);
+  assert.match(await readFile(path.join(skillRoot, "EDIT-HTML", "SKILL.md"), "utf8"), /^# EDIT-HTML V5\.4\.1$/m);
 });
 
 test("a failed npm test leaves temporary package and Skill targets untouched", async (t) => {

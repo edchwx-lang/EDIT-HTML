@@ -12,11 +12,13 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
   const resolvedPackageRoot = path.resolve(packageRoot);
   const resolvedSkillRoot = path.resolve(skillRoot);
   const resolvedShimPath = path.resolve(shimPath);
-  const [sourcePackage, installedPackage, sourceVersions, installedVersions, skillVersion, sourceHash, installedHash, sourceSkillHash, installedSkillHash] = await Promise.all([
+  const [sourcePackage, installedPackage, sourceVersions, installedVersions, sourceRelease, installedRelease, skillVersion, sourceHash, installedHash, sourceSkillHash, installedSkillHash] = await Promise.all([
     readJson(path.join(resolvedSourceRoot, "package.json")),
     readJson(path.join(resolvedPackageRoot, "package.json")),
     readVersionManifest(path.join(resolvedSourceRoot, "src", "version-manifest.js")),
     readVersionManifest(path.join(resolvedPackageRoot, "src", "version-manifest.js")),
+    readReleaseManifest(path.join(resolvedSourceRoot, "src", "release-manifest.js")),
+    readReleaseManifest(path.join(resolvedPackageRoot, "src", "release-manifest.js")),
     readSkillVersion(path.join(resolvedSkillRoot, "SKILL.md")),
     hashPackagePayload(resolvedSourceRoot),
     hashPackagePayload(resolvedPackageRoot),
@@ -35,15 +37,12 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
       .then((module) => module.getSourceRuntimeManifest())
   ]);
 
-  const versionsAgree = [
-    installedPackage.version,
-    sourceVersions.toolVersion,
-    sourceVersions.pipelineVersion,
-    sourceVersions.artifactContractVersion,
-    installedVersions.toolVersion,
-    installedVersions.pipelineVersion,
-    installedVersions.artifactContractVersion
-  ].every((version) => version === expectedVersion);
+  const versionsAgree = installedPackage.version === expectedVersion &&
+    sourceRelease.releaseVersion === expectedVersion &&
+    sourceRelease.designPipelineVersion === expectedVersion &&
+    installedRelease.releaseVersion === expectedVersion &&
+    installedRelease.designPipelineVersion === expectedVersion &&
+    installedVersions.artifactContractVersion === sourceVersions.artifactContractVersion;
   const expectedRuntimeVersion = sourceVersions.editorRuntimeVersion;
   const checks = {
     shim: samePath(shimTarget, expectedExecutable),
@@ -57,8 +56,8 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
     sourceHash: sourceHash === installedHash,
     skillHash: sourceSkillHash === installedSkillHash,
     doctor: doctorMatches(doctorResult, resolvedPackageRoot, expectedExecutable, {
-      toolVersion: expectedVersion,
-      pipelineVersion: sourceVersions.pipelineVersion,
+      toolVersion: sourceRelease.releaseVersion,
+      pipelineVersion: sourceRelease.designPipelineVersion,
       artifactContractVersion: sourceVersions.artifactContractVersion,
       editorRuntimeVersion: expectedRuntimeVersion
     })
@@ -124,6 +123,15 @@ async function readVersionManifest(filePath) {
     pipelineVersion: read("PIPELINE_VERSION"),
     artifactContractVersion: read("ARTIFACT_CONTRACT_VERSION"),
     editorRuntimeVersion: read("EDITOR_RUNTIME_VERSION")
+  };
+}
+
+async function readReleaseManifest(filePath) {
+  const contents = await readFile(filePath, "utf8");
+  const read = (name) => contents.match(new RegExp(`export\\s+const\\s+${name}\\s*=\\s*["']([^"']+)["']`))?.[1] ?? null;
+  return {
+    releaseVersion: read("RELEASE_VERSION"),
+    designPipelineVersion: read("DESIGN_PIPELINE_VERSION")
   };
 }
 

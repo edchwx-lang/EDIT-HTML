@@ -4,11 +4,11 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("published skill documents the V5.4.0 attested Huashu-owned production boundary", async () => {
+test("published skill documents the V5.4.1 autonomous Huashu preflight boundary", async () => {
   const skill = await readFile(new URL("skills/EDIT-HTML/SKILL.md", root), "utf8");
   const agent = await readFile(new URL("skills/EDIT-HTML/agents/openai.yaml", root), "utf8");
 
-  assert.match(skill, /EDIT-HTML V5\.4\.0/);
+  assert.match(skill, /EDIT-HTML V5\.4\.1/);
   assert.match(skill, /design huashu begin/);
   assert.match(skill, /design huashu attest/);
   assert.match(skill, /owner: huashu-design.+not evidence/is);
@@ -26,6 +26,15 @@ test("published skill documents the V5.4.0 attested Huashu-owned production boun
   assert.match(skill, /clickable editor URL/i);
   assert.match(skill, /raw-source appendix/i);
   assert.match(skill, /sourceAssetDecisions/);
+  assert.match(skill, /huashu-design-evidence\.json/);
+  assert.match(skill, /design preflight candidate/);
+  assert.match(skill, /design preflight final/);
+  assert.match(skill, /systematic-analysis/);
+  assert.match(skill, /real-world-benchmark/);
+  assert.match(skill, /authorial/);
+  assert.match(skill, /contentAuthority.+user/is);
+  assert.match(skill, /designAuthority.+huashu-design/is);
+  assert.doesNotMatch(skill, /position four questions|位置四问/i);
   assert.match(skill, /not an all-images-must-be-used rule/i);
   assert.match(skill, /audit.+must not.+modify|审计.+不得.+修改/is);
   assert.doesNotMatch(skill, /content import/);
@@ -33,7 +42,7 @@ test("published skill documents the V5.4.0 attested Huashu-owned production boun
   assert.doesNotMatch(skill, /data-first.*evidence-first|evidence-first.*data-first/is);
   assert.doesNotMatch(skill, /confirm the design and theme|确认设计与配色/i);
 
-  assert.match(agent, /V5\.4\.0/);
+  assert.match(agent, /V5\.4\.1/);
   assert.match(agent, /Huashu/i);
   assert.doesNotMatch(agent, /V4\.[0-9]/);
 });

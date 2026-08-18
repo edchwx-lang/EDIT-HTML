@@ -25,14 +25,16 @@ The result is a report that can be inspected, edited, saved, restored, and publi
 ```mermaid
 flowchart TD
   A["Source file<br/>DOCX / PDF / PPTX / MD / HTML / TXT"] --> B["Source Pack<br/>facts, assets, source map, warnings"]
-  B --> C["Content interview<br/>purpose + content weight + required clarification"]
-  C --> D["Huashu candidate gate<br/>3 executable samples"]
-  D --> E["User selects A / B / C"]
-  E --> F["Huashu final site<br/>complete HTML website"]
-  F --> G["EDIT-HTML audit<br/>coverage, provenance, image decisions, runtime safety"]
-  G --> H["Instrumentation<br/>editable text, blocks, images, charts"]
-  H --> I["Visible editor<br/>edit, theme switch, save version"]
-  I --> J["Publication<br/>local folder or deployment provider"]
+  B --> C["Content interview<br/>purpose + content weight + necessary material clarification"]
+  C --> D["Huashu visual asset assessment<br/>autonomous design evidence"]
+  D --> E["Three isolated candidates<br/>systematic / benchmark / authorial"]
+  E --> F["Candidate preflight<br/>read-only; errors block"]
+  F --> G["User sees screenshots<br/>selects A / B / C"]
+  G --> H["Huashu final site<br/>complete HTML website"]
+  H --> I["Final preflight<br/>static + real browser interaction"]
+  I --> J["One attestation and import pass"]
+  J --> K["Existing audit + instrumentation<br/>V5.4.0 artifact contract"]
+  K --> L["V5.4.0 visible editor<br/>edit, save, publish"]
 ```
 
 The important rule is simple: Huashu designs the website; EDIT-HTML verifies and instruments it without redesigning it.
@@ -49,7 +51,7 @@ Every substantive visible claim is bound back to the Source Pack. Titles, groupi
 
 ### Explicit image judgment
 
-Source images are not copied blindly. Huashu must decide whether each source image should be used as original evidence, redrawn, referenced only, or omitted. This keeps strong source visuals while avoiding decorative or repetitive image dumping.
+Source images are not copied blindly or judged by filename/caption alone. Huashu visually inspects every image and records its visible subject, content role, information-loss risk, value, treatment, and independent rationale in `huashu-design-evidence.json`. High-value evidence is used or source-bound as a redraw; all-low or no-image outcomes warn without replacing Huashu's design judgment.
 
 ### Editable HTML output
 
@@ -70,9 +72,13 @@ Saving creates immutable internal versions. Publishing works from saved versions
 - domain publish can use deployment providers when credentials are available;
 - the editor can reveal the local publication folder directly.
 
+### Preflight before immutable receipts
+
+Candidate and final preflight are read-only and create no receipt or frozen output. Errors return a failing exit code; aesthetic warnings remain non-blocking. Attestation re-runs the matching check, so factual, asset, selector, interaction, overflow, and offline-safety defects are repaired before the immutable receipt exists.
+
 ### Agent and OS compatibility
 
-V5.4 keeps the V5.3.2 production flow while hardening execution across Codex, Claude Code, Workbuddy-style agents, Windows, and macOS. An agent must be able to run local shell commands, preserve receipt files, read/write the project, access the real `huashu-design/SKILL.md`, and report or open the authenticated editor URL.
+V5.4.1 keeps the V5.4.0 artifact/editor contract while upgrading the tool and design pipeline. An agent must be able to run local shell commands, preserve receipt files, read/write the project, access the real `huashu-design/SKILL.md`, and report or open the authenticated editor URL.
 
 ## Install
 
@@ -91,23 +97,25 @@ edit-html-report create "input.docx" --out "my-report"
 edit-html-report variant create "my-report"
 ```
 
-Then follow the V5.4 flow:
+Then follow the V5.4.1 flow:
 
 1. inspect the Source Pack and extraction warnings;
 2. record the content interview;
 3. prepare the Huashu design input;
-4. generate three executable candidates;
-5. show exactly one desktop screenshot per candidate;
+4. generate three executable candidates plus Huashu design evidence;
+5. run candidate preflight, attest/import once, then show one screenshot per candidate;
 6. wait for the user's A/B/C selection;
-7. generate the final Huashu site from the selected candidate;
-8. import, verify, render, validate, and open the editor;
+7. generate the final Huashu site, run final preflight, then attest/import once;
+8. verify, render, validate, and open the unchanged V5.4.0 editor;
 9. save a version and publish when ready.
 
 ## Useful commands
 
 ```powershell
+edit-html-report design preflight candidate "my-report" --variant "<variant-id>" --from "candidate-set"
 edit-html-report design candidate review prepare "my-report" --variant "<variant-id>"
 edit-html-report design candidate confirm "my-report" --variant "<variant-id>" --candidate "<candidate-id>" --receipt "selection-receipt.json"
+edit-html-report design preflight final "my-report" --variant "<variant-id>" --from "final-site"
 edit-html-report design final verify "my-report" --variant "<variant-id>"
 edit-html-report render "my-report" --variant "<variant-id>"
 edit-html-report validate "my-report" --variant "<variant-id>"

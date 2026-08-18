@@ -40,9 +40,9 @@ const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(packageRoot, "bin", "edit-html-report.js");
 const acceptanceSource = "C:\\Users\\edchw\\Documents\\edit-ppt\\AI服务器报告-v520-verify-20260805\\source\\AI服务器报告.docx";
-const versionFields = ["toolVersion", "pipelineVersion", "artifactContractVersion", "editorRuntimeVersion"];
+const versionFields = ["releaseVersion", "toolVersion", "pipelineVersion", "artifactContractVersion", "editorRuntimeVersion"];
 
-test("V5.4.0 accepts the AI server report through design, audit, editor, and local publication", async ({ page }, testInfo) => {
+test("V5.4.1 tool preserves a V5.4.0 AI server artifact through editor and publication", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const acceptanceRoot = path.join(os.tmpdir(), "edit-html-v53-ai-server-acceptance");
   let sourceCopy = path.join(acceptanceRoot, "source", "AI服务器报告.docx");
@@ -89,6 +89,17 @@ test("V5.4.0 accepts the AI server report through design, audit, editor, and loc
   try {
     const project = await timed(timings, "createProjectMs", () => createV5Project(sourceCopy, projectDir));
     const variant = await timed(timings, "createVariantMs", () => createV5Variant(projectDir, { themeId: "precision-blueprint" }));
+    // This acceptance fixture exercises the promised V5.4.0 persisted-project compatibility path.
+    delete project.releaseVersion;
+    delete variant.releaseVersion;
+    project.toolVersion = "5.4.0";
+    project.pipelineVersion = "5.4.0";
+    variant.toolVersion = "5.4.0";
+    variant.pipelineVersion = "5.4.0";
+    project.variants = [variant];
+    project.activeVariantId = variant.variantId;
+    await writeJson(path.join(projectDir, "project.json"), project);
+    await writeJson(path.join(projectDir, "variants", variant.variantId, "variant.json"), variant);
     evidence.sourcePackSha256 = project.sourcePackSha256;
     evidence.variantId = variant.variantId;
 
@@ -103,7 +114,11 @@ test("V5.4.0 accepts the AI server report through design, audit, editor, and loc
     });
     expect(doctor.ok, doctor.warnings.join("; ")).toBe(true);
     expect(doctor.runtimeStatus).toBe("current");
-    for (const field of versionFields) expect(doctor[field]).toBe("5.4.0");
+    expect(doctor.releaseVersion).toBe("5.4.1");
+    expect(doctor.toolVersion).toBe("5.4.1");
+    expect(doctor.pipelineVersion).toBe("5.4.1");
+    expect(doctor.artifactContractVersion).toBe("5.4.0");
+    expect(doctor.editorRuntimeVersion).toBe("5.4.0");
     expect(JSON.stringify(doctor)).not.toContain("4.0.0");
     evidence.versions = Object.fromEntries(versionFields.map((field) => [field, doctor[field]]));
     evidence.runtimeStatus = doctor.runtimeStatus;
