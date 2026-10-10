@@ -6,3 +6,6 @@
 *.yaml text eol=lf
 *.ps1 text eol=lf
 *.sh text eol=lf
+
+# The bundled provider is a byte-hashed upstream snapshot. Never convert EOLs.
+skills/edit-html/vendor/huashu-design/** -text

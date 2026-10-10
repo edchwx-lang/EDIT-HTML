@@ -1,4 +1,0 @@
-interface:
-  display_name: "EDIT-HTML V5.4.1"
-  short_description: "Extract facts, let Huashu own content and design, then audit and edit"
-  default_prompt: "Use $EDIT-HTML V5.4.1 to extract a Source Pack, ask only the required content questions, let Huashu own design, require design evidence and read-only preflight before attestation, wait for visual candidate selection, and hand the unchanged V5.4.0 editor contract a verified artifact."

@@ -17,9 +17,9 @@ import { listThemes } from "../src/themes.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("V5.4.1 release keeps the V5.4.0 artifact and editor boundary", async () => {
-  assert.equal(RELEASE_VERSION, "5.4.1");
-  assert.equal(DESIGN_PIPELINE_VERSION, "5.4.1");
+test("V5.5 release keeps the V5.4.0 artifact and editor boundary", async () => {
+  assert.equal(RELEASE_VERSION, "5.5.0");
+  assert.equal(DESIGN_PIPELINE_VERSION, "5.5.0");
   assert.equal(TOOL_VERSION, "5.4.0");
   assert.equal(PIPELINE_VERSION, "5.4.0");
   assert.equal(ARTIFACT_CONTRACT_VERSION, "5.4.0");

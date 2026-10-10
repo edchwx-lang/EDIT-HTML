@@ -1,6 +1,6 @@
 {
   "name": "edit-html-report",
-  "version": "5.4.1",
+  "version": "5.5.0",
   "description": "Source-closed Huashu website workflow with non-invasive HTML instrumentation",
   "type": "module",
   "engines": {
@@ -13,6 +13,7 @@
     "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1 -SourceRoot .",
     "test": "node --test",
     "test:e2e": "playwright test",
+    "test:distribution": "node scripts/verify-distribution.mjs",
     "check": "node --check bin/edit-html-report.js",
     "check:editor-boundary": "node scripts/check-editor-boundary.mjs"
   },
@@ -30,9 +31,8 @@
     "fast-xml-parser": "5.2.5",
     "fflate": "0.8.2",
     "parse5": "^7.2.1",
-    "pdfjs-dist": "4.10.38"
-  },
-  "devDependencies": {
-    "playwright": "1.62.1"
+    "pdfjs-dist": "4.10.38",
+    "playwright": "1.62.1",
+    "yaml": "2.8.1"
   }
 }

@@ -40,10 +40,12 @@ import {
 } from "../src/v5-design.js";
 import { instrumentV5Variant } from "../src/v5-instrumenter.js";
 import { validateV5Variant } from "../src/v5-validate.js";
-import { verifyV5FinalSite } from "../src/v5-final-verification.js";
+import { verifyV5FinalSite } from "../src/design-browser-verification.js";
 import { attestHuashuDesignOutput, beginHuashuDesign } from "../src/v5-huashu-attestation.js";
 import { preflightV5CandidateSet, preflightV5FinalSite } from "../src/v5-design-preflight.js";
 import { ensureProjectEditorRuntime, refreshProjectEditorRuntime } from "../src/project-runtime.js";
+import { resolveHuashuProvider } from "../src/design-provider.js";
+import { probeDesignBrowser, installDesignBrowser } from "../src/browser-runtime.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -52,6 +54,21 @@ const packageRoot = path.resolve(
 
 async function main(argv) {
   const [command, ...args] = argv;
+  const browserChoice = optionalOption(args, "--browser");
+  const browserExecutable = optionalOption(args, "--browser-executable");
+  if (browserChoice !== null) process.env.EDIT_HTML_BROWSER = browserChoice;
+  if (browserExecutable !== null) process.env.EDIT_HTML_BROWSER_EXECUTABLE_PATH = browserExecutable;
+  if (command === "setup" && args[0] === "browser") {
+    installDesignBrowser();
+    const probe = await probeDesignBrowser();
+    printJson(probe);
+    if (!probe.ready) process.exitCode = 1;
+    return;
+  }
+  if (command === "design" && args[0] === "huashu" && args[1] === "locate") {
+    printJson(await resolveHuashuProvider({ packageRoot }));
+    return;
+  }
   if (command === "create") {
     const source = requirePositional(args, 0, "source");
     const projectDir = requireOption(args, "--out");
@@ -195,7 +212,7 @@ async function main(argv) {
     const projectDir = requirePositional(args, 2, "project");
     if (!(await isV5Project(projectDir))) throw new Error("Huashu execution receipts are available only for V5 projects");
     printJson(await beginHuashuDesign(projectDir, requireOption(args, "--variant"), requireOption(args, "--kind"), {
-      skillPath: requireOption(args, "--skill")
+      skillPath: optionalOption(args, "--skill") ?? undefined
     }));
     return;
   }
@@ -259,7 +276,7 @@ async function main(argv) {
     return;
   }
   if (command === "install") {
-    throw new Error("CLI installation was removed; run npm run install:local from the intended V5.3 source checkout");
+    throw new Error("CLI installation was removed; run npm run install:local from the intended V5.5 source checkout");
   }
   if (command === "doctor") {
     const doctor = await diagnoseInstallation({
@@ -269,7 +286,7 @@ async function main(argv) {
       projectDir: optionalOption(args, "--project") ?? undefined
     });
     printJson(doctor);
-    if (!doctor.checks.node20 || !doctor.checks.bundledSkill) process.exitCode = 1;
+    if (!doctor.workflowReady) process.exitCode = 1;
     return;
   }
   if (command === "runtime" && args[0] === "refresh") {

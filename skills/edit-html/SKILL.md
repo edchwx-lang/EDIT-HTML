@@ -1,0 +1,95 @@
+---
+name: edit-html
+metadata:
+  version: "5.5.0"
+description: Use when converting DOCX, PDF, PPTX, Markdown, HTML, or TXT into a source-closed, Huashu-designed, editable and versioned offline HTML report; gathering content priorities; comparing executable design samples; auditing provenance; opening the visible editor; restoring versions; or publishing artifacts.
+---
+
+# EDIT-HTML V5.5.0
+
+V5.5 bundles the real Huashu design Skill, supports installed Edge/Chrome and Chromium, and checks complete workflow readiness. Huashu-owned design evidence and read-only preflight remain mandatory before attestation, while the V5.4.0 artifact contract and editor runtime are preserved:
+
+```text
+EDIT-HTML extracts facts and assets
+-> Huashu understands the material and conducts a content-only interview
+-> Huashu owns content strategy and the complete website
+-> EDIT-HTML audits and instruments without redesigning
+-> artifact.html
+-> the V5.4.0 HTML editor/version/publication system
+```
+
+Huashu owns everything between the Source Pack and finished website. Never create an editorial report model, display mode, page order, component plan, chart plan, primitive tree, layout grammar, or fixed-renderer input before invoking Huashu.
+
+## Installation authority
+
+From the intended V5.5 source directory, run `npm ci`, then `npm run install:local`. The installer runs `npm test` before changing the global npm package or Codex Skill, uses a temporary npm tarball to install a real copy (not a source-directory link), backs up the previous Skill outside discovery, and verifies the shim, package, Skill, runtime, source hashes, Huashu bundle, and browser launch after installation. No release ZIP or GitHub publication is performed.
+
+`doctor --json` distinguishes `basicReady` from `workflowReady`; only the latter means generation can proceed. If no browser is available, the installer installs Chromium. For an existing Edge use `EDIT_HTML_BROWSER=msedge` or `--browser msedge`; for another installation use `EDIT_HTML_BROWSER_EXECUTABLE_PATH` or `--browser-executable <absolute-path>`. These settings are shared by doctor, final preflight, and final verification. `edit-html-report setup browser` can install Chromium explicitly. No browser binaries are bundled, so first-time installation requires network access unless a supported local browser already exists. Never delete uncommitted files as repository cleanup.
+
+## Bundled Huashu authority
+
+The real provider is [vendor/huashu-design/SKILL.md](vendor/huashu-design/SKILL.md), with original references, scripts, examples, assets and MIT license. Read that SKILL.md completely before designing, then load only references relevant to this HTML report. Do not assume a separately installed `$huashu-design` exists. Run `edit-html-report design huashu locate` to locate the same hash-verified provider used by `design huashu begin`; the manifest records the original local snapshot and every shipped file hash. Private environment files, personal asset indexes, dependency caches and packaging-only metadata are excluded.
+
+Apply Huashu's expert stance, design principles, anti-generic-design rules, real candidate exploration and self-critique. This is EDIT-HTML's autonomous adapter, not a verbatim reproduction of every Huashu workflow: keep the content-only interview below; resolve design context and approval questions yourself. The user controls content and chooses A/B/C after screenshots; Huashu controls all design. Do not run unrelated video, narration or PPT-export pipelines; their optional third-party dependencies and credentials are not required or installed for HTML reporting. Preserve the original bundled files unchanged.
+
+Resolve upstream examples using `~/.claude/skills/huashu-design` or other machine-specific locations relative to this actual bundle, not the author's filesystem. Use EDIT-HTML's installed Node Playwright/browser entry points for HTML verification; upstream Python examples do not introduce a Python Playwright prerequisite. Source material remains local; external design examples never authorize uploading source documents.
+
+For an existing project signed with another Huashu snapshot, retain its original `--skill <path>` override so immutable skill hashes do not silently change. New projects use the bundled provider by default.
+
+## Agent compatibility
+
+The workflow is agent-neutral only when the agent can satisfy the same execution contract. Codex, Claude Code, Workbuddy, or another local coding agent must be able to run shell commands, read and write the local project, preserve receipt files, open or report the authenticated local editor URL, and access the real `huashu-design/SKILL.md` used by `design huashu begin`. Do not replace this with an agent-authored design step or a simulated receipt.
+
+## Run the workflow
+
+1. Run `edit-html-report doctor`, `edit-html-report create <source> --out <project>`, and `edit-html-report variant create <project>`.
+2. Read [references/content-pipeline.md](references/content-pipeline.md) completely. Inspect every Source Pack file and extraction warning. Edit HTML may extract and normalize facts; it must not recommend presentation.
+3. Read and apply the bundled Huashu provider above. Huashu reads and summarizes the Source Pack, then conducts at most three content-only questions:
+   - `purpose` is always required: purpose, occasion, and target reader;
+   - `contentWeight` is always required: which source content deserves greater depth;
+   - `contentClarification` is optional and may be asked only when a concrete ambiguity, conflict, omission risk, time range, terminology, or comparative focus in the Source Pack requires resolution.
+   Reuse answers already present in the request. Never ask about structure, page order, layout, components, charts, interaction, theme, color, typography, visual style, or what the audience should remember. If no material-driven clarification is necessary, stop after two questions.
+4. Save the actual question, original answer, origin, time, any clarification source references, and `decisionEvidence` in interview schema v3. Run `interview import`, then verify `interview status`. `user-delegated` is allowed only when the user explicitly says the agent should decide, for example "you decide", "directly do it", "直接做", or "看着办". Do not invent delegation evidence.
+5. Read [references/design-selection.md](references/design-selection.md), [references/huashu-design-package.md](references/huashu-design-package.md), and [references/artifact-contract.md](references/artifact-contract.md) completely. Run `design prepare`, then `design huashu begin <project> --variant <id> --kind candidate` before any candidate file is generated. Give every prepared file, including `content-brief.json`, only to the invoked Huashu design stage.
+6. Huashu autonomously applies its design principles; the user is never asked to approve a design system, layout, position, style, font, image usage, interaction, or a Junior pass. Huashu always produces three executable samples as isolated strategies: `systematic-analysis`, `real-world-benchmark`, and `authorial`. They share content and source-asset evaluation, but their rationale, DOM, visualization, and core interaction must be independently designed. An initial visual reference informs all three as design evidence, never content evidence, and does not remove the user's screenshot-based A/B/C choice.
+7. Every candidate is compact but executable: exactly one first desktop viewport, one representative focus module, and one real core interaction. It is not a miniature full site and does not require mobile or full-page completion before selection. `manifest.json` and `design-process.json` declare the matching `sampleScope` selectors.
+8. Every sample includes `huashu-design-evidence.json` with `contentAuthority: user`, `designAuthority: huashu-design`, the interview hash, autonomous strategy and rationale, Huashu self-critique, and one visually inspected assessment for every source image. Run `edit-html-report design preflight candidate <project> --variant <id> --from <candidate-set-dir>` across all three candidates. Errors block; warnings report aesthetic risk without blocking. Preflight is read-only and creates no receipt or frozen output. Only after it passes, seal each sample with `design huashu attest ... --kind candidate`, import it, and run `design candidate review prepare`.
+9. Show exactly one actual `1440x900`, non-full-page desktop screenshot per candidate from the review set. Wait for the user's choice. Confirm only with `design candidate confirm --receipt <selection-receipt.json>`, where the receipt records `reviewSetSha256`, selected `candidateId`, `selectedBy: "user"`, the verbatim user selection, and time. Never confirm in the same message that first shows screenshots, and never confirm from agent preference or hidden state.
+10. Run `design huashu begin <project> --variant <id> --kind final`. Huashu expands the selected candidate itself into the complete website. "Emphasize" controls depth, not presence. Final evidence inherits candidate image values; treatment may change during expansion, but a lower value requires an independent reason. Every image is judged only after visual inspection, using its visual description, content role, information-loss level, value, treatment, and material-specific rationale. `evidence`, `technical-explanation`, and `regional-case` images with high information loss cannot be omitted. Three or more standardized duplicate rationales are invalid. All-low or no-content-image use is a warning, not an engineering error. High-value images must be used as originals or visibly redrawn with a source binding.
+11. Huashu captures desktop/mobile viewport screenshots plus `desktop-full.png` and `mobile-full.png`. Run `edit-html-report design preflight final <project> --variant <id> --from <site-dir>`; it checks the static contract, offline safety, responsive overflow, unique selectors, and real browser state change. Only after it passes, seal with `design huashu attest ... --kind final` and import with `design final import`, which writes the existing immutable stage receipt. This is the single signing/import pass; diagnostics go back to Huashu before immutable receipts exist.
+12. In a later command, run complete desktop/mobile and full-page verification, then `render` and `validate`. Both require the frozen Huashu receipt. The Instrumenter only inlines local resources, injects stable edit/source attributes, adds theme/editor compatibility metadata, and emits `artifact.html`.
+13. Read [references/editor-publication.md](references/editor-publication.md) completely. Run `edit-html-report editor open <project> --variant <id>` and pause. The command returns a `handoff` containing an authenticated `editorUrl` and absolute `launcherPath`.
+14. In the conversation output, always provide a directly clickable editor URL and a clickable local launcher path. Never present `artifact.html` as the only result. The user inspects and edits the visible artifact directly.
+15. The visible editor must expose executable text, block, image, and serializable-chart actions. Ordinary edits and palette changes update the current iframe in place instead of returning to the cover; full reloads preserve viewport when they are required for undo, restore, or rollback. Saving creates an immutable internal version immediately. The Publish button opens saved versions only, and each saved version exposes exactly four primary actions: local publish, domain publish, reveal local publication in the file manager, and delete saved version file. Do not expose a Redo toolbar button. There is no separate design/theme confirmation action, publication-history toolbar action, or review authorization gate.
+
+## Hard Boundaries
+
+- Content is source-closed and expression-free: titles, grouping, compression, hierarchy, and explanation may change; facts, values, units, times, scopes, qualifications, and relationships may not.
+- External material guides visual design only and never adds report facts.
+- A visible raw-source appendix requires explicit user authorization and cannot substitute for structured coverage.
+- `content-brief.json` describes content purpose and emphasis, never presentation.
+- `content-bindings.json` proves traceability and coverage only; it never tells Huashu how to design.
+- Every visible number and substantive claim binds to Source Pack facts and source locations.
+- Huashu owns the actual DOM, CSS, local JavaScript, chart behavior, interaction semantics, responsiveness, and visual language.
+- `owner: huashu-design` is not evidence. V5.4.1 requires auditable design evidence and a successful preflight before the unchanged execution receipt can be created.
+- Source images are not mandatory by count: this is not an all-images-must-be-used rule. Huashu decides their content value and treatment; the audit checks that every decision is explicit and executed consistently, without replacing design judgment with a blanket image quota.
+- `huashu-design-evidence.json` records the reasoning; `design-process.json.sourceAssetDecisions` records the corresponding executable image treatment.
+- Audit failures stop output and return diagnostics; audit must not modify the site.
+- Candidate confirmation requires a current review set and a user selection receipt; general agent autonomy cannot override this gate.
+- Three candidates that reuse one HTML template with theme/title/CSS changes do not count as three designs.
+- Coverage audit and design-quality audit are separate; `valid: true` is not design approval.
+- Instrumenter preserves Huashu's DOM hierarchy, classes, geometry, typography, charts, and interactions.
+- Audit and Instrumenter commands consume only the frozen Huashu output. They fail if Huashu-owned content, classes, geometry, typography, chart definitions, or interaction code changes; audit cannot be combined with design generation in one command.
+- V5 artifacts use HTML patches for text, block, image, and serializable-chart edits; V4 model-backed artifacts retain revisioned model patches.
+- Instrument every eligible visible leaf text and image across the complete V5 page with a deterministic edit identity. Numeric text outside a bound region is editable only when its tokens resolve unambiguously to a Source Pack fact. Expose chart editing only when `data-chart-data-for` resolves to serializable JSON.
+- Compile editor theme variables after Huashu styles so palette changes win the CSS cascade without changing Huashu DOM, layout, typography, or content.
+- Context actions are type-scoped: images expose replacement only, serializable charts expose data editing only, and blocks expose movement, duplication, and deletion only.
+- Do not add a design/theme confirmation button, confirmation API call, save gate, or publication gate based on review state.
+
+## Supporting References
+
+- Theme system: [references/themes.md](references/themes.md)
+- V4.x compatibility: [references/migration.md](references/migration.md)
+- Editor/version/publication: [references/editor-publication.md](references/editor-publication.md)
+
+Report the project path, variant ID, Source Pack warnings, interview status/hash, candidate IDs and hashes, review set hash, selected parent hash, selection receipt hash, final-site hash, audit result, artifact validation, current theme, authenticated editor URL, launcher path, saved version, publication, and unresolved warnings.

@@ -1,23 +1,19 @@
-# Running EDIT-HTML V5.4 with Claude Code
+# Running EDIT-HTML V5.5 with Claude Code
 
 Claude Code can run EDIT-HTML when it is operating as a local coding agent with shell and filesystem access.
 
 ## Setup
 
 ```bash
-npm install
-npx playwright install chromium
+npm ci
 npm run install:local
+edit-html-report doctor --json
 ```
 
-On macOS, run the installer from PowerShell if `npm run install:local` is not available through the default shell:
-
-```bash
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1 -SourceRoot .
-```
+The local installer is verified on Windows with Node.js 20+. It checks installed Chromium/Edge/Chrome, downloading Chromium only when needed. Do not assume the Windows installer is verified on macOS.
 
 ## Execution rules
 
-Follow `skills/EDIT-HTML/SKILL.md` exactly. Claude Code must use the real `huashu-design/SKILL.md` in `design huashu begin`; it must not substitute a Claude-authored design phase.
+Follow `skills/edit-html/SKILL.md` exactly, including its content-only adaptation. Read the bundled `vendor/huashu-design/SKILL.md` completely; `design huashu begin` binds that real provider by default. No separately installed Huashu Skill is required. Do not substitute a generic agent-authored design phase.
 
 When the editor opens, report the authenticated local editor URL and launcher path back to the user.

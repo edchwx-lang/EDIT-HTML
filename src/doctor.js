@@ -1,6 +1,8 @@
 import { access, readFile, realpath } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import path from "node:path";
+import { probeDesignBrowser } from "./browser-runtime.js";
+import { resolveHuashuProvider, validateSkillMetadata } from "./design-provider.js";
 
 import { getProjectRuntimeManifest, getSourceRuntimeManifest, runtimeManifestIsCurrent } from "./project-runtime.js";
 import { DESIGN_PIPELINE_VERSION, RELEASE_VERSION } from "./release-manifest.js";
@@ -9,13 +11,29 @@ import {
   EDITOR_RUNTIME_VERSION
 } from "./version-manifest.js";
 
-export async function diagnoseInstallation({ packageRoot, executablePath, commandSourcePath = executablePath, projectDir = null }) {
+export async function diagnoseInstallation({ packageRoot, executablePath, commandSourcePath = executablePath, projectDir = null, browserProbe = probeDesignBrowser }) {
   const absolutePackageRoot = path.resolve(packageRoot);
   const absoluteExecutablePath = path.resolve(executablePath);
   const checks = {
     node20: Number.parseInt(process.versions.node.split(".")[0], 10) >= 20,
-    bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "EDIT-HTML", "SKILL.md"))
+    bundledSkill: await exists(path.join(absolutePackageRoot, "skills", "edit-html", "SKILL.md"))
   };
+  const basicReady = Object.values(checks).every(Boolean);
+  const errors = [];
+  let huashuProvider = null;
+  try {
+    const metadata = await validateSkillMetadata(path.join(absolutePackageRoot, "skills", "edit-html", "SKILL.md"));
+    checks.skillSchema = metadata.name === "edit-html" && metadata.version === RELEASE_VERSION;
+    if (!checks.skillSchema) errors.push("Skill metadata does not match this release; reinstall with npm run install:local");
+  } catch (error) { checks.skillSchema = false; errors.push(`Skill schema: ${error.message}`); }
+  try { huashuProvider = await resolveHuashuProvider({ packageRoot: absolutePackageRoot }); checks.huashuBundle = true; }
+  catch (error) { checks.huashuBundle = false; errors.push(`Bundled Huashu is missing or damaged; reinstall V5.5. ${error.message}`); }
+  try { await import("playwright"); checks.playwrightRuntime = true; }
+  catch (error) { checks.playwrightRuntime = false; errors.push(`Playwright runtime missing; reinstall V5.5. ${error.message}`); }
+  const browser = await browserProbe();
+  checks.browserLaunch = browser.ready === true;
+  if (!checks.browserLaunch) errors.push(browser.error ?? "Browser launch probe failed; run edit-html-report setup browser");
+  const workflowReady = basicReady && Object.values(checks).every(Boolean);
   const warnings = [];
   if (!await commandSourceBelongsToPackage(commandSourcePath, absolutePackageRoot)) {
     warnings.push("resolved edit-html-report command points to another checkout");
@@ -37,8 +55,13 @@ export async function diagnoseInstallation({ packageRoot, executablePath, comman
   }
 
   return {
-    ok: Object.values(checks).every(Boolean) && warnings.length === 0,
+    ok: workflowReady && warnings.length === 0,
+    basicReady,
+    workflowReady,
     checks,
+    errors,
+    huashuProvider,
+    browser,
     releaseVersion: RELEASE_VERSION,
     toolVersion: RELEASE_VERSION,
     pipelineVersion: DESIGN_PIPELINE_VERSION,

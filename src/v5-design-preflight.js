@@ -117,8 +117,8 @@ export async function checkFinalSiteInBrowser(siteDir, options = {}) {
     errors.push(issue("invalid-interaction-selector", "design-process.json requires coreInteraction.selector"));
     return { errors, warnings, checks };
   }
-  const playwright = options.playwright ?? await import("playwright");
-  const browser = await playwright.chromium.launch({ headless: true });
+  const { launchDesignBrowser } = await import("./browser-runtime.js");
+  const { browser } = await launchDesignBrowser({ playwright: options.playwright });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(pathToFileURL(path.join(siteDir, "index.html")).href, { waitUntil: "load" });

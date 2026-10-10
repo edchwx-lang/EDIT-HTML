@@ -1,0 +1,4 @@
+interface:
+  display_name: "EDIT-HTML V5.5.0"
+  short_description: "Turn source documents into Huashu-designed editable reports"
+  default_prompt: "Use $edit-html V5.5 with its bundled Huashu provider to extract a Source Pack, ask only content questions, let Huashu own design, run preflight before attestation, wait for screenshot selection, and open the unchanged V5.4.0 editor."
