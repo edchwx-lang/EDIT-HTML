@@ -4,11 +4,11 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("published skill documents the V5.4.1 autonomous Huashu preflight boundary", async () => {
-  const skill = await readFile(new URL("skills/EDIT-HTML/SKILL.md", root), "utf8");
-  const agent = await readFile(new URL("skills/EDIT-HTML/agents/openai.yaml", root), "utf8");
+test("published skill documents the V5.5.0 autonomous Huashu preflight boundary", async () => {
+  const skill = await readFile(new URL("skills/edit-html/SKILL.md", root), "utf8");
+  const agent = await readFile(new URL("skills/edit-html/agents/openai.yaml", root), "utf8");
 
-  assert.match(skill, /EDIT-HTML V5\.4\.1/);
+  assert.match(skill, /EDIT-HTML V5\.5\.0/);
   assert.match(skill, /design huashu begin/);
   assert.match(skill, /design huashu attest/);
   assert.match(skill, /owner: huashu-design.+not evidence/is);
@@ -42,7 +42,7 @@ test("published skill documents the V5.4.1 autonomous Huashu preflight boundary"
   assert.doesNotMatch(skill, /data-first.*evidence-first|evidence-first.*data-first/is);
   assert.doesNotMatch(skill, /confirm the design and theme|确认设计与配色/i);
 
-  assert.match(agent, /V5\.4\.1/);
+  assert.match(agent, /V5\.5\.0/);
   assert.match(agent, /Huashu/i);
   assert.doesNotMatch(agent, /V4\.[0-9]/);
 });
@@ -56,7 +56,7 @@ test("V5 references expose source, interview, actual-site and migration contract
     "migration.md",
   ];
   const documents = await Promise.all(
-    files.map((file) => readFile(new URL(`skills/EDIT-HTML/references/${file}`, root), "utf8")),
+    files.map((file) => readFile(new URL(`skills/edit-html/references/${file}`, root), "utf8")),
   );
   const combined = documents.join("\n");
 

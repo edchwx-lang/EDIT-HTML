@@ -82,7 +82,7 @@ export async function prepareV5HuashuInput(projectDir, variantId) {
   const project = JSON.parse(await readFile(path.join(projectDir, "project.json"), "utf8"));
   const interview = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "interview.json"), "utf8"));
   validateInterview(interview, variantId, { requireEvidence: requiresV511Gates(variant) });
-  const v541AutonomousDesign = variant.releaseVersion === "5.4.1" && variant.pipelineVersion === "5.4.1";
+  const v541AutonomousDesign = ["5.4.1", "5.5.0"].includes(variant.releaseVersion) && variant.pipelineVersion === variant.releaseVersion;
   const strategySelection = !v541AutonomousDesign && variant.referenceMode === "provided"
     ? "one-reference-guided-sample"
     : "three-executable-samples";

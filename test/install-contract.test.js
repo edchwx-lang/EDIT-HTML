@@ -14,9 +14,9 @@ test("installation contract compares shim, package, Skill, runtime, and source h
   const sandbox = await mkdtemp(path.join(os.tmpdir(), "edit-html-install-contract-"));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const installedRoot = path.join(sandbox, "prefix", "node_modules", "edit-html-report");
-  const skillRoot = path.join(sandbox, "skills", "EDIT-HTML");
+  const skillRoot = path.join(sandbox, "skills", "edit-html");
   await copyPackagePayload(root, installedRoot);
-  await cp(path.join(root, "skills", "EDIT-HTML"), skillRoot, { recursive: true });
+  await cp(path.join(root, "skills", "edit-html"), skillRoot, { recursive: true });
   const shimPath = path.join(sandbox, "prefix", "edit-html-report.cmd");
   await writeFile(shimPath, `@ECHO off\r\nnode "${path.join(installedRoot, "bin", "edit-html-report.js")}" %*\r\n`, "utf8");
 
@@ -26,8 +26,9 @@ test("installation contract compares shim, package, Skill, runtime, and source h
     skillRoot,
     shimPath,
     doctor: async () => ({
-      toolVersion: "5.4.1",
-      pipelineVersion: "5.4.1",
+      workflowReady: true,
+      toolVersion: "5.5.0",
+      pipelineVersion: "5.5.0",
       artifactContractVersion: "5.4.0",
       editorRuntimeVersion: "5.4.0",
       executablePath: path.join(installedRoot, "bin", "edit-html-report.js"),
@@ -54,7 +55,7 @@ test("installation contract fails when package, Skill, or version authority disa
   const installedRoot = path.join(sandbox, "installed");
   const skillRoot = path.join(sandbox, "skill");
   await copyPackagePayload(root, installedRoot);
-  await cp(path.join(root, "skills", "EDIT-HTML"), skillRoot, { recursive: true });
+  await cp(path.join(root, "skills", "edit-html"), skillRoot, { recursive: true });
   const packageJson = JSON.parse(await readFile(path.join(installedRoot, "package.json"), "utf8"));
   packageJson.version = "5.2.1";
   await writeFile(path.join(installedRoot, "package.json"), JSON.stringify(packageJson), "utf8");
@@ -87,6 +88,11 @@ test("local installer tests before updating temporary npm and Skill targets", as
   await writeFile(mockNpm, [
     "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Remaining)",
     "Add-Content -LiteralPath $env:EDIT_HTML_MOCK_NPM_LOG -Value ($Remaining -join ' ')",
+    "if ($Remaining[0] -eq 'pack') {",
+    "  $destination = $Remaining[3]",
+    "  New-Item -ItemType File -Path (Join-Path $destination 'edit-html-report-5.5.0.tgz') | Out-Null",
+    "  Write-Output '[{\"filename\":\"edit-html-report-5.5.0.tgz\"}]'",
+    "}",
     "exit 0"
   ].join("\n"), "utf8");
 
@@ -103,14 +109,18 @@ test("local installer tests before updating temporary npm and Skill targets", as
     cwd: root,
     encoding: "utf8",
     env: { ...process.env, EDIT_HTML_MOCK_NPM_LOG: npmLog },
-    timeout: 30000
+    timeout: 120000
   });
 
   assert.equal(installed.status, 0, installed.stderr);
   const calls = (await readFile(npmLog, "utf8")).trim().split(/\r?\n/);
-  assert.deepEqual(calls, ["test", `install --global ${root} --prefix ${prefix}`]);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0], "test");
+  assert.match(calls[1], /^pack --json --pack-destination /);
+  assert.match(calls[2], /install --global .*edit-html-report-5\.5\.0\.tgz --prefix /);
+  assert.ok(calls[2].endsWith(prefix));
   assert.match(installed.stdout, new RegExp(escapeRegExp(path.resolve(root))));
-  assert.match(await readFile(path.join(skillRoot, "EDIT-HTML", "SKILL.md"), "utf8"), /^# EDIT-HTML V5\.4\.1$/m);
+  assert.match(await readFile(path.join(skillRoot, "EDIT-HTML", "SKILL.md"), "utf8"), /^# EDIT-HTML V5\.5\.0$/m);
 });
 
 test("a failed npm test leaves temporary package and Skill targets untouched", async (t) => {

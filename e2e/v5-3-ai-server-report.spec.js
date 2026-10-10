@@ -42,7 +42,7 @@ const cliPath = path.join(packageRoot, "bin", "edit-html-report.js");
 const acceptanceSource = "C:\\Users\\edchw\\Documents\\edit-ppt\\AI服务器报告-v520-verify-20260805\\source\\AI服务器报告.docx";
 const versionFields = ["releaseVersion", "toolVersion", "pipelineVersion", "artifactContractVersion", "editorRuntimeVersion"];
 
-test("V5.4.1 tool preserves a V5.4.0 AI server artifact through editor and publication", async ({ page }, testInfo) => {
+test("V5.5 tool preserves a V5.4.0 AI server artifact through editor and publication", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const acceptanceRoot = path.join(os.tmpdir(), "edit-html-v53-ai-server-acceptance");
   let sourceCopy = path.join(acceptanceRoot, "source", "AI服务器报告.docx");
@@ -108,15 +108,16 @@ test("V5.4.1 tool preserves a V5.4.0 AI server artifact through editor and publi
     const doctor = await timed(timings, "doctorMs", async () => {
       const { stdout } = await execFileAsync(process.execPath, [cliPath, "doctor", "--project", projectDir, "--json"], {
         cwd: packageRoot,
+        env: { ...process.env, PATH: path.join(packageRoot, "bin") + path.delimiter + process.env.PATH },
         windowsHide: true
       });
       return JSON.parse(stdout);
     });
     expect(doctor.ok, doctor.warnings.join("; ")).toBe(true);
     expect(doctor.runtimeStatus).toBe("current");
-    expect(doctor.releaseVersion).toBe("5.4.1");
-    expect(doctor.toolVersion).toBe("5.4.1");
-    expect(doctor.pipelineVersion).toBe("5.4.1");
+    expect(doctor.releaseVersion).toBe("5.5.0");
+    expect(doctor.toolVersion).toBe("5.5.0");
+    expect(doctor.pipelineVersion).toBe("5.5.0");
     expect(doctor.artifactContractVersion).toBe("5.4.0");
     expect(doctor.editorRuntimeVersion).toBe("5.4.0");
     expect(JSON.stringify(doctor)).not.toContain("4.0.0");
@@ -169,9 +170,7 @@ test("V5.4.1 tool preserves a V5.4.0 AI server artifact through editor and publi
       outputSha256: prepared.inputReceipt.outputSha256,
       files: inputFiles
     };
-    const huashuSkillPath = path.join(acceptanceRoot, "huashu-design-SKILL.md");
-    await writeFile(huashuSkillPath, "---\nname: huashu-design\n---\n# Huashu acceptance fixture\n", "utf8");
-    await beginHuashuDesign(projectDir, variant.variantId, "candidate", { skillPath: huashuSkillPath });
+    await beginHuashuDesign(projectDir, variant.variantId, "candidate");
 
     const ledger = await readJson(path.join(projectDir, "source-pack", "fact-ledger.json"));
     const sourceMap = await readJson(path.join(projectDir, "source-pack", "source-map.json"));
@@ -263,7 +262,7 @@ test("V5.4.1 tool preserves a V5.4.0 AI server artifact through editor and publi
     expect(selection.candidateId).toBe(selectedCandidateId);
     evidence.selection = selection;
 
-    await beginHuashuDesign(projectDir, variant.variantId, "final", { skillPath: huashuSkillPath });
+    await beginHuashuDesign(projectDir, variant.variantId, "final");
     const finalSourceDir = await timed(timings, "finalSiteAuthoringMs", () => writeFinalSite({
       page,
       root: packageSources,

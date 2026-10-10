@@ -4,12 +4,13 @@ import path from "node:path";
 
 import { writeJsonAtomic } from "./io.js";
 import { requireHuashuInputManifest } from "./v5-stage-boundary.js";
+import { resolveHuashuProvider } from "./design-provider.js";
 
 const RECEIPT_FILE = "huashu-execution-receipt.json";
 
 export async function beginHuashuDesign(projectDir, variantId, kind, { skillPath } = {}) {
   assertKind(kind);
-  if (!skillPath) throw new Error("Huashu design begin requires --skill pointing to huashu-design/SKILL.md");
+  skillPath ??= (await resolveHuashuProvider()).skillPath;
   const skillText = await readFile(path.resolve(skillPath), "utf8");
   if (!/^name:\s*huashu-design\s*$/m.test(skillText)) throw new Error("design provider skill must declare name: huashu-design");
   const input = await requireHuashuInputManifest(projectDir, variantId);
@@ -51,13 +52,13 @@ export async function attestHuashuDesignOutput(projectDir, variantId, kind, sour
   const invocation = await readInvocation(projectDir, variantId, kind);
   const manifest = JSON.parse(await readFile(path.join(sourceDir, "manifest.json"), "utf8"));
   const variant = JSON.parse(await readFile(path.join(projectDir, "variants", variantId, "variant.json"), "utf8"));
-  if (variant.releaseVersion === "5.4.1" && variant.pipelineVersion === "5.4.1") {
+  if (["5.4.1", "5.5.0"].includes(variant.releaseVersion) && variant.pipelineVersion === variant.releaseVersion) {
     const preflight = await import("./v5-design-preflight.js");
     const result = kind === "candidate"
       ? await preflight.preflightV5CandidateSet(projectDir, variantId, path.dirname(sourceDir))
       : await preflight.preflightV5FinalSite(projectDir, variantId, sourceDir);
     if (!result.valid) {
-      throw new Error(`Huashu ${kind} attestation requires a successful V5.4.1 preflight: ${result.errors.map((item) => item.message).join("; ")}`);
+      throw new Error(`Huashu ${kind} attestation requires a successful V${variant.pipelineVersion} preflight: ${result.errors.map((item) => item.message).join("; ")}`);
     }
   }
   if (manifest.kind !== kind) throw new Error(`Huashu ${kind} attestation cannot seal a ${manifest.kind ?? "unknown"} package`);

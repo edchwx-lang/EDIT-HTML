@@ -6,6 +6,7 @@ import { realpathSync } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateSkillMetadata } from "../src/design-provider.js";
 
 export async function verifyInstallationContract({ sourceRoot, packageRoot, skillRoot, shimPath, doctor = null }) {
   const resolvedSourceRoot = path.resolve(sourceRoot);
@@ -22,7 +23,7 @@ export async function verifyInstallationContract({ sourceRoot, packageRoot, skil
     readSkillVersion(path.join(resolvedSkillRoot, "SKILL.md")),
     hashPackagePayload(resolvedSourceRoot),
     hashPackagePayload(resolvedPackageRoot),
-    hashDirectory(path.join(resolvedSourceRoot, "skills", "EDIT-HTML")),
+    hashDirectory(path.join(resolvedSourceRoot, "skills", "edit-html")),
     hashDirectory(resolvedSkillRoot)
   ]);
   const expectedVersion = sourcePackage.version;
@@ -136,9 +137,8 @@ async function readReleaseManifest(filePath) {
 }
 
 async function readSkillVersion(skillPath) {
-  const contents = await readFile(skillPath, "utf8");
-  return contents.match(/^version:\s*["']?([^\s"']+)/m)?.[1] ??
-    contents.match(/^#\s+(?:EDIT-HTML|Edit HTML Report) V([^\s]+)/m)?.[1] ?? null;
+  try { return (await validateSkillMetadata(skillPath)).version; }
+  catch { return null; }
 }
 
 async function resolveShimTarget(shimPath) {
@@ -158,12 +158,12 @@ function runDoctorJson(executablePath, shimPath) {
     PATH: path.dirname(shimPath) + path.delimiter + (process.env.PATH ?? "")
   };
   const result = spawnSync(process.execPath, [executablePath, "doctor", "--json"], { encoding: "utf8", env: environment });
-  if (result.status !== 0) throw new Error(`doctor failed: ${result.stderr.trim()}`);
+  if (result.status !== 0) throw new Error(`doctor failed: ${result.stderr.trim()} ${result.stdout.trim()}`);
   return JSON.parse(result.stdout);
 }
 
 function doctorMatches(doctor, packageRoot, executablePath, versions) {
-  return doctor.ok !== false &&
+  return doctor.ok !== false && doctor.workflowReady === true &&
     samePath(doctor.packageRoot, packageRoot) &&
     samePath(doctor.executablePath, executablePath) &&
     doctor.toolVersion === versions.toolVersion &&
